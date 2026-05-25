@@ -1,0 +1,18 @@
+[package]
+name = "zelkova-search"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["tantivy"]
+tantivy = ["dep:tantivy"]
+
+[dependencies]
+serde = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+zelkova-note-core = { path = "../note_core" }
+tantivy = { version = "0.25", optional = true }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,23 @@
+[package]
+name = "zelkova-gui"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "zelkova"
+path = "src/main.rs"
+
+[dependencies]
+gpui = "0.2"
+serde = { workspace = true }
+serde_yaml = "0.9"
+anyhow = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+zelkova-config = { path = "../config" }
+zelkova-note-core = { path = "../note_core" }
+zelkova-rpc = { path = "../rpc" }
+zelkova-rope = { path = "../rope" }
+zelkova-markdown = { path = "../markdown" }
+zelkova-highlight = { path = "../highlight" }

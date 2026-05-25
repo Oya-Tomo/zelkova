@@ -1,0 +1,23 @@
+[workspace]
+members = [
+    "crates/gui",
+    "crates/daemon",
+    "crates/cli",
+    "crates/markdown",
+    "crates/search",
+    "crates/note_core",
+    "crates/rpc",
+    "crates/config",
+    "crates/rope",
+    "crates/highlight",
+]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["full"] }
