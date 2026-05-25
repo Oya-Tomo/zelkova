@@ -104,12 +104,12 @@ impl RpcClient {
 
     pub fn create_note(
         &self,
-        title: &str,
+        title: Option<&str>,
         directory: Option<&str>,
         tags: Vec<String>,
     ) -> Result<CreateNoteResult> {
         let params = CreateNoteParams {
-            title: title.to_string(),
+            title: title.map(String::from),
             directory: directory.map(String::from),
             tags,
         };

@@ -170,7 +170,7 @@ impl ZelkovaApp {
     fn handle_create_note(&mut self, _: &CreateNote, _window: &mut Window, cx: &mut Context<Self>) {
         if self.config.daemon.socket_path.exists() {
             let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-            if let Ok(result) = client.create_note("New Note", None, Vec::new()) {
+            if let Ok(result) = client.create_note(None, None, Vec::new()) {
                 let path = result.path.clone();
                 // Add to local list directly instead of re-fetching
                 self.notes.push(NoteEntry {
@@ -240,14 +240,24 @@ impl Render for ZelkovaApp {
                 } else {
                     sidebar_bg
                 };
+                let display_title = if note.title.is_empty() {
+                    "Untitled"
+                } else {
+                    &note.title
+                };
+                let title_color = if note.title.is_empty() {
+                    text_dim
+                } else {
+                    text
+                };
                 div()
                     .px_3()
                     .py_1()
                     .bg(note_bg)
-                    .text_color(text)
+                    .text_color(title_color)
                     .text_xs()
                     .cursor(gpui::CursorStyle::PointingHand)
-                    .child(note.title.clone())
+                    .child(display_title.to_string())
                     .on_mouse_down(
                         gpui::MouseButton::Left,
                         cx.listener(move |this, _event, _window, cx| {

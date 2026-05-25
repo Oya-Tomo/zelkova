@@ -85,6 +85,10 @@ impl Editor {
             None => (None, raw),
         };
         let cached_lines = split_lines(&body);
+        let edit_zone = match &frontmatter {
+            Some(fm) if fm.title.is_empty() => EditZone::Title,
+            _ => EditZone::Content,
+        };
         Ok(Self {
             focus_handle: cx.focus_handle(),
             buffer: Buffer::from(&body),
@@ -100,7 +104,7 @@ impl Editor {
             frontmatter,
             tag_input: String::new(),
             tag_input_visible: false,
-            edit_zone: EditZone::Content,
+            edit_zone,
             title_cursor: 0,
             cached_highlights: Vec::new(),
             highlights_dirty: false,
@@ -626,11 +630,16 @@ impl Editor {
                             }),
                     );
             } else {
+                let title_color = if title.is_empty() {
+                    rgb(0xa6adc8)
+                } else {
+                    rgb(0xcdd6f4)
+                };
                 container = container.child(
                     div()
                         .text_xl()
                         .font_weight(gpui::FontWeight::BOLD)
-                        .text_color(rgb(0xcdd6f4))
+                        .text_color(title_color)
                         .child(if title.is_empty() {
                             "Untitled".to_string()
                         } else {

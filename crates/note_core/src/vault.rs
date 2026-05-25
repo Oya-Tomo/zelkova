@@ -37,7 +37,7 @@ impl Vault {
 
     pub fn create_note(
         &self,
-        title: &str,
+        title: Option<&str>,
         parent_dir: Option<&Path>,
         tags: HashSet<String>,
     ) -> Result<Note> {
@@ -52,14 +52,14 @@ impl Vault {
         let now = Utc::now();
         let frontmatter = Frontmatter {
             id,
-            title: title.to_string(),
+            title: title.unwrap_or("").to_string(),
             tags,
             created: now,
             updated: now,
         };
 
-        let filename = sanitize_filename(title);
-        let path = dir.join(format!("{filename}.md"));
+        let filename = format!("{id}.md");
+        let path = dir.join(&filename);
         let content = format_note_file(&frontmatter, "");
         fs::write(&path, &content)
             .with_context(|| format!("failed to write note to {}", path.display()))?;
@@ -123,15 +123,6 @@ impl Vault {
     }
 }
 
-fn sanitize_filename(title: &str) -> String {
-    title
-        .replace('/', "-")
-        .replace('\0', "")
-        .chars()
-        .take(128)
-        .collect()
-}
-
 fn parse_frontmatter(content: &str) -> Result<(Frontmatter, String)> {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
@@ -163,8 +154,37 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn sanitize_filename_replaces_slashes() {
-        assert_eq!(sanitize_filename("a/b/c"), "a-b-c");
+    fn vault_create_with_empty_title() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+
+        let note = vault.create_note(None, None, HashSet::new()).unwrap();
+        assert!(note.path.exists());
+        assert_eq!(note.frontmatter.title, "");
+
+        let notes = vault.list_notes().unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].frontmatter.title, "");
+    }
+
+    #[test]
+    fn vault_create_no_duplicate_filenames() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+
+        let note1 = vault
+            .create_note(Some("Same Title"), None, HashSet::new())
+            .unwrap();
+        let note2 = vault
+            .create_note(Some("Same Title"), None, HashSet::new())
+            .unwrap();
+
+        assert_ne!(note1.path, note2.path, "UUID filenames must differ");
+        assert!(note1.path.exists());
+        assert!(note2.path.exists());
+
+        let notes = vault.list_notes().unwrap();
+        assert_eq!(notes.len(), 2);
     }
 
     #[test]
@@ -210,9 +230,21 @@ mod tests {
 
         let mut tags = HashSet::new();
         tags.insert("demo".to_string());
-        let note = vault.create_note("Test Note", None, tags).unwrap();
+        let note = vault.create_note(Some("Test Note"), None, tags).unwrap();
 
         assert!(note.path.exists());
+        assert!(
+            note.path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with(".md")
+        );
+        assert_ne!(
+            note.path.file_stem().unwrap(),
+            "Test Note",
+            "filename should be UUID, not title"
+        );
 
         let notes = vault.list_notes().unwrap();
         assert_eq!(notes.len(), 1);
@@ -228,7 +260,7 @@ mod tests {
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
         let note = vault
-            .create_note("Sub Note", Some(Path::new("sub/dir")), HashSet::new())
+            .create_note(Some("Sub Note"), Some(Path::new("sub/dir")), HashSet::new())
             .unwrap();
 
         assert!(note.path.to_string_lossy().contains("sub/dir"));
@@ -244,7 +276,7 @@ mod tests {
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
         let note = vault
-            .create_note("To Delete", None, HashSet::new())
+            .create_note(Some("To Delete"), None, HashSet::new())
             .unwrap();
         let rel = note
             .path
