@@ -173,7 +173,7 @@ impl ZelkovaApp {
     fn handle_create_note(&mut self, _: &CreateNote, _window: &mut Window, cx: &mut Context<Self>) {
         if self.config.daemon.socket_path.exists() {
             let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-            if let Ok(result) = client.create_note(None, None, Vec::new()) {
+            if let Ok(result) = client.create_note(None, Vec::new()) {
                 let path = result.path.clone();
                 // Add to local list directly instead of re-fetching
                 self.notes.push(NoteEntry {

@@ -53,14 +53,9 @@ pub fn show(client: &RpcClient, id: &Uuid) -> Result<()> {
     Ok(())
 }
 
-pub fn create(
-    client: &RpcClient,
-    title: Option<&str>,
-    directory: Option<&str>,
-    tags: Vec<String>,
-) -> Result<()> {
+pub fn create(client: &RpcClient, title: Option<&str>, tags: Vec<String>) -> Result<()> {
     let result = client
-        .create_note(title, directory, tags)
+        .create_note(title, tags)
         .context("create_note failed")?;
     println!("Created note: {}", result.id);
     let display_title = if result.title.is_empty() {
