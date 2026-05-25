@@ -68,8 +68,12 @@ impl ResolvedColors {
 #[derive(Debug, Clone)]
 pub enum BlockContext {
     Normal,
-    Heading { level: u8 },
-    ListItem { marker_len: usize },
+    Heading {
+        level: u8,
+    },
+    ListItem {
+        marker_len: usize,
+    },
     BlockQuote,
     CodeBlock {
         #[allow(dead_code)]
@@ -107,7 +111,9 @@ pub fn detect_line_context(line: &str, in_code_block: bool) -> BlockContext {
     }
 
     if line.starts_with('|') {
-        let is_sep = line.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t');
+        let is_sep = line
+            .chars()
+            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t');
         if is_sep && line.contains('-') {
             return BlockContext::TableSeparator;
         }
@@ -122,7 +128,9 @@ pub fn detect_line_context(line: &str, in_code_block: bool) -> BlockContext {
 
     if let Some(dot_pos) = line.find(". ") {
         if dot_pos > 0 && line[..dot_pos].chars().all(|c| c.is_ascii_digit()) {
-            return BlockContext::ListItem { marker_len: dot_pos + 2 };
+            return BlockContext::ListItem {
+                marker_len: dot_pos + 2,
+            };
         }
     }
 
@@ -242,7 +250,13 @@ pub fn highlight_line(
                     highlights.extend(ihl);
                     image_url = imgs.into_iter().next();
                 }
-                return HighlightedLine { highlights, image_url, line_height, heading_level: Some(*level), line_bg: None };
+                return HighlightedLine {
+                    highlights,
+                    image_url,
+                    line_height,
+                    heading_level: Some(*level),
+                    line_bg: None,
+                };
             }
         }
         BlockContext::ListItem { marker_len } => {
@@ -253,7 +267,11 @@ pub fn highlight_line(
         }
         BlockContext::BlockQuote => {
             if line.starts_with('>') {
-                let end = if line.len() > 1 && line.as_bytes()[1] == b' ' { 2 } else { 1 };
+                let end = if line.len() > 1 && line.as_bytes()[1] == b' ' {
+                    2
+                } else {
+                    1
+                };
                 highlights.push((0..end, HighlightStyle::color(colors.quote_fg)));
                 if end < line.len() {
                     highlights.push((
@@ -271,7 +289,10 @@ pub fn highlight_line(
             return HighlightedLine {
                 highlights: vec![(
                     0..line.len().max(1),
-                    HighlightStyle { color: Some(colors.code_fg), ..Default::default() },
+                    HighlightStyle {
+                        color: Some(colors.code_fg),
+                        ..Default::default()
+                    },
                 )],
                 image_url: None,
                 line_height: DEFAULT_LINE_HEIGHT,
@@ -283,7 +304,10 @@ pub fn highlight_line(
             return HighlightedLine {
                 highlights: vec![(
                     0..line.len().max(1),
-                    HighlightStyle { fade_out: Some(0.5), ..Default::default() },
+                    HighlightStyle {
+                        fade_out: Some(0.5),
+                        ..Default::default()
+                    },
                 )],
                 image_url: None,
                 line_height: DEFAULT_LINE_HEIGHT,
@@ -292,7 +316,10 @@ pub fn highlight_line(
             };
         }
         BlockContext::TableRow => {
-            let dim_pipe = HighlightStyle { color: Some(colors.quote_fg), ..Default::default() };
+            let dim_pipe = HighlightStyle {
+                color: Some(colors.quote_fg),
+                ..Default::default()
+            };
             let mut i = 0;
             let bytes = line.as_bytes();
             while i < bytes.len() {
@@ -312,7 +339,10 @@ pub fn highlight_line(
                             let trim_end = i - cell.trim_end().len();
                             highlights.push((
                                 trim_start..trim_end,
-                                HighlightStyle { color: Some(colors.text_dim), ..Default::default() },
+                                HighlightStyle {
+                                    color: Some(colors.text_dim),
+                                    ..Default::default()
+                                },
                             ));
                         }
                     }
@@ -321,7 +351,13 @@ pub fn highlight_line(
             let (ihl, imgs) = scan_inline(line, 0, colors);
             highlights.extend(ihl);
             image_url = imgs.into_iter().next();
-            return HighlightedLine { highlights, image_url, line_height: DEFAULT_LINE_HEIGHT, heading_level: None, line_bg: None };
+            return HighlightedLine {
+                highlights,
+                image_url,
+                line_height: DEFAULT_LINE_HEIGHT,
+                heading_level: None,
+                line_bg: None,
+            };
         }
         BlockContext::Normal => {}
     }
@@ -329,7 +365,13 @@ pub fn highlight_line(
     let skip = match context {
         BlockContext::ListItem { marker_len } => (*marker_len).min(line.len()),
         BlockContext::BlockQuote => {
-            if line.starts_with("> ") { 2 } else if line.starts_with('>') { 1 } else { 0 }
+            if line.starts_with("> ") {
+                2
+            } else if line.starts_with('>') {
+                1
+            } else {
+                0
+            }
         }
         _ => 0,
     };
@@ -340,7 +382,13 @@ pub fn highlight_line(
         image_url = imgs.into_iter().next();
     }
 
-    HighlightedLine { highlights, image_url, line_height, heading_level: None, line_bg: None }
+    HighlightedLine {
+        highlights,
+        image_url,
+        line_height,
+        heading_level: None,
+        line_bg: None,
+    }
 }
 
 /// Create a marker style: content color with fade_out.
@@ -364,9 +412,7 @@ fn scan_inline(
 
     while i < bytes.len() {
         // Bold **text** or __text__
-        if (bytes[i] == b'*' || bytes[i] == b'_')
-            && i + 1 < bytes.len()
-            && bytes[i + 1] == bytes[i]
+        if (bytes[i] == b'*' || bytes[i] == b'_') && i + 1 < bytes.len() && bytes[i + 1] == bytes[i]
         {
             let marker = bytes[i];
             if let Some(end) = find_closing_double(bytes, i + 2, marker) {
@@ -374,7 +420,10 @@ fn scan_inline(
                 highlights.push((offset + i..offset + i + 2, ms.clone()));
                 highlights.push((
                     offset + i + 2..offset + end,
-                    HighlightStyle { color: Some(colors.bold_fg), ..Default::default() },
+                    HighlightStyle {
+                        color: Some(colors.bold_fg),
+                        ..Default::default()
+                    },
                 ));
                 highlights.push((offset + end..offset + end + 2, ms));
                 i = end + 2;
@@ -416,7 +465,10 @@ fn scan_inline(
                 highlights.push((offset + i..offset + i + 1, ms.clone()));
                 highlights.push((
                     offset + i + 1..offset + end,
-                    HighlightStyle { color: Some(colors.italic_fg), ..Default::default() },
+                    HighlightStyle {
+                        color: Some(colors.italic_fg),
+                        ..Default::default()
+                    },
                 ));
                 highlights.push((offset + end..offset + end + 1, ms));
                 i = end + 1;
@@ -452,7 +504,10 @@ fn scan_inline(
             if let Some((url, end)) = parse_image(bytes, i + 2) {
                 highlights.push((
                     offset + i..offset + end,
-                    HighlightStyle { color: Some(colors.image_marker), ..Default::default() },
+                    HighlightStyle {
+                        color: Some(colors.image_marker),
+                        ..Default::default()
+                    },
                 ));
                 image_urls.push(url);
                 i = end;
@@ -542,27 +597,47 @@ fn find_closing_backticks(bytes: &[u8], start: usize, count: usize) -> Option<us
 
 fn parse_image(bytes: &[u8], start: usize) -> Option<(String, usize)> {
     let mut i = start;
-    while i < bytes.len() && bytes[i] != b']' { i += 1; }
-    if i >= bytes.len() { return None; }
+    while i < bytes.len() && bytes[i] != b']' {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
     i += 1; // skip ]
-    if i >= bytes.len() || bytes[i] != b'(' { return None; }
+    if i >= bytes.len() || bytes[i] != b'(' {
+        return None;
+    }
     i += 1; // skip (
     let url_start = i;
-    while i < bytes.len() && bytes[i] != b')' { i += 1; }
-    if i >= bytes.len() { return None; }
+    while i < bytes.len() && bytes[i] != b')' {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
     let url = String::from_utf8_lossy(&bytes[url_start..i]).to_string();
     Some((url, i + 1))
 }
 
 fn parse_link(bytes: &[u8], start: usize) -> Option<usize> {
     let mut i = start;
-    while i < bytes.len() && bytes[i] != b']' { i += 1; }
-    if i >= bytes.len() { return None; }
+    while i < bytes.len() && bytes[i] != b']' {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
     i += 1; // skip ]
-    if i >= bytes.len() || bytes[i] != b'(' { return None; }
+    if i >= bytes.len() || bytes[i] != b'(' {
+        return None;
+    }
     i += 1; // skip (
-    while i < bytes.len() && bytes[i] != b')' { i += 1; }
-    if i >= bytes.len() { return None; }
+    while i < bytes.len() && bytes[i] != b')' {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
     Some(i + 1)
 }
 
@@ -607,17 +682,26 @@ mod tests {
 
     #[test]
     fn detect_blockquote() {
-        assert!(matches!(detect_line_context("> quote", false), BlockContext::BlockQuote));
+        assert!(matches!(
+            detect_line_context("> quote", false),
+            BlockContext::BlockQuote
+        ));
     }
 
     #[test]
     fn detect_code_block() {
-        assert!(matches!(detect_line_context("code here", true), BlockContext::CodeBlock { .. }));
+        assert!(matches!(
+            detect_line_context("code here", true),
+            BlockContext::CodeBlock { .. }
+        ));
     }
 
     #[test]
     fn detect_normal() {
-        assert!(matches!(detect_line_context("just text", false), BlockContext::Normal));
+        assert!(matches!(
+            detect_line_context("just text", false),
+            BlockContext::Normal
+        ));
     }
 
     #[test]
@@ -648,7 +732,11 @@ mod tests {
     #[test]
     fn highlight_inline_code() {
         let hl = highlight_line("use `code` here", &BlockContext::Normal, &colors());
-        assert!(hl.highlights.iter().any(|(_, s)| s.background_color.is_some()));
+        assert!(
+            hl.highlights
+                .iter()
+                .any(|(_, s)| s.background_color.is_some())
+        );
     }
 
     #[test]
@@ -669,8 +757,16 @@ mod tests {
 
     #[test]
     fn highlight_code_block_no_inline() {
-        let hl = highlight_line("**bold**", &BlockContext::CodeBlock { language: None }, &colors());
-        assert!(hl.highlights.iter().all(|(_, s)| s.font_weight.is_none() && s.font_style.is_none()));
+        let hl = highlight_line(
+            "**bold**",
+            &BlockContext::CodeBlock { language: None },
+            &colors(),
+        );
+        assert!(
+            hl.highlights
+                .iter()
+                .all(|(_, s)| s.font_weight.is_none() && s.font_style.is_none())
+        );
     }
 
     #[test]

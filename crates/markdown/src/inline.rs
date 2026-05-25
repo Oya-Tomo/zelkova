@@ -14,7 +14,11 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
             i += 2;
             continue;
         }
-        if chars[i] == ' ' && i + 1 < chars.len() && chars[i] == ' ' && text[i..].starts_with("  \n") {
+        if chars[i] == ' '
+            && i + 1 < chars.len()
+            && chars[i] == ' '
+            && text[i..].starts_with("  \n")
+        {
             result.push(Inline::HardBreak);
             i += 3;
             continue;
@@ -78,7 +82,11 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
         // Image (![alt](url))
         if chars[i] == '!' && i + 1 < chars.len() && chars[i + 1] == '[' {
             if let Some((alt, url, end)) = parse_link_or_image(&chars, i + 2, true) {
-                result.push(Inline::Image { alt, url, title: None });
+                result.push(Inline::Image {
+                    alt,
+                    url,
+                    title: None,
+                });
                 i = end;
                 continue;
             }
@@ -88,7 +96,11 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
         if chars[i] == '[' {
             if let Some((text, url, end)) = parse_link_or_image(&chars, i + 1, false) {
                 let children = parse_inline(&text);
-                result.push(Inline::Link { text: children, url, title: None });
+                result.push(Inline::Link {
+                    text: children,
+                    url,
+                    title: None,
+                });
                 i = end;
                 continue;
             }
@@ -128,7 +140,17 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
         let start = i;
         while i < chars.len() {
             let c = chars[i];
-            if c == '*' || c == '_' || c == '`' || c == '[' || c == '!' || c == '$' || c == '~' || c == '<' || c == '\n' || c == '\\' {
+            if c == '*'
+                || c == '_'
+                || c == '`'
+                || c == '['
+                || c == '!'
+                || c == '$'
+                || c == '~'
+                || c == '<'
+                || c == '\n'
+                || c == '\\'
+            {
                 break;
             }
             i += 1;
@@ -182,22 +204,36 @@ fn find_closing_backticks(chars: &[char], start: usize, count: usize) -> Option<
     None
 }
 
-fn parse_link_or_image(chars: &[char], start: usize, _is_image: bool) -> Option<(String, String, usize)> {
+fn parse_link_or_image(
+    chars: &[char],
+    start: usize,
+    _is_image: bool,
+) -> Option<(String, String, usize)> {
     // find closing ]
     let mut i = start;
-    while i < chars.len() && chars[i] != ']' { i += 1; }
-    if i >= chars.len() { return None; }
+    while i < chars.len() && chars[i] != ']' {
+        i += 1;
+    }
+    if i >= chars.len() {
+        return None;
+    }
     let text: String = chars[start..i].iter().collect();
     i += 1; // skip ]
 
     // expect (
-    if i >= chars.len() || chars[i] != '(' { return None; }
+    if i >= chars.len() || chars[i] != '(' {
+        return None;
+    }
     i += 1;
 
     // find closing )
     let url_start = i;
-    while i < chars.len() && chars[i] != ')' { i += 1; }
-    if i >= chars.len() { return None; }
+    while i < chars.len() && chars[i] != ')' {
+        i += 1;
+    }
+    if i >= chars.len() {
+        return None;
+    }
     let url: String = chars[url_start..i].iter().collect();
     i += 1; // skip )
 
@@ -206,14 +242,18 @@ fn parse_link_or_image(chars: &[char], start: usize, _is_image: bool) -> Option<
 
 fn find_closing_bracket(chars: &[char], start: usize) -> Option<usize> {
     for i in start..chars.len() {
-        if chars[i] == ']' { return Some(i); }
+        if chars[i] == ']' {
+            return Some(i);
+        }
     }
     None
 }
 
 fn find_tag_end(chars: &[char], start: usize) -> Option<usize> {
     for i in start..chars.len() {
-        if chars[i] == '>' { return Some(i + 1); }
+        if chars[i] == '>' {
+            return Some(i + 1);
+        }
     }
     None
 }
@@ -250,13 +290,17 @@ mod tests {
     #[test]
     fn parse_link() {
         let result = parse_inline("[text](http://example.com)");
-        assert!(matches!(&result[0], Inline::Link { text, url, .. } if url == "http://example.com"));
+        assert!(
+            matches!(&result[0], Inline::Link { text, url, .. } if url == "http://example.com")
+        );
     }
 
     #[test]
     fn parse_image() {
         let result = parse_inline("![alt](image.png)");
-        assert!(matches!(&result[0], Inline::Image { alt, url, .. } if alt == "alt" && url == "image.png"));
+        assert!(
+            matches!(&result[0], Inline::Image { alt, url, .. } if alt == "alt" && url == "image.png")
+        );
     }
 
     #[test]

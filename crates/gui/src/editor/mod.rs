@@ -1,7 +1,10 @@
 pub mod highlight;
 pub mod ime;
 
-pub use highlight::{detect_line_context, highlight_fence_line, highlight_line, parse_hex, BlockContext, HighlightedLine, ResolvedColors};
+pub use highlight::{
+    BlockContext, HighlightedLine, ResolvedColors, detect_line_context, highlight_fence_line,
+    highlight_line, parse_hex,
+};
 pub use ime::ImeState;
 pub use zelkova_rope::Buffer;
 
@@ -10,12 +13,9 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use gpui::{
-    div, img, px, rgb,
-    prelude::*,
     App, Bounds, Context, ElementInputHandler, EntityInputHandler, FocusHandle, Focusable,
-    FontWeight, HighlightStyle,
-    IntoElement, Pixels, Point, Render, SharedString, StyledText, UTF16Selection,
-    Window,
+    FontWeight, HighlightStyle, IntoElement, Pixels, Point, Render, SharedString, StyledText,
+    UTF16Selection, Window, div, img, prelude::*, px, rgb,
 };
 use zelkova_config::EditorColors;
 use zelkova_note_core::Frontmatter;
@@ -130,11 +130,17 @@ impl Editor {
     }
 
     pub fn title(&self) -> &str {
-        self.frontmatter.as_ref().map(|f| f.title.as_str()).unwrap_or("Untitled")
+        self.frontmatter
+            .as_ref()
+            .map(|f| f.title.as_str())
+            .unwrap_or("Untitled")
     }
 
     pub fn tags(&self) -> Vec<&str> {
-        self.frontmatter.as_ref().map(|f| f.tags.iter().map(|s| s.as_str()).collect()).unwrap_or_default()
+        self.frontmatter
+            .as_ref()
+            .map(|f| f.tags.iter().map(|s| s.as_str()).collect())
+            .unwrap_or_default()
     }
 
     pub fn add_tag(&mut self, tag: String) {
@@ -233,12 +239,19 @@ impl Editor {
             EditZone::Content => {
                 if self.cursor_pos > 0 {
                     let prev_len = self.cached_text[..self.cursor_pos]
-                        .chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                        .chars()
+                        .last()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
                     self.cursor_pos -= prev_len;
                     cx.notify();
                 } else if self.frontmatter.is_some() {
                     self.edit_zone = EditZone::Title;
-                    self.title_cursor = self.frontmatter.as_ref().map(|f| f.title.chars().count()).unwrap_or(0);
+                    self.title_cursor = self
+                        .frontmatter
+                        .as_ref()
+                        .map(|f| f.title.chars().count())
+                        .unwrap_or(0);
                     cx.notify();
                 }
             }
@@ -253,7 +266,11 @@ impl Editor {
         }
         match self.edit_zone {
             EditZone::Title => {
-                let title_len = self.frontmatter.as_ref().map(|f| f.title.chars().count()).unwrap_or(0);
+                let title_len = self
+                    .frontmatter
+                    .as_ref()
+                    .map(|f| f.title.chars().count())
+                    .unwrap_or(0);
                 if self.title_cursor < title_len {
                     self.title_cursor += 1;
                     cx.notify();
@@ -266,7 +283,10 @@ impl Editor {
             EditZone::Content => {
                 if self.cursor_pos < self.cached_text.len() {
                     let next_len = self.cached_text[self.cursor_pos..]
-                        .chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+                        .chars()
+                        .next()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
                     self.cursor_pos += next_len;
                     cx.notify();
                 }
@@ -277,21 +297,36 @@ impl Editor {
     // --- Selection handlers (Shift+Arrow) ---
 
     fn handle_select_left(&mut self, _: &SelectLeft, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit_zone != EditZone::Content { return; }
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
         if self.cursor_pos > 0 {
             let prev_len = self.cached_text[..self.cursor_pos]
-                .chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                .chars()
+                .last()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
             let new_pos = self.cursor_pos - prev_len;
             self.extend_selection(new_pos);
             cx.notify();
         }
     }
 
-    fn handle_select_right(&mut self, _: &SelectRight, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit_zone != EditZone::Content { return; }
+    fn handle_select_right(
+        &mut self,
+        _: &SelectRight,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
         if self.cursor_pos < self.cached_text.len() {
             let next_len = self.cached_text[self.cursor_pos..]
-                .chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
             let new_pos = self.cursor_pos + next_len;
             self.extend_selection(new_pos);
             cx.notify();
@@ -299,7 +334,9 @@ impl Editor {
     }
 
     fn handle_select_up(&mut self, _: &SelectUp, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit_zone != EditZone::Content { return; }
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
         let (line, col) = self.byte_to_line_col(self.cursor_pos);
         if line > 0 {
             let new_pos = self.line_col_to_byte(line - 1, col);
@@ -309,7 +346,9 @@ impl Editor {
     }
 
     fn handle_select_down(&mut self, _: &SelectDown, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit_zone != EditZone::Content { return; }
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
         let (line, col) = self.byte_to_line_col(self.cursor_pos);
         let total_lines = self.line_count();
         if line + 1 < total_lines {
@@ -325,7 +364,11 @@ impl Editor {
         let anchor = match &self.selection {
             Some(sel) => {
                 // cursor is at sel.start → anchor is sel.end, and vice versa
-                if self.cursor_pos == sel.start { sel.end } else { sel.start }
+                if self.cursor_pos == sel.start {
+                    sel.end
+                } else {
+                    sel.start
+                }
             }
             None => self.cursor_pos,
         };
@@ -334,7 +377,9 @@ impl Editor {
     }
 
     fn handle_select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit_zone != EditZone::Content { return; }
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
         let len = self.cached_text.len();
         if len > 0 {
             self.cursor_pos = len;
@@ -351,7 +396,11 @@ impl Editor {
                 let (line, col) = self.byte_to_line_col(self.cursor_pos);
                 if line == 0 && self.frontmatter.is_some() {
                     self.edit_zone = EditZone::Title;
-                    let title_len = self.frontmatter.as_ref().map(|f| f.title.chars().count()).unwrap_or(0);
+                    let title_len = self
+                        .frontmatter
+                        .as_ref()
+                        .map(|f| f.title.chars().count())
+                        .unwrap_or(0);
                     self.title_cursor = col.min(title_len);
                     cx.notify();
                 } else if line > 0 {
@@ -387,7 +436,11 @@ impl Editor {
                 if self.title_cursor > 0 {
                     if let Some(fm) = &mut self.frontmatter {
                         let byte_pos = char_idx_to_byte(&fm.title, self.title_cursor);
-                        let prev_len = fm.title[..byte_pos].chars().last().map(|c| c.len_utf8()).unwrap_or(0);
+                        let prev_len = fm.title[..byte_pos]
+                            .chars()
+                            .last()
+                            .map(|c| c.len_utf8())
+                            .unwrap_or(0);
                         if prev_len > 0 {
                             fm.title.drain((byte_pos - prev_len)..byte_pos);
                             self.title_cursor -= 1;
@@ -409,7 +462,10 @@ impl Editor {
                 }
                 if self.cursor_pos > 0 {
                     let prev_len = self.cached_text[..self.cursor_pos]
-                        .chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+                        .chars()
+                        .last()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
                     let start = self.cursor_pos - prev_len;
                     self.buffer.delete(start, self.cursor_pos);
                     self.cache_edit(start, self.cursor_pos, "");
@@ -486,7 +542,9 @@ impl Editor {
 
     fn notify_daemon(&self) {
         if let (Some(socket), Some(path)) = (&self.socket_path, &self.file_path) {
-            if !socket.exists() { return; }
+            if !socket.exists() {
+                return;
+            }
             let client = zelkova_rpc::client::RpcClient::new(socket);
             let _ = client.note_updated(path);
         }
@@ -505,7 +563,9 @@ impl Editor {
     fn render_frontmatter_header(&self, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
         let mut children = Vec::new();
 
-        let Some(fm) = &self.frontmatter else { return children };
+        let Some(fm) = &self.frontmatter else {
+            return children;
+        };
 
         let title = fm.title.clone();
         let tags: Vec<String> = fm.tags.iter().cloned().collect();
@@ -528,7 +588,11 @@ impl Editor {
                     cx.listener(move |this, _ev, _window, cx| {
                         this.edit_zone = EditZone::Title;
                         this.selection = None;
-                        this.title_cursor = this.frontmatter.as_ref().map(|f| f.title.chars().count()).unwrap_or(0);
+                        this.title_cursor = this
+                            .frontmatter
+                            .as_ref()
+                            .map(|f| f.title.chars().count())
+                            .unwrap_or(0);
                         cx.notify();
                     }),
                 );
@@ -536,13 +600,42 @@ impl Editor {
             if is_title_zone {
                 let (before, after) = split_at_char_col(&title_for_cursor, tc);
                 container = container
-                    .child(div().text_xl().font_weight(gpui::FontWeight::BOLD).text_color(rgb(0xcdd6f4)).child(before))
-                    .child(div().w(px(2.0)).h(px(24.0)).bg(rgb(0xcdd6f4)).flex_shrink_0())
-                    .child(div().text_xl().font_weight(gpui::FontWeight::BOLD).text_color(rgb(0xcdd6f4)).child(if after.is_empty() { " ".to_string() } else { after }));
+                    .child(
+                        div()
+                            .text_xl()
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .text_color(rgb(0xcdd6f4))
+                            .child(before),
+                    )
+                    .child(
+                        div()
+                            .w(px(2.0))
+                            .h(px(24.0))
+                            .bg(rgb(0xcdd6f4))
+                            .flex_shrink_0(),
+                    )
+                    .child(
+                        div()
+                            .text_xl()
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .text_color(rgb(0xcdd6f4))
+                            .child(if after.is_empty() {
+                                " ".to_string()
+                            } else {
+                                after
+                            }),
+                    );
             } else {
                 container = container.child(
-                    div().text_xl().font_weight(gpui::FontWeight::BOLD).text_color(rgb(0xcdd6f4))
-                        .child(if title.is_empty() { "Untitled".to_string() } else { title }),
+                    div()
+                        .text_xl()
+                        .font_weight(gpui::FontWeight::BOLD)
+                        .text_color(rgb(0xcdd6f4))
+                        .child(if title.is_empty() {
+                            "Untitled".to_string()
+                        } else {
+                            title
+                        }),
                 );
             }
             container
@@ -554,13 +647,24 @@ impl Editor {
             let tag_for_remove = tag.clone();
             tag_elements.push(
                 div()
-                    .px(px(6.0)).py(px(2.0)).rounded_md().bg(rgb(0x45475a))
-                    .text_color(rgb(0x89b4fa)).text_xs()
-                    .flex().flex_row().items_center().gap(px(4.0))
+                    .px(px(6.0))
+                    .py(px(2.0))
+                    .rounded_md()
+                    .bg(rgb(0x45475a))
+                    .text_color(rgb(0x89b4fa))
+                    .text_xs()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(4.0))
                     .child(tag.clone())
                     .child(
-                        div().cursor(gpui::CursorStyle::PointingHand).text_color(rgb(0x6c7086)).child("x")
-                            .on_mouse_down(gpui::MouseButton::Left,
+                        div()
+                            .cursor(gpui::CursorStyle::PointingHand)
+                            .text_color(rgb(0x6c7086))
+                            .child("x")
+                            .on_mouse_down(
+                                gpui::MouseButton::Left,
                                 cx.listener(move |this, _ev, _window, cx| {
                                     this.remove_tag(&tag_for_remove);
                                     cx.notify();
@@ -572,16 +676,23 @@ impl Editor {
         }
         tag_elements.push(
             div()
-                .px(px(6.0)).py(px(2.0)).rounded_md().bg(rgb(0x313244))
-                .text_color(rgb(0x6c7086)).text_xs()
+                .px(px(6.0))
+                .py(px(2.0))
+                .rounded_md()
+                .bg(rgb(0x313244))
+                .text_color(rgb(0x6c7086))
+                .text_xs()
                 .cursor(gpui::CursorStyle::PointingHand)
                 .child("+ tag")
-                .on_mouse_down(gpui::MouseButton::Left,
+                .on_mouse_down(
+                    gpui::MouseButton::Left,
                     cx.listener(|this, _ev, _window, cx| {
                         this.tag_input_visible = !this.tag_input_visible;
                         if !this.tag_input_visible {
                             let tag = this.tag_input.trim().to_string();
-                            if !tag.is_empty() { this.add_tag(tag); }
+                            if !tag.is_empty() {
+                                this.add_tag(tag);
+                            }
                             this.tag_input.clear();
                         }
                         cx.notify();
@@ -590,76 +701,168 @@ impl Editor {
                 .into_any_element(),
         );
         children.push(
-            div().w_full().py(px(4.0)).flex().flex_row().flex_wrap().gap(px(4.0))
-                .children(tag_elements).into_any_element(),
+            div()
+                .w_full()
+                .py(px(4.0))
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap(px(4.0))
+                .children(tag_elements)
+                .into_any_element(),
         );
 
         if self.tag_input_visible {
             let input_text = self.tag_input.clone();
             children.push(
-                div().w_full().py(px(2.0)).child(
-                    div().px(px(6.0)).py(px(2.0)).rounded_md().border_1().border_color(rgb(0x585b70))
-                        .bg(rgb(0x1e1e2e)).text_color(rgb(0xcdd6f4)).text_xs()
-                        .child(if input_text.is_empty() { "Type tag name...".to_string() } else { input_text })
-                        .on_key_down(cx.listener(|this, ev: &gpui::KeyDownEvent, _window, cx| {
-                            match ev.keystroke.key.as_str() {
-                                "enter" => {
-                                    let tag = this.tag_input.trim().to_string();
-                                    if !tag.is_empty() { this.add_tag(tag); }
-                                    this.tag_input.clear();
-                                    this.tag_input_visible = false;
-                                }
-                                "backspace" => { this.tag_input.pop(); }
-                                "escape" => { this.tag_input.clear(); this.tag_input_visible = false; }
-                                _ => { if !ev.keystroke.key.is_empty() { this.tag_input.push_str(&ev.keystroke.key); } }
-                            }
-                            cx.notify();
-                        })),
-                ).into_any_element(),
+                div()
+                    .w_full()
+                    .py(px(2.0))
+                    .child(
+                        div()
+                            .px(px(6.0))
+                            .py(px(2.0))
+                            .rounded_md()
+                            .border_1()
+                            .border_color(rgb(0x585b70))
+                            .bg(rgb(0x1e1e2e))
+                            .text_color(rgb(0xcdd6f4))
+                            .text_xs()
+                            .child(if input_text.is_empty() {
+                                "Type tag name...".to_string()
+                            } else {
+                                input_text
+                            })
+                            .on_key_down(cx.listener(
+                                |this, ev: &gpui::KeyDownEvent, _window, cx| {
+                                    match ev.keystroke.key.as_str() {
+                                        "enter" => {
+                                            let tag = this.tag_input.trim().to_string();
+                                            if !tag.is_empty() {
+                                                this.add_tag(tag);
+                                            }
+                                            this.tag_input.clear();
+                                            this.tag_input_visible = false;
+                                        }
+                                        "backspace" => {
+                                            this.tag_input.pop();
+                                        }
+                                        "escape" => {
+                                            this.tag_input.clear();
+                                            this.tag_input_visible = false;
+                                        }
+                                        _ => {
+                                            if !ev.keystroke.key.is_empty() {
+                                                this.tag_input.push_str(&ev.keystroke.key);
+                                            }
+                                        }
+                                    }
+                                    cx.notify();
+                                },
+                            )),
+                    )
+                    .into_any_element(),
             );
         }
 
         children.push(
-            div().w_full().py(px(4.0)).flex().flex_row().gap(px(16.0))
-                .child(div().text_xs().text_color(rgb(0x6c7086)).child(format!("Created: {created}")))
-                .child(div().text_xs().text_color(rgb(0x6c7086)).child(format!("Updated: {updated}")))
+            div()
+                .w_full()
+                .py(px(4.0))
+                .flex()
+                .flex_row()
+                .gap(px(16.0))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(0x6c7086))
+                        .child(format!("Created: {created}")),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(0x6c7086))
+                        .child(format!("Updated: {updated}")),
+                )
                 .into_any_element(),
         );
 
         children.push(
-            div().w_full().h(px(1.0)).bg(rgb(0x313244)).my(px(4.0)).into_any_element(),
+            div()
+                .w_full()
+                .h(px(1.0))
+                .bg(rgb(0x313244))
+                .my(px(4.0))
+                .into_any_element(),
         );
 
         children
     }
 
     fn render_highlighted_line(
-        &self, line_idx: usize, line_text: &str, display_text: String,
-        mut line_div: gpui::Div, cursor_line: usize, cursor_col: usize,
+        &self,
+        line_idx: usize,
+        line_text: &str,
+        display_text: String,
+        mut line_div: gpui::Div,
+        cursor_line: usize,
+        cursor_col: usize,
     ) -> gpui::Div {
-        let mut highlighted = self.cached_highlights.get(line_idx).cloned().unwrap_or_else(|| {
-            HighlightedLine { highlights: vec![], image_url: None, line_height: 22.0, heading_level: None, line_bg: None }
-        });
+        let mut highlighted = self
+            .cached_highlights
+            .get(line_idx)
+            .cloned()
+            .unwrap_or_else(|| HighlightedLine {
+                highlights: vec![],
+                image_url: None,
+                line_height: 22.0,
+                heading_level: None,
+                line_bg: None,
+            });
         let lh = highlighted.line_height;
         let image_url = highlighted.image_url.take();
 
         // Table header bold
-        if line_text.starts_with('|') && line_text.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t') && !line_text.contains('-') {
-            let next_is_sep = self.cached_lines.get(line_idx + 1)
-                .map(|l| l.starts_with('|') && l.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t') && l.contains('-'))
+        if line_text.starts_with('|')
+            && line_text
+                .chars()
+                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t')
+            && !line_text.contains('-')
+        {
+            let next_is_sep = self
+                .cached_lines
+                .get(line_idx + 1)
+                .map(|l| {
+                    l.starts_with('|')
+                        && l.chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ' || c == '\t')
+                        && l.contains('-')
+                })
                 .unwrap_or(false);
             if next_is_sep {
-                highlighted.highlights.insert(0, (0..line_text.len().max(1), HighlightStyle {
-                    font_weight: Some(FontWeight::BOLD), ..Default::default()
-                }));
+                highlighted.highlights.insert(
+                    0,
+                    (
+                        0..line_text.len().max(1),
+                        HighlightStyle {
+                            font_weight: Some(FontWeight::BOLD),
+                            ..Default::default()
+                        },
+                    ),
+                );
             }
         }
 
-        line_div = line_div.h(px(lh)).when_some(highlighted.heading_level, |el, level| {
-            match level {
-                1 => el.text_2xl(), 2 => el.text_xl(), 3 => el.text_lg(), 4 => el.text_base(), _ => el.text_sm(),
-            }
-        });
+        line_div =
+            line_div
+                .h(px(lh))
+                .when_some(highlighted.heading_level, |el, level| match level {
+                    1 => el.text_2xl(),
+                    2 => el.text_xl(),
+                    3 => el.text_lg(),
+                    4 => el.text_base(),
+                    _ => el.text_sm(),
+                });
 
         // Apply line-level background (e.g. code block bg extending to right edge)
         if let Some(bg) = highlighted.line_bg {
@@ -672,9 +875,15 @@ impl Editor {
             let (el, ec) = self.byte_to_line_col(sel.end);
             if line_idx >= sl && line_idx <= el {
                 let from = if line_idx == sl { sc } else { 0 };
-                let to = if line_idx == el { ec } else { line_text.chars().count() };
+                let to = if line_idx == el {
+                    ec
+                } else {
+                    line_text.chars().count()
+                };
                 if from < to {
-                    return Some(char_idx_to_byte(line_text, from)..char_idx_to_byte(line_text, to));
+                    return Some(
+                        char_idx_to_byte(line_text, from)..char_idx_to_byte(line_text, to),
+                    );
                 }
             }
             None
@@ -689,28 +898,40 @@ impl Editor {
             let (before, after) = split_at_char_col(&display_text, cursor_col);
             let before_len = before.len();
             let display_len = display_text.len();
-            let before_styled = StyledText::new(SharedString::from(before))
-                .with_highlights(adjust_highlight_offsets(&highlighted.highlights, 0, before_len));
+            let before_styled = StyledText::new(SharedString::from(before)).with_highlights(
+                adjust_highlight_offsets(&highlighted.highlights, 0, before_len),
+            );
             let after_styled = if after.is_empty() {
                 StyledText::new(SharedString::from(" ")).with_highlights(vec![])
             } else {
-                StyledText::new(SharedString::from(after))
-                    .with_highlights(adjust_highlight_offsets(&highlighted.highlights, before_len, display_len))
+                StyledText::new(SharedString::from(after)).with_highlights(
+                    adjust_highlight_offsets(&highlighted.highlights, before_len, display_len),
+                )
             };
             line_div = line_div
                 .child(before_styled)
-                .child(div().w(px(2.0)).h(px(lh - 4.0)).bg(rgb(0xcdd6f4)).flex_shrink_0())
+                .child(
+                    div()
+                        .w(px(2.0))
+                        .h(px(lh - 4.0))
+                        .bg(rgb(0xcdd6f4))
+                        .flex_shrink_0(),
+                )
                 .child(after_styled);
         } else {
             line_div = line_div.child(
-                StyledText::new(SharedString::from(display_text)).with_highlights(highlighted.highlights)
+                StyledText::new(SharedString::from(display_text))
+                    .with_highlights(highlighted.highlights),
             );
         }
 
         if let Some(url) = image_url {
             line_div = line_div.child(
-                div().ml(px(16.0)).py(px(4.0))
-                    .child(img(SharedString::from(url)).object_fit(gpui::ObjectFit::Contain).max_h(px(200.0)))
+                div().ml(px(16.0)).py(px(4.0)).child(
+                    img(SharedString::from(url))
+                        .object_fit(gpui::ObjectFit::Contain)
+                        .max_h(px(200.0)),
+                ),
             );
         }
 
@@ -720,11 +941,17 @@ impl Editor {
 
 impl EntityInputHandler for Editor {
     fn text_for_range(
-        &mut self, range: Range<usize>, _adjusted_range: &mut Option<Range<usize>>,
-        _window: &mut Window, _cx: &mut Context<Self>,
+        &mut self,
+        range: Range<usize>,
+        _adjusted_range: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
     ) -> Option<String> {
         let text = if self.edit_zone == EditZone::Title {
-            self.frontmatter.as_ref().map(|f| f.title.as_str()).unwrap_or("")
+            self.frontmatter
+                .as_ref()
+                .map(|f| f.title.as_str())
+                .unwrap_or("")
         } else {
             &self.cached_text
         };
@@ -738,22 +965,42 @@ impl EntityInputHandler for Editor {
     }
 
     fn selected_text_range(
-        &mut self, _ignore_disabled_input: bool, _window: &mut Window, _cx: &mut Context<Self>,
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
         if self.edit_zone == EditZone::Title {
-            let text = self.frontmatter.as_ref().map(|f| f.title.as_str()).unwrap_or("");
+            let text = self
+                .frontmatter
+                .as_ref()
+                .map(|f| f.title.as_str())
+                .unwrap_or("");
             let byte_pos = char_idx_to_byte(text, self.title_cursor);
             let utf16_pos = byte_to_utf16(text, byte_pos);
-            return Some(UTF16Selection { range: utf16_pos..utf16_pos, reversed: false });
+            return Some(UTF16Selection {
+                range: utf16_pos..utf16_pos,
+                reversed: false,
+            });
         }
         let text = &self.cached_text;
-        let range = self.selection.clone().unwrap_or(self.cursor_pos..self.cursor_pos);
+        let range = self
+            .selection
+            .clone()
+            .unwrap_or(self.cursor_pos..self.cursor_pos);
         let start = byte_to_utf16(text, range.start);
         let end = byte_to_utf16(text, range.end);
-        Some(UTF16Selection { range: start..end, reversed: false })
+        Some(UTF16Selection {
+            range: start..end,
+            reversed: false,
+        })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         self.ime_state.marked_range.as_ref().map(|r| {
             let text = &self.cached_text;
             byte_to_utf16(text, r.start)..byte_to_utf16(text, r.end)
@@ -766,8 +1013,11 @@ impl EntityInputHandler for Editor {
     }
 
     fn replace_text_in_range(
-        &mut self, range: Option<Range<usize>>, new_text: &str,
-        _window: &mut Window, cx: &mut Context<Self>,
+        &mut self,
+        range: Option<Range<usize>>,
+        new_text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         if self.edit_zone == EditZone::Title {
             if let Some(fm) = &mut self.frontmatter {
@@ -786,7 +1036,10 @@ impl EntityInputHandler for Editor {
                 let text = &self.cached_text;
                 utf16_to_byte(text, r.start)..utf16_to_byte(text, r.end)
             }
-            None => self.selection.take().unwrap_or(self.cursor_pos..self.cursor_pos),
+            None => self
+                .selection
+                .take()
+                .unwrap_or(self.cursor_pos..self.cursor_pos),
         };
         self.buffer.edit(byte_range.start, byte_range.end, new_text);
         self.cache_edit(byte_range.start, byte_range.end, new_text);
@@ -797,8 +1050,12 @@ impl EntityInputHandler for Editor {
     }
 
     fn replace_and_mark_text_in_range(
-        &mut self, range: Option<Range<usize>>, new_text: &str,
-        _new_selected_range: Option<Range<usize>>, _window: &mut Window, cx: &mut Context<Self>,
+        &mut self,
+        range: Option<Range<usize>>,
+        new_text: &str,
+        _new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         if self.edit_zone == EditZone::Title {
             if let Some(fm) = &mut self.frontmatter {
@@ -817,7 +1074,10 @@ impl EntityInputHandler for Editor {
                 let text = &self.cached_text;
                 utf16_to_byte(text, r.start)..utf16_to_byte(text, r.end)
             }
-            None => self.selection.take().unwrap_or(self.cursor_pos..self.cursor_pos),
+            None => self
+                .selection
+                .take()
+                .unwrap_or(self.cursor_pos..self.cursor_pos),
         };
 
         // Remove existing marked text if present
@@ -832,19 +1092,30 @@ impl EntityInputHandler for Editor {
         }
         self.buffer.insert(byte_range.start, new_text);
         self.cache_edit(byte_range.start, byte_range.start, new_text);
-        self.ime_state.set_marked(byte_range.start..byte_range.start + new_text.len());
+        self.ime_state
+            .set_marked(byte_range.start..byte_range.start + new_text.len());
         self.cursor_pos = byte_range.start + new_text.len();
         cx.notify();
     }
 
     fn bounds_for_range(
-        &mut self, _range_utf16: Range<usize>, _element_bounds: Bounds<Pixels>,
-        _window: &mut Window, _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> { None }
+        &mut self,
+        _range_utf16: Range<usize>,
+        _element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        None
+    }
 
     fn character_index_for_point(
-        &mut self, _point: Point<Pixels>, _window: &mut Window, _cx: &mut Context<Self>,
-    ) -> Option<usize> { None }
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        None
+    }
 }
 
 impl Render for Editor {
@@ -869,7 +1140,11 @@ impl Render for Editor {
         let has_highlights = !self.cached_highlights.is_empty();
 
         for (line_idx, line_text) in lines.iter().enumerate() {
-            let display_text = if line_text.is_empty() { " ".to_string() } else { line_text.clone() };
+            let display_text = if line_text.is_empty() {
+                " ".to_string()
+            } else {
+                line_text.clone()
+            };
 
             let mut line_div = div()
                 .w_full()
@@ -885,28 +1160,35 @@ impl Render for Editor {
                         this.dragging = true;
                         let click_line = line_idx;
                         let line_text = this.line_text(click_line);
-                        let click_col = pixel_to_col(&line_text, event.position.x, ascii_char_width);
+                        let click_col =
+                            pixel_to_col(&line_text, event.position.x, ascii_char_width);
                         this.cursor_pos = this.line_col_to_byte(click_line, click_col);
                         this.selection = None;
                         cx.notify();
                     }),
                 )
-                .on_mouse_move(
-                    cx.listener(move |this, event: &gpui::MouseMoveEvent, _window, cx| {
-                        if !this.dragging { return; }
+                .on_mouse_move(cx.listener(
+                    move |this, event: &gpui::MouseMoveEvent, _window, cx| {
+                        if !this.dragging {
+                            return;
+                        }
                         let move_line = line_idx;
                         let line_text = this.line_text(move_line);
                         let move_col = pixel_to_col(&line_text, event.position.x, ascii_char_width);
                         let new_pos = this.line_col_to_byte(move_line, move_col);
                         this.extend_selection(new_pos);
                         cx.notify();
-                    }),
-                );
+                    },
+                ));
 
             if has_highlights {
                 line_div = self.render_highlighted_line(
-                    line_idx, line_text, display_text, line_div,
-                    cursor_line, cursor_col,
+                    line_idx,
+                    line_text,
+                    display_text,
+                    line_div,
+                    cursor_line,
+                    cursor_col,
                 );
             } else {
                 // Plain text — fast path, no highlight processing
@@ -914,7 +1196,13 @@ impl Render for Editor {
                     let (before, after) = split_at_char_col(&display_text, cursor_col);
                     line_div = line_div
                         .child(StyledText::new(SharedString::from(before)))
-                        .child(div().w(px(2.0)).h(px(18.0)).bg(rgb(0xcdd6f4)).flex_shrink_0())
+                        .child(
+                            div()
+                                .w(px(2.0))
+                                .h(px(18.0))
+                                .bg(rgb(0xcdd6f4))
+                                .flex_shrink_0(),
+                        )
                         .child(StyledText::new(if after.is_empty() {
                             SharedString::from(" ")
                         } else {
@@ -944,9 +1232,14 @@ impl Render for Editor {
         }
 
         div()
-            .flex().flex_col().size_full().overflow_hidden()
+            .flex()
+            .flex_col()
+            .size_full()
+            .overflow_hidden()
             .track_focus(&self.focus_handle)
-            .text_color(rgb(0xcdd6f4)).text_sm().font_family("monospace")
+            .text_color(rgb(0xcdd6f4))
+            .text_sm()
+            .font_family("monospace")
             .p(px(8.0))
             .children(header_children)
             .children(children)
@@ -977,7 +1270,9 @@ impl Render for Editor {
 
 fn parse_frontmatter_gui(raw: &str) -> Option<(Option<Frontmatter>, String)> {
     let trimmed = raw.trim_start();
-    if !trimmed.starts_with("---") { return None; }
+    if !trimmed.starts_with("---") {
+        return None;
+    }
     let rest = &trimmed[3..];
     let end_idx = rest.find("---")?;
     let yaml_str = &rest[..end_idx];
@@ -1006,10 +1301,13 @@ fn math_delim_line(line: &str, math_fg: gpui::Hsla) -> HighlightedLine {
         },
     )];
     if dollar_count < line.len() {
-        highlights.push((dollar_count..line.len(), HighlightStyle {
-            color: Some(math_fg),
-            ..Default::default()
-        }));
+        highlights.push((
+            dollar_count..line.len(),
+            HighlightStyle {
+                color: Some(math_fg),
+                ..Default::default()
+            },
+        ));
     }
     HighlightedLine {
         highlights,
@@ -1057,7 +1355,10 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                         if let Some(color) = colors.syntax_color(sr.highlight_index) {
                             syntax_hl.push((
                                 clamp_start..clamp_end,
-                                HighlightStyle { color: Some(color), ..Default::default() },
+                                HighlightStyle {
+                                    color: Some(color),
+                                    ..Default::default()
+                                },
                             ));
                         }
                     }
@@ -1076,7 +1377,10 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                     result.push(HighlightedLine {
                         highlights: vec![(
                             0..code_line.len().max(1),
-                            HighlightStyle { color: Some(colors.code_fg), ..Default::default() },
+                            HighlightStyle {
+                                color: Some(colors.code_fg),
+                                ..Default::default()
+                            },
                         )],
                         image_url: None,
                         line_height: 22.0,
@@ -1099,8 +1403,17 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                 let ml = lines[i].len();
                 if lines[i].trim_end().ends_with("$$") && lines[i].trim() != "$$" {
                     result.push(HighlightedLine {
-                        highlights: vec![(0..ml.max(1), HighlightStyle { color: Some(math_fg), ..Default::default() })],
-                        image_url: None, line_height: 22.0, heading_level: None, line_bg: None,
+                        highlights: vec![(
+                            0..ml.max(1),
+                            HighlightStyle {
+                                color: Some(math_fg),
+                                ..Default::default()
+                            },
+                        )],
+                        image_url: None,
+                        line_height: 22.0,
+                        heading_level: None,
+                        line_bg: None,
                     });
                     i += 1;
                     break;
@@ -1110,8 +1423,17 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                     break;
                 } else {
                     result.push(HighlightedLine {
-                        highlights: vec![(0..ml.max(1), HighlightStyle { color: Some(math_fg), ..Default::default() })],
-                        image_url: None, line_height: 22.0, heading_level: None, line_bg: None,
+                        highlights: vec![(
+                            0..ml.max(1),
+                            HighlightStyle {
+                                color: Some(math_fg),
+                                ..Default::default()
+                            },
+                        )],
+                        image_url: None,
+                        line_height: 22.0,
+                        heading_level: None,
+                        line_bg: None,
                     });
                     i += 1;
                 }
@@ -1133,7 +1455,9 @@ fn overlay_selection(
     sel: std::ops::Range<usize>,
     sel_bg: gpui::Hsla,
 ) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
-    if sel.is_empty() { return highlights; }
+    if sel.is_empty() {
+        return highlights;
+    }
 
     let mut result = Vec::new();
     let mut pos = sel.start;
@@ -1148,7 +1472,13 @@ fn overlay_selection(
         if pos < range.start {
             let gap_end = range.start.min(sel.end);
             if pos < gap_end {
-                result.push((pos..gap_end, HighlightStyle { background_color: Some(sel_bg), ..Default::default() }));
+                result.push((
+                    pos..gap_end,
+                    HighlightStyle {
+                        background_color: Some(sel_bg),
+                        ..Default::default()
+                    },
+                ));
             }
         }
 
@@ -1173,7 +1503,13 @@ fn overlay_selection(
 
     // Fill remaining gap at end of selection
     if pos < sel.end {
-        result.push((pos..sel.end, HighlightStyle { background_color: Some(sel_bg), ..Default::default() }));
+        result.push((
+            pos..sel.end,
+            HighlightStyle {
+                background_color: Some(sel_bg),
+                ..Default::default()
+            },
+        ));
     }
 
     result.sort_by_key(|(r, _)| r.start);
@@ -1206,14 +1542,20 @@ fn split_at_char_col(s: &str, col: usize) -> (String, String) {
 
 fn adjust_highlight_offsets(
     highlights: &[(std::ops::Range<usize>, gpui::HighlightStyle)],
-    offset_start: usize, offset_end: usize,
+    offset_start: usize,
+    offset_end: usize,
 ) -> Vec<(std::ops::Range<usize>, gpui::HighlightStyle)> {
-    highlights.iter().filter_map(|(range, style)| {
-        if range.start >= offset_end || range.end <= offset_start { return None; }
-        let new_start = range.start.max(offset_start) - offset_start;
-        let new_end = range.end.min(offset_end) - offset_start;
-        Some((new_start..new_end, style.clone()))
-    }).collect()
+    highlights
+        .iter()
+        .filter_map(|(range, style)| {
+            if range.start >= offset_end || range.end <= offset_start {
+                return None;
+            }
+            let new_start = range.start.max(offset_start) - offset_start;
+            let new_end = range.end.min(offset_end) - offset_start;
+            Some((new_start..new_end, style.clone()))
+        })
+        .collect()
 }
 
 fn pixel_to_col(line: &str, pixel_x: gpui::Pixels, ascii_w: f32) -> usize {
@@ -1221,8 +1563,16 @@ fn pixel_to_col(line: &str, pixel_x: gpui::Pixels, ascii_w: f32) -> usize {
     let mut width = 0.0;
     let mut col = 0;
     for c in line.chars() {
-        let char_w = if c.is_ascii() { ascii_w } else if c as u32 > 0x2FFF { ascii_w * 2.0 } else { ascii_w };
-        if width + char_w / 2.0 > target { return col; }
+        let char_w = if c.is_ascii() {
+            ascii_w
+        } else if c as u32 > 0x2FFF {
+            ascii_w * 2.0
+        } else {
+            ascii_w
+        };
+        if width + char_w / 2.0 > target {
+            return col;
+        }
         width += char_w;
         col += 1;
     }
@@ -1230,18 +1580,26 @@ fn pixel_to_col(line: &str, pixel_x: gpui::Pixels, ascii_w: f32) -> usize {
 }
 
 fn byte_to_utf16(text: &str, byte_pos: usize) -> usize {
-    text[..byte_pos].chars().map(|c| if c as u32 > 0xFFFF { 2 } else { 1 }).sum()
+    text[..byte_pos]
+        .chars()
+        .map(|c| if c as u32 > 0xFFFF { 2 } else { 1 })
+        .sum()
 }
 
 fn utf16_to_byte(text: &str, utf16_pos: usize) -> usize {
     let mut count = 0;
     for (i, c) in text.char_indices() {
-        if count >= utf16_pos { return i; }
+        if count >= utf16_pos {
+            return i;
+        }
         count += if c as u32 > 0xFFFF { 2 } else { 1 };
     }
     text.len()
 }
 
 fn char_idx_to_byte(s: &str, char_idx: usize) -> usize {
-    s.char_indices().nth(char_idx).map(|(i, _)| i).unwrap_or(s.len())
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
 }

@@ -24,7 +24,10 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
     }
 }
 
-fn handle_search(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+fn handle_search(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
     let params: SearchParams = parse_params(request)?;
     let query = SearchQuery {
         text: params.query,
@@ -51,7 +54,10 @@ fn handle_search(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_
         .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
-fn handle_list_notes(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+fn handle_list_notes(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
     let params: ListNotesParams = parse_params(request)?;
     let notes = state
         .vault
@@ -76,7 +82,10 @@ fn handle_list_notes(request: &JsonRpcRequest, state: &DaemonState) -> Result<se
         .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
-fn handle_get_note(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+fn handle_get_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
     let params: GetNoteParams = parse_params(request)?;
     let notes = state
         .vault
@@ -101,7 +110,10 @@ fn handle_get_note(request: &JsonRpcRequest, state: &DaemonState) -> Result<serd
     serde_json::to_value(result).map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
-fn handle_create_note(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+fn handle_create_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
     let params: CreateNoteParams = parse_params(request)?;
     let tags: HashSet<String> = params.tags.into_iter().collect();
 
@@ -137,13 +149,19 @@ fn handle_tags(state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
 }
 
 fn handle_rebuild_index(state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
-    let count = crate::indexer::rebuild_index(state).map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    let count =
+        crate::indexer::rebuild_index(state).map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
-    serde_json::to_value(RebuildIndexResult { indexed_count: count })
-        .map_err(|e| JsonRpcError::internal(e.to_string()))
+    serde_json::to_value(RebuildIndexResult {
+        indexed_count: count,
+    })
+    .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
-fn handle_note_updated(request: &JsonRpcRequest, state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+fn handle_note_updated(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
     let params: NoteUpdatedParams = parse_params(request)?;
 
     crate::indexer::reindex_note(&params.path, state)
@@ -153,12 +171,13 @@ fn handle_note_updated(request: &JsonRpcRequest, state: &DaemonState) -> Result<
         .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
-fn parse_params<T: serde::de::DeserializeOwned>(request: &JsonRpcRequest) -> Result<T, JsonRpcError> {
+fn parse_params<T: serde::de::DeserializeOwned>(
+    request: &JsonRpcRequest,
+) -> Result<T, JsonRpcError> {
     let params = request
         .params
         .as_ref()
         .ok_or_else(|| JsonRpcError::invalid_params("missing params"))?;
 
-    serde_json::from_value(params.clone())
-        .map_err(|e| JsonRpcError::invalid_params(e.to_string()))
+    serde_json::from_value(params.clone()).map_err(|e| JsonRpcError::invalid_params(e.to_string()))
 }

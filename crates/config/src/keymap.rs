@@ -33,12 +33,36 @@ impl Default for KeymapConfig {
 
 fn default_bindings() -> Vec<BindingConfig> {
     vec![
-        BindingConfig { key: "ctrl-p".into(), action: "open_command_palette".into(), context: None },
-        BindingConfig { key: "ctrl-shift-f".into(), action: "search_notes".into(), context: None },
-        BindingConfig { key: "ctrl-n".into(), action: "create_note".into(), context: None },
-        BindingConfig { key: "ctrl-s".into(), action: "save_note".into(), context: None },
-        BindingConfig { key: "ctrl-b".into(), action: "toggle_sidebar".into(), context: None },
-        BindingConfig { key: "ctrl-q".into(), action: "quit".into(), context: None },
+        BindingConfig {
+            key: "ctrl-p".into(),
+            action: "open_command_palette".into(),
+            context: None,
+        },
+        BindingConfig {
+            key: "ctrl-shift-f".into(),
+            action: "search_notes".into(),
+            context: None,
+        },
+        BindingConfig {
+            key: "ctrl-n".into(),
+            action: "create_note".into(),
+            context: None,
+        },
+        BindingConfig {
+            key: "ctrl-s".into(),
+            action: "save_note".into(),
+            context: None,
+        },
+        BindingConfig {
+            key: "ctrl-b".into(),
+            action: "toggle_sidebar".into(),
+            context: None,
+        },
+        BindingConfig {
+            key: "ctrl-q".into(),
+            action: "quit".into(),
+            context: None,
+        },
     ]
 }
 
@@ -56,8 +80,7 @@ impl KeymapConfig {
     }
 
     pub fn keymap_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("cannot determine XDG config directory")?;
+        let config_dir = dirs::config_dir().context("cannot determine XDG config directory")?;
         Ok(config_dir.join("zelkova").join("keymap.toml"))
     }
 
@@ -104,9 +127,11 @@ action = "open_command_palette"
     fn resolve_leader_key() {
         let mut km = KeymapConfig::default();
         km.leader = "ctrl-x".to_string();
-        km.bindings = vec![
-            BindingConfig { key: "leader f".into(), action: "search".into(), context: None },
-        ];
+        km.bindings = vec![BindingConfig {
+            key: "leader f".into(),
+            action: "search".into(),
+            context: None,
+        }];
         let resolved = km.resolved_bindings();
         assert_eq!(resolved[0].key, "ctrl-x f");
     }

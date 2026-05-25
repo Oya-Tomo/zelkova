@@ -12,8 +12,12 @@ pub struct RpcServer {
 impl RpcServer {
     pub fn bind(socket_path: &Path) -> Result<Self> {
         if socket_path.exists() {
-            std::fs::remove_file(socket_path)
-                .with_context(|| format!("failed to remove existing socket at {}", socket_path.display()))?;
+            std::fs::remove_file(socket_path).with_context(|| {
+                format!(
+                    "failed to remove existing socket at {}",
+                    socket_path.display()
+                )
+            })?;
         }
 
         let listener = UnixListener::bind(socket_path)
@@ -26,7 +30,10 @@ impl RpcServer {
     }
 
     pub fn accept_one(&self, handler: &dyn Fn(JsonRpcRequest) -> JsonRpcResponse) -> Result<()> {
-        let (stream, _) = self.listener.accept().context("failed to accept connection")?;
+        let (stream, _) = self
+            .listener
+            .accept()
+            .context("failed to accept connection")?;
         handle_connection(stream, handler)?;
         Ok(())
     }
@@ -42,18 +49,24 @@ impl Drop for RpcServer {
     }
 }
 
-fn handle_connection(stream: UnixStream, handler: &dyn Fn(JsonRpcRequest) -> JsonRpcResponse) -> Result<()> {
+fn handle_connection(
+    stream: UnixStream,
+    handler: &dyn Fn(JsonRpcRequest) -> JsonRpcResponse,
+) -> Result<()> {
     let mut reader = BufReader::new(stream.try_clone().context("failed to clone stream")?);
     let mut writer = stream;
 
     let mut line = String::new();
-    reader.read_line(&mut line).context("failed to read request")?;
+    reader
+        .read_line(&mut line)
+        .context("failed to read request")?;
 
     if line.trim().is_empty() {
         return Ok(());
     }
 
-    let request: JsonRpcRequest = serde_json::from_str(&line).context("failed to parse JSON-RPC request")?;
+    let request: JsonRpcRequest =
+        serde_json::from_str(&line).context("failed to parse JSON-RPC request")?;
     let response = handler(request);
     let response_json = serde_json::to_string(&response).context("failed to serialize response")?;
 
@@ -78,7 +91,10 @@ mod tests {
     fn simple_handler(req: JsonRpcRequest) -> JsonRpcResponse {
         match req.method.as_str() {
             "echo" => JsonRpcResponse::success(req.id, serde_json::json!({"echo": req.params})),
-            _ => JsonRpcResponse::error(req.id, JsonRpcError::not_found(format!("unknown method: {}", req.method))),
+            _ => JsonRpcResponse::error(
+                req.id,
+                JsonRpcError::not_found(format!("unknown method: {}", req.method)),
+            ),
         }
     }
 

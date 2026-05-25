@@ -8,18 +8,26 @@ pub fn parse(input: &str) -> MarkdownDoc {
     let lines: Vec<&str> = body.lines().collect();
     let slices = block::detect_blocks(&lines);
 
-    let blocks = slices.into_iter().map(|slice| {
-        build_block(&lines, &slice)
-    }).collect();
+    let blocks = slices
+        .into_iter()
+        .map(|slice| build_block(&lines, &slice))
+        .collect();
 
-    MarkdownDoc { frontmatter, blocks }
+    MarkdownDoc {
+        frontmatter,
+        blocks,
+    }
 }
 
 fn split_frontmatter(input: &str) -> (Option<String>, &str) {
     let trimmed = input.trim_start();
-    if !trimmed.starts_with("---") { return (None, input); }
+    if !trimmed.starts_with("---") {
+        return (None, input);
+    }
     let rest = &trimmed[3..];
-    let Some(end_idx) = rest.find("---") else { return (None, input) };
+    let Some(end_idx) = rest.find("---") else {
+        return (None, input);
+    };
     let yaml = rest[..end_idx].trim().to_string();
     let body = rest[end_idx + 3..].trim_start();
     (Some(yaml), body)
@@ -31,7 +39,10 @@ fn build_block(lines: &[&str], slice: &block::BlockSlice) -> Block {
             let line = lines[slice.start].trim_start();
             let text = line.trim_start_matches('#').trim_start();
             let children = inline::parse_inline(text);
-            Block::Heading { level: *level, children }
+            Block::Heading {
+                level: *level,
+                children,
+            }
         }
 
         BlockKind::Paragraph => {
@@ -44,7 +55,11 @@ fn build_block(lines: &[&str], slice: &block::BlockSlice) -> Block {
             let first_line = lines[slice.start];
             // skip first (opening fence) and last (closing fence) lines
             let code_start = slice.start + 1;
-            let code_end = if slice.end > slice.start { slice.end } else { slice.start + 1 };
+            let code_end = if slice.end > slice.start {
+                slice.end
+            } else {
+                slice.start + 1
+            };
             // check if last line is a closing fence
             let actual_end = if code_end > code_start && is_fence_line(lines[code_end]) {
                 code_end
@@ -70,16 +85,17 @@ fn build_block(lines: &[&str], slice: &block::BlockSlice) -> Block {
         BlockKind::BlockQuote => {
             let quote_lines: Vec<&str> = lines[slice.start..=slice.end]
                 .iter()
-                .map(|l| l.strip_prefix("> ").unwrap_or(l.strip_prefix('>').unwrap_or(l)))
+                .map(|l| {
+                    l.strip_prefix("> ")
+                        .unwrap_or(l.strip_prefix('>').unwrap_or(l))
+                })
                 .collect();
             let inner_text = quote_lines.join("\n");
             let inner_doc = parse(&inner_text);
             Block::BlockQuote(inner_doc.blocks)
         }
 
-        BlockKind::Table => {
-            parse_table(lines, slice.start, slice.end)
-        }
+        BlockKind::Table => parse_table(lines, slice.start, slice.end),
 
         BlockKind::ThematicBreak => Block::ThematicBreak,
 
@@ -99,7 +115,10 @@ fn build_block(lines: &[&str], slice: &block::BlockSlice) -> Block {
 
         BlockKind::FootnoteDef { label } => {
             let first_line = lines[slice.start];
-            let rest = first_line.find("]:").map(|pos| &first_line[pos + 2..]).unwrap_or("");
+            let rest = first_line
+                .find("]:")
+                .map(|pos| &first_line[pos + 2..])
+                .unwrap_or("");
             let mut content_text = rest.trim().to_string();
             if slice.end > slice.start {
                 content_text.push('\n');
@@ -133,8 +152,12 @@ fn parse_list_items(lines: &[&str], start: usize, end: usize) -> Vec<ListItem> {
             let mut item_end = i + 1;
             while item_end <= end {
                 let next = lines[item_end];
-                if block::parse_list_marker(next).is_some() { break; }
-                if next.trim().is_empty() { break; }
+                if block::parse_list_marker(next).is_some() {
+                    break;
+                }
+                if next.trim().is_empty() {
+                    break;
+                }
                 item_end += 1;
             }
 
@@ -148,7 +171,10 @@ fn parse_list_items(lines: &[&str], start: usize, end: usize) -> Vec<ListItem> {
                         // found sub-list, collect it
                         let sub_start = j;
                         while j < item_end {
-                            if block::parse_list_marker(lines[j].trim_start()).is_some() || lines[j].starts_with("  ") || lines[j].starts_with("\t") {
+                            if block::parse_list_marker(lines[j].trim_start()).is_some()
+                                || lines[j].starts_with("  ")
+                                || lines[j].starts_with("\t")
+                            {
                                 j += 1;
                             } else {
                                 break;
@@ -198,13 +224,18 @@ fn parse_table(lines: &[&str], start: usize, end: usize) -> Block {
         .map(|i| parse_table_row(lines[i]))
         .collect();
 
-    Block::Table { headers, aligns, rows }
+    Block::Table {
+        headers,
+        aligns,
+        rows,
+    }
 }
 
 fn parse_table_row(line: &str) -> Vec<Vec<Inline>> {
     let trimmed = line.trim();
     let inner = trimmed.trim_matches('|');
-    inner.split('|')
+    inner
+        .split('|')
         .map(|cell| inline::parse_inline(cell.trim()))
         .collect()
 }
@@ -212,13 +243,19 @@ fn parse_table_row(line: &str) -> Vec<Vec<Inline>> {
 fn parse_table_aligns(line: &str) -> Vec<Option<TableAlign>> {
     let trimmed = line.trim();
     let inner = trimmed.trim_matches('|');
-    inner.split('|')
+    inner
+        .split('|')
         .map(|cell| {
             let cell = cell.trim();
-            if cell.starts_with(':') && cell.ends_with(':') { Some(TableAlign::Center) }
-            else if cell.ends_with(':') { Some(TableAlign::Right) }
-            else if cell.starts_with(':') { Some(TableAlign::Left) }
-            else { None }
+            if cell.starts_with(':') && cell.ends_with(':') {
+                Some(TableAlign::Center)
+            } else if cell.ends_with(':') {
+                Some(TableAlign::Right)
+            } else if cell.starts_with(':') {
+                Some(TableAlign::Left)
+            } else {
+                None
+            }
         })
         .collect()
 }

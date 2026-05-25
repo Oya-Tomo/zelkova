@@ -105,8 +105,7 @@ impl AppConfig {
     }
 
     pub fn config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("cannot determine XDG config directory")?;
+        let config_dir = dirs::config_dir().context("cannot determine XDG config directory")?;
         Ok(config_dir.join("zelkova").join("config.toml"))
     }
 }
@@ -120,7 +119,10 @@ mod tests {
         let config = AppConfig::default();
         assert!(config.note.vault_path.to_string_lossy().ends_with("Notes"));
         assert_eq!(config.note.default_extension, "md");
-        assert_eq!(config.daemon.socket_path, PathBuf::from("/tmp/zelkova.sock"));
+        assert_eq!(
+            config.daemon.socket_path,
+            PathBuf::from("/tmp/zelkova.sock")
+        );
         assert!(config.daemon.index_on_start);
         assert!(config.mcp.enabled);
     }

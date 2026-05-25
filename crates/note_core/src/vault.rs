@@ -12,8 +12,12 @@ pub struct Vault {
 
 impl Vault {
     pub fn new(vault_path: PathBuf) -> Result<Self> {
-        fs::create_dir_all(&vault_path)
-            .with_context(|| format!("failed to create vault directory at {}", vault_path.display()))?;
+        fs::create_dir_all(&vault_path).with_context(|| {
+            format!(
+                "failed to create vault directory at {}",
+                vault_path.display()
+            )
+        })?;
         Ok(Self { vault_path })
     }
 
@@ -31,7 +35,12 @@ impl Vault {
         Ok(Some(self.parse_note_file(&full_path)?))
     }
 
-    pub fn create_note(&self, title: &str, parent_dir: Option<&Path>, tags: HashSet<String>) -> Result<Note> {
+    pub fn create_note(
+        &self,
+        title: &str,
+        parent_dir: Option<&Path>,
+        tags: HashSet<String>,
+    ) -> Result<Note> {
         let dir = match parent_dir {
             Some(p) => self.vault_path.join(p),
             None => self.vault_path.clone(),
@@ -137,8 +146,8 @@ fn parse_frontmatter(content: &str) -> Result<(Frontmatter, String)> {
     let yaml_str = &rest[..end_idx];
     let body = rest[end_idx + 3..].trim_start().to_string();
 
-    let frontmatter: Frontmatter = serde_yaml::from_str(yaml_str)
-        .context("failed to parse YAML frontmatter")?;
+    let frontmatter: Frontmatter =
+        serde_yaml::from_str(yaml_str).context("failed to parse YAML frontmatter")?;
 
     Ok((frontmatter, body))
 }
@@ -234,8 +243,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
-        let note = vault.create_note("To Delete", None, HashSet::new()).unwrap();
-        let rel = note.path.strip_prefix(&vault.vault_path).unwrap().to_path_buf();
+        let note = vault
+            .create_note("To Delete", None, HashSet::new())
+            .unwrap();
+        let rel = note
+            .path
+            .strip_prefix(&vault.vault_path)
+            .unwrap()
+            .to_path_buf();
 
         vault.delete_note(&rel).unwrap();
         assert!(!note.path.exists());

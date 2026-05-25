@@ -13,3 +13,6 @@ tree-sitter-go = "0.25"
 tree-sitter-c = "0.24"
 once_cell = "1"
 zelkova-config = { path = "../config" }
+
+[lints]
+workspace = true

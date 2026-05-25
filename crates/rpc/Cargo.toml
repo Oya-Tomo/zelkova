@@ -10,3 +10,6 @@ anyhow = { workspace = true }
 uuid = { workspace = true }
 tokio = { workspace = true }
 zelkova-note-core = { path = "../note_core" }
+
+[lints]
+workspace = true
