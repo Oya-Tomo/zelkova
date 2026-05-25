@@ -226,7 +226,20 @@ impl ZelkovaApp {
     ) {
         match label {
             "Create Note" => {
-                self.handle_create_note(&CreateNote, window, cx);
+                let title = args.first().and_then(|a| a.as_deref());
+                if self.config.daemon.socket_path.exists() {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if let Ok(result) = client.create_note(title, Vec::new()) {
+                        let path = result.path.clone();
+                        self.notes.push(NoteEntry {
+                            id: result.id.to_string(),
+                            title: result.title.clone(),
+                            path: result.path,
+                        });
+                        self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                    }
+                }
             }
             "Create Folder" => {
                 let name = args

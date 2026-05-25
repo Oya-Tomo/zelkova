@@ -108,7 +108,23 @@ pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
     vec![
         CommandSpec::no_arg("Open Command Palette"),
         CommandSpec::no_arg("Search Notes"),
-        CommandSpec::no_arg("Create Note"),
+        CommandSpec::with_args(
+            "Create Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note title".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: true,
+                },
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["(root)".into()],
+                    },
+                    optional: true,
+                },
+            ],
+        ),
         CommandSpec::with_args(
             "Create Folder",
             vec![
