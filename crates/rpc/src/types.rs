@@ -158,7 +158,8 @@ pub struct GetNoteResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateNoteParams {
-    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub directory: Option<String>,
     #[serde(default)]

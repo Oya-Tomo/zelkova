@@ -120,7 +120,7 @@ fn handle_create_note(
     let note = state
         .vault
         .create_note(
-            &params.title,
+            params.title.as_deref(),
             params.directory.as_deref().map(std::path::Path::new),
             tags,
         )
