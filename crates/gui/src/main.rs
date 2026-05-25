@@ -131,7 +131,12 @@ impl ZelkovaApp {
     }
 
     fn handle_cancel(&mut self, _: &Cancel, _window: &mut Window, cx: &mut Context<Self>) {
-        self.command_palette = None;
+        if let Some(ref palette) = self.command_palette {
+            let should_close = palette.update(cx, |p, _| p.handle_back());
+            if should_close {
+                self.command_palette = None;
+            }
+        }
         cx.notify();
     }
 
@@ -151,16 +156,42 @@ impl ZelkovaApp {
     fn handle_move_up(&mut self, _: &MoveUp, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             palette.update(cx, |p, _| p.move_selection_up());
+            cx.notify();
+            return;
         }
     }
 
     fn handle_move_down(&mut self, _: &MoveDown, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             palette.update(cx, |p, _| p.move_selection_down());
+            cx.notify();
+            return;
         }
     }
 
-    fn handle_confirm(&mut self, _: &Confirm, _window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_insert_newline(
+        &mut self,
+        _: &InsertNewline,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.command_palette.is_some() {
+            self.handle_confirm(&Confirm, window, cx);
+            return;
+        }
+    }
+
+    fn handle_confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref palette) = self.command_palette {
+            let result = palette.update(cx, |p, _| p.handle_confirm());
+            if let Some((label, args)) = result {
+                self.execute_command(&label, &args, window, cx);
+                self.command_palette = None;
+            }
+            cx.notify();
+            return;
+        }
+        // Sidebar note selection
         if let Some(sel) = self.selected {
             if let Some(note) = self.notes.get(sel) {
                 let path = note.path.clone();
@@ -175,7 +206,6 @@ impl ZelkovaApp {
             let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
             if let Ok(result) = client.create_note(None, Vec::new()) {
                 let path = result.path.clone();
-                // Add to local list directly instead of re-fetching
                 self.notes.push(NoteEntry {
                     id: result.id.to_string(),
                     title: result.title.clone(),
@@ -184,6 +214,57 @@ impl ZelkovaApp {
                 self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
                 cx.notify();
             }
+        }
+    }
+
+    fn execute_command(
+        &mut self,
+        label: &str,
+        args: &[Option<String>],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match label {
+            "Create Note" => {
+                let title = args.first().and_then(|a| a.as_deref());
+                if self.config.daemon.socket_path.exists() {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if let Ok(result) = client.create_note(title, Vec::new()) {
+                        let path = result.path.clone();
+                        self.notes.push(NoteEntry {
+                            id: result.id.to_string(),
+                            title: result.title.clone(),
+                            path: result.path,
+                        });
+                        self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                    }
+                }
+            }
+            "Create Folder" => {
+                let name = args
+                    .first()
+                    .and_then(|a| a.as_deref())
+                    .unwrap_or("New Folder");
+                if self.config.daemon.socket_path.exists() {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    let _ = client.create_folder(name, None);
+                }
+            }
+            "Move to Folder" => {
+                // Future: implement folder selection
+            }
+            "Toggle Sidebar" => {
+                self.sidebar_visible = !self.sidebar_visible;
+            }
+            "Save Note" => {
+                self.handle_save(&SaveNote, window, cx);
+            }
+            "Quit" => {
+                cx.quit();
+            }
+            _ => {}
         }
     }
 }
@@ -285,6 +366,7 @@ impl Render for ZelkovaApp {
             .on_action(cx.listener(ZelkovaApp::handle_move_up))
             .on_action(cx.listener(ZelkovaApp::handle_move_down))
             .on_action(cx.listener(ZelkovaApp::handle_confirm))
+            .on_action(cx.listener(ZelkovaApp::handle_insert_newline))
             .on_action(cx.listener(ZelkovaApp::handle_create_note))
             .on_action(cx.listener(ZelkovaApp::handle_save));
 

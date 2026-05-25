@@ -92,10 +92,70 @@ pub fn all_action_entries() -> Vec<(String, String)> {
         ("OpenCommandPalette".into(), "Open Command Palette".into()),
         ("SearchNotes".into(), "Search Notes".into()),
         ("CreateNote".into(), "Create Note".into()),
+        ("CreateFolder".into(), "Create Folder".into()),
+        ("MoveToFolder".into(), "Move to Folder".into()),
         ("ListNotes".into(), "List Notes".into()),
         ("ShowTags".into(), "Show Tags".into()),
         ("ToggleSidebar".into(), "Toggle Sidebar".into()),
         ("SaveNote".into(), "Save Note".into()),
         ("Quit".into(), "Quit".into()),
+    ]
+}
+
+/// Command specs with argument definitions for the command palette.
+pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
+    use super::command_palette::{ArgSpec, ArgType, CommandSpec};
+    vec![
+        CommandSpec::no_arg("Open Command Palette"),
+        CommandSpec::no_arg("Search Notes"),
+        CommandSpec::with_args(
+            "Create Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note title".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: true,
+                },
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["(root)".into()],
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Create Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder name".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Parent folder".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["(root)".into()],
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Move to Folder",
+            vec![ArgSpec {
+                prompt: "Target folder".into(),
+                arg_type: ArgType::Select {
+                    options: vec!["(root)".into()],
+                },
+                optional: true,
+            }],
+        ),
+        CommandSpec::no_arg("List Notes"),
+        CommandSpec::no_arg("Show Tags"),
+        CommandSpec::no_arg("Toggle Sidebar"),
+        CommandSpec::no_arg("Save Note"),
+        CommandSpec::no_arg("Quit"),
     ]
 }
