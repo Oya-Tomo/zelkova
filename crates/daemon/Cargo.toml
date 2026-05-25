@@ -17,3 +17,6 @@ zelkova-config = { path = "../config" }
 zelkova-note-core = { path = "../note_core" }
 zelkova-search = { path = "../search" }
 zelkova-rpc = { path = "../rpc" }
+
+[lints]
+workspace = true

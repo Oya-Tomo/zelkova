@@ -2,3 +2,22 @@
 /result
 .direnv
 .claude
+
+# Secrets
+.env
+.env.*
+*.secret
+*.key
+*.pem
+credentials.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
