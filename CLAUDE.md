@@ -78,8 +78,7 @@ Aim for **under 400 lines** per PR. If it exceeds that, split into sub-tasks in 
 
 ## Communication
 
-- Commit messages, PR descriptions, Issue text: **English**
-- Discussions, spec reviews, comments: **Japanese**
+- All project communication (commit messages, PR descriptions, Issue text, specs, comments, discussions): **English**
 
 ## Project Structure
 
