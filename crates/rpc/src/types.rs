@@ -160,10 +160,48 @@ pub struct GetNoteResult {
 pub struct CreateNoteParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub directory: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFolderParams {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFolderResult {
+    pub id: Uuid,
+    pub name: String,
+    pub parent: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoveNoteParams {
+    pub note_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub parent: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListTreeResult {
+    pub folders: Vec<FolderInfo>,
+    pub mappings: Vec<NoteMappingInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteMappingInfo {
+    pub note_id: Uuid,
+    pub folder_id: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +225,9 @@ pub const METHOD_SEARCH: &str = "search";
 pub const METHOD_LIST_NOTES: &str = "list_notes";
 pub const METHOD_GET_NOTE: &str = "get_note";
 pub const METHOD_CREATE_NOTE: &str = "create_note";
+pub const METHOD_CREATE_FOLDER: &str = "create_folder";
+pub const METHOD_MOVE_NOTE: &str = "move_note";
+pub const METHOD_LIST_TREE: &str = "list_tree";
 pub const METHOD_TAGS: &str = "tags";
 pub const METHOD_REBUILD_INDEX: &str = "rebuild_index";
 pub const METHOD_NOTE_UPDATED: &str = "note_updated";
