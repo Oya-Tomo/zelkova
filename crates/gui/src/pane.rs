@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window, div,
+    prelude::*, px,
 };
 use zelkova_config::EditorColors;
 
@@ -31,6 +32,7 @@ pub struct PaneManager {
     focus_handle: FocusHandle,
     theme: EditorColors,
     socket_path: Option<PathBuf>,
+    _editor_subscriptions: Vec<Subscription>,
 }
 
 impl PaneManager {
@@ -41,6 +43,7 @@ impl PaneManager {
             focus_handle: cx.focus_handle(),
             theme: EditorColors::default(),
             socket_path: None,
+            _editor_subscriptions: Vec::new(),
         }
     }
 
@@ -56,13 +59,14 @@ impl PaneManager {
         let title = path
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or("untitled")
+            .expect("file_stem is valid because PathBuf came from a valid file path")
             .to_string();
 
         // Check if already open
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.file_path.as_ref() == Some(&path) {
                 self.active_tab = i;
+                cx.notify();
                 return;
             }
         }
@@ -81,11 +85,26 @@ impl PaneManager {
         self.tabs.push(Tab {
             title,
             file_path: Some(path),
-            editor,
+            editor: editor.clone(),
             preview,
             view_mode: ViewMode::Editor,
         });
         self.active_tab = self.tabs.len() - 1;
+
+        // Observe editor for title changes (syncs tab title in real-time)
+        let sub = cx.observe(&editor, |this, editor, cx| {
+            let new_title = editor.read(cx).title().to_string();
+            let active = this.active_tab;
+            if let Some(tab) = this.tabs.get_mut(active) {
+                if tab.editor == editor && tab.title != new_title {
+                    tab.title = new_title;
+                    cx.notify();
+                }
+            }
+        });
+        self._editor_subscriptions.push(sub);
+
+        cx.notify();
     }
 
     pub fn close_active_tab(&mut self) {
