@@ -172,8 +172,12 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
-        let note1 = vault.create_note(Some("Same Title"), None, HashSet::new()).unwrap();
-        let note2 = vault.create_note(Some("Same Title"), None, HashSet::new()).unwrap();
+        let note1 = vault
+            .create_note(Some("Same Title"), None, HashSet::new())
+            .unwrap();
+        let note2 = vault
+            .create_note(Some("Same Title"), None, HashSet::new())
+            .unwrap();
 
         assert_ne!(note1.path, note2.path, "UUID filenames must differ");
         assert!(note1.path.exists());
@@ -229,8 +233,18 @@ mod tests {
         let note = vault.create_note(Some("Test Note"), None, tags).unwrap();
 
         assert!(note.path.exists());
-        assert!(note.path.file_name().unwrap().to_string_lossy().ends_with(".md"));
-        assert_ne!(note.path.file_stem().unwrap(), "Test Note", "filename should be UUID, not title");
+        assert!(
+            note.path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with(".md")
+        );
+        assert_ne!(
+            note.path.file_stem().unwrap(),
+            "Test Note",
+            "filename should be UUID, not title"
+        );
 
         let notes = vault.list_notes().unwrap();
         assert_eq!(notes.len(), 1);
