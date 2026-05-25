@@ -35,19 +35,7 @@ impl Vault {
         Ok(Some(self.parse_note_file(&full_path)?))
     }
 
-    pub fn create_note(
-        &self,
-        title: Option<&str>,
-        parent_dir: Option<&Path>,
-        tags: HashSet<String>,
-    ) -> Result<Note> {
-        let dir = match parent_dir {
-            Some(p) => self.vault_path.join(p),
-            None => self.vault_path.clone(),
-        };
-        fs::create_dir_all(&dir)
-            .with_context(|| format!("failed to create directory at {}", dir.display()))?;
-
+    pub fn create_note(&self, title: Option<&str>, tags: HashSet<String>) -> Result<Note> {
         let id = Uuid::new_v4();
         let now = Utc::now();
         let frontmatter = Frontmatter {
@@ -59,7 +47,7 @@ impl Vault {
         };
 
         let filename = format!("{id}.md");
-        let path = dir.join(&filename);
+        let path = self.vault_path.join(&filename);
         let content = format_note_file(&frontmatter, "");
         fs::write(&path, &content)
             .with_context(|| format!("failed to write note to {}", path.display()))?;
@@ -158,7 +146,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
-        let note = vault.create_note(None, None, HashSet::new()).unwrap();
+        let note = vault.create_note(None, HashSet::new()).unwrap();
         assert!(note.path.exists());
         assert_eq!(note.frontmatter.title, "");
 
@@ -173,10 +161,10 @@ mod tests {
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
         let note1 = vault
-            .create_note(Some("Same Title"), None, HashSet::new())
+            .create_note(Some("Same Title"), HashSet::new())
             .unwrap();
         let note2 = vault
-            .create_note(Some("Same Title"), None, HashSet::new())
+            .create_note(Some("Same Title"), HashSet::new())
             .unwrap();
 
         assert_ne!(note1.path, note2.path, "UUID filenames must differ");
@@ -230,7 +218,7 @@ mod tests {
 
         let mut tags = HashSet::new();
         tags.insert("demo".to_string());
-        let note = vault.create_note(Some("Test Note"), None, tags).unwrap();
+        let note = vault.create_note(Some("Test Note"), tags).unwrap();
 
         assert!(note.path.exists());
         assert!(
@@ -255,28 +243,12 @@ mod tests {
     }
 
     #[test]
-    fn vault_create_in_subdirectory() {
-        let tmp = tempfile::tempdir().unwrap();
-        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
-
-        let note = vault
-            .create_note(Some("Sub Note"), Some(Path::new("sub/dir")), HashSet::new())
-            .unwrap();
-
-        assert!(note.path.to_string_lossy().contains("sub/dir"));
-        assert!(note.path.exists());
-
-        let notes = vault.list_notes().unwrap();
-        assert_eq!(notes.len(), 1);
-    }
-
-    #[test]
     fn vault_delete_note() {
         let tmp = tempfile::tempdir().unwrap();
         let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
 
         let note = vault
-            .create_note(Some("To Delete"), None, HashSet::new())
+            .create_note(Some("To Delete"), HashSet::new())
             .unwrap();
         let rel = note
             .path
