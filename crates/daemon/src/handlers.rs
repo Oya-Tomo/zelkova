@@ -12,6 +12,8 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
         METHOD_CREATE_FOLDER => handle_create_folder(&request, state),
         METHOD_MOVE_NOTE => handle_move_note(&request, state),
         METHOD_LIST_TREE => handle_list_tree(state),
+        METHOD_DELETE_FOLDER => handle_delete_folder(&request, state),
+        METHOD_RENAME_FOLDER => handle_rename_folder(&request, state),
         METHOD_TAGS => handle_tags(state),
         METHOD_REBUILD_INDEX => handle_rebuild_index(state),
         METHOD_NOTE_UPDATED => handle_note_updated(&request, state),
@@ -236,6 +238,48 @@ fn handle_list_tree(state: &DaemonState) -> Result<serde_json::Value, JsonRpcErr
         .collect();
 
     serde_json::to_value(ListTreeResult { folders, mappings })
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_delete_folder(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: DeleteFolderParams = parse_params(request)?;
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+
+    directory
+        .delete_folder(params.folder_id)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_rename_folder(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: RenameFolderParams = parse_params(request)?;
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+
+    if !directory.rename_folder(params.folder_id, &params.new_name) {
+        return Err(JsonRpcError::not_found("folder not found"));
+    }
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
         .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 

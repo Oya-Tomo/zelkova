@@ -228,6 +228,8 @@ pub const METHOD_CREATE_NOTE: &str = "create_note";
 pub const METHOD_CREATE_FOLDER: &str = "create_folder";
 pub const METHOD_MOVE_NOTE: &str = "move_note";
 pub const METHOD_LIST_TREE: &str = "list_tree";
+pub const METHOD_DELETE_FOLDER: &str = "delete_folder";
+pub const METHOD_RENAME_FOLDER: &str = "rename_folder";
 pub const METHOD_TAGS: &str = "tags";
 pub const METHOD_REBUILD_INDEX: &str = "rebuild_index";
 pub const METHOD_NOTE_UPDATED: &str = "note_updated";
@@ -235,4 +237,15 @@ pub const METHOD_NOTE_UPDATED: &str = "note_updated";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteUpdatedParams {
     pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteFolderParams {
+    pub folder_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameFolderParams {
+    pub folder_id: Uuid,
+    pub new_name: String,
 }

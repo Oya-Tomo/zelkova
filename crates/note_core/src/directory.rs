@@ -90,6 +90,40 @@ impl DirectoryStructure {
         self.folders.iter().find(|f| f.id == folder_id)
     }
 
+    pub fn rename_folder(&mut self, folder_id: Uuid, new_name: &str) -> bool {
+        if let Some(folder) = self.folders.iter_mut().find(|f| f.id == folder_id) {
+            folder.name = new_name.to_string();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn delete_folder(&mut self, folder_id: Uuid) -> Result<()> {
+        // Check folder exists
+        if !self.folders.iter().any(|f| f.id == folder_id) {
+            anyhow::bail!("folder not found");
+        }
+
+        // Move notes in this folder to root (remove mappings)
+        self.mappings.retain(|m| m.folder != folder_id);
+
+        // Move sub-folders to parent of deleted folder
+        let parent = self
+            .folders
+            .iter()
+            .find(|f| f.id == folder_id)
+            .and_then(|f| f.parent);
+        for folder in self.folders.iter_mut() {
+            if folder.parent == Some(folder_id) {
+                folder.parent = parent;
+            }
+        }
+
+        self.folders.retain(|f| f.id != folder_id);
+        Ok(())
+    }
+
     pub fn build_tree(&self) -> Vec<FolderTree> {
         let root_folders: Vec<&Folder> =
             self.folders.iter().filter(|f| f.parent.is_none()).collect();
@@ -216,5 +250,45 @@ mod tests {
         let ds = DirectoryStructure::load(&vault_path).unwrap();
         assert!(ds.folders.is_empty());
         assert!(ds.mappings.is_empty());
+    }
+
+    #[test]
+    fn rename_folder() {
+        let mut ds = DirectoryStructure::default();
+        let folder = ds.create_folder("Work", None);
+        assert!(ds.rename_folder(folder.id, "Work renamed"));
+        assert_eq!(ds.folders[0].name, "Work renamed");
+        assert!(!ds.rename_folder(Uuid::new_v4(), "x"));
+    }
+
+    #[test]
+    fn delete_folder_moves_notes_to_root() {
+        let mut ds = DirectoryStructure::default();
+        let work = ds.create_folder("Work", None);
+        let note_id = Uuid::new_v4();
+        ds.move_note_to_folder(note_id, Some(work.id));
+        assert_eq!(ds.mappings.len(), 1);
+
+        ds.delete_folder(work.id).unwrap();
+        assert!(ds.folders.is_empty());
+        assert!(ds.mappings.is_empty());
+    }
+
+    #[test]
+    fn delete_folder_moves_subfolders_to_parent() {
+        let mut ds = DirectoryStructure::default();
+        let work = ds.create_folder("Work", None);
+        let projects = ds.create_folder("Projects", Some(work.id));
+
+        ds.delete_folder(work.id).unwrap();
+        assert_eq!(ds.folders.len(), 1);
+        assert!(ds.folders[0].parent.is_none());
+        assert_eq!(ds.folders[0].name, "Projects");
+    }
+
+    #[test]
+    fn delete_nonexistent_folder_fails() {
+        let mut ds = DirectoryStructure::default();
+        assert!(ds.delete_folder(Uuid::new_v4()).is_err());
     }
 }

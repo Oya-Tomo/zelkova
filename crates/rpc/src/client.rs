@@ -200,6 +200,41 @@ impl RpcClient {
         let result = response.result.context("no result in response")?;
         serde_json::from_value(result).context("failed to parse list_tree result")
     }
+
+    pub fn delete_folder(&self, folder_id: Uuid) -> Result<()> {
+        let params = DeleteFolderParams { folder_id };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_DELETE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("delete_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn rename_folder(&self, folder_id: Uuid, new_name: &str) -> Result<()> {
+        let params = RenameFolderParams {
+            folder_id,
+            new_name: new_name.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_RENAME_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("rename_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
 }
 
 fn next_id() -> u64 {
