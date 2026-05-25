@@ -7,8 +7,8 @@ mod preview;
 use std::path::PathBuf;
 
 use gpui::{
-    App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
-    actions, div, prelude::*, px, size,
+    App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
+    WindowOptions, actions, div, prelude::*, px, size,
 };
 use zelkova_config::AppConfig;
 
@@ -52,6 +52,7 @@ struct ZelkovaApp {
     pane_manager: Entity<pane::PaneManager>,
     config: AppConfig,
     ui_colors: zelkova_config::UiColors,
+    _pane_subscription: Option<Subscription>,
 }
 
 struct NoteEntry {
@@ -98,6 +99,7 @@ impl ZelkovaApp {
             pane_manager,
             config,
             ui_colors,
+            _pane_subscription: None,
         }
     }
 
@@ -163,6 +165,7 @@ impl ZelkovaApp {
             if let Some(note) = self.notes.get(sel) {
                 let path = note.path.clone();
                 self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                cx.notify();
             }
         }
     }
@@ -264,6 +267,7 @@ impl Render for ZelkovaApp {
                             this.selected = Some(i);
                             let path = this.notes[i].path.clone();
                             this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                            cx.notify();
                         }),
                     )
             }));
@@ -316,7 +320,27 @@ fn main() {
                 }),
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| ZelkovaApp::new(config_clone.clone(), cx)),
+            |_, cx| {
+                cx.new(|cx| {
+                    let mut app = ZelkovaApp::new(config_clone.clone(), cx);
+                    // Observe PaneManager to sync sidebar titles in real-time
+                    let sub = cx.observe(&app.pane_manager, |this: &mut ZelkovaApp, _pane, cx| {
+                        let (path, title) = this.pane_manager.read(cx).active_editor_title(cx);
+                        if let (Some(path), Some(title)) = (path, title) {
+                            for note in &mut this.notes {
+                                if note.path == path {
+                                    if note.title != title {
+                                        note.title = title;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                    app._pane_subscription = Some(sub);
+                    app
+                })
+            },
         )
         .unwrap();
         cx.activate(true);
