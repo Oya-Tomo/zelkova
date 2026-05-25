@@ -169,6 +169,18 @@ impl ZelkovaApp {
         }
     }
 
+    fn handle_insert_newline(
+        &mut self,
+        _: &InsertNewline,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.command_palette.is_some() {
+            self.handle_confirm(&Confirm, window, cx);
+            return;
+        }
+    }
+
     fn handle_confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             let result = palette.update(cx, |p, _| p.handle_confirm());
@@ -341,6 +353,7 @@ impl Render for ZelkovaApp {
             .on_action(cx.listener(ZelkovaApp::handle_move_up))
             .on_action(cx.listener(ZelkovaApp::handle_move_down))
             .on_action(cx.listener(ZelkovaApp::handle_confirm))
+            .on_action(cx.listener(ZelkovaApp::handle_insert_newline))
             .on_action(cx.listener(ZelkovaApp::handle_create_note))
             .on_action(cx.listener(ZelkovaApp::handle_save));
 
