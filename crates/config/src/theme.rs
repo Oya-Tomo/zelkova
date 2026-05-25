@@ -82,37 +82,99 @@ pub struct EditorColors {
     pub code_attribute: String,
 }
 
-fn default_bg() -> String { "#1e1e2e".into() }
-fn default_sidebar_bg() -> String { "#181825".into() }
-fn default_border() -> String { "#313244".into() }
-fn default_text() -> String { "#cdd6f4".into() }
-fn default_text_dim() -> String { "#a6adc8".into() }
-fn default_heading_fg() -> String { "#89b4fa".into() }
-fn default_heading_marker() -> String { "#89b4fa".into() }
-fn default_list_marker() -> String { "#f9e2af".into() }
-fn default_code_bg() -> String { "#313244".into() }
-fn default_code_fg() -> String { "#a6e3a1".into() }
-fn default_link_fg() -> String { "#89b4fa".into() }
-fn default_image_marker() -> String { "#7f849c".into() }
-fn default_quote_fg() -> String { "#9399b2".into() }
-fn default_quote_border() -> String { "#585b70".into() }
-fn default_math_fg() -> String { "#cba6f7".into() }
-fn default_strikethrough_fg() -> String { "#7f849c".into() }
-fn default_bold_fg() -> String { "#f9e2af".into() }
-fn default_italic_fg() -> String { "#f5c2e7".into() }
-fn default_bold_weight() -> u32 { 700 }
-fn default_code_keyword() -> String { "#cba6f7".into() }
-fn default_code_function() -> String { "#89b4fa".into() }
-fn default_code_string() -> String { "#a6e3a1".into() }
-fn default_code_number() -> String { "#fab387".into() }
-fn default_code_comment() -> String { "#6c7086".into() }
-fn default_code_type() -> String { "#f9e2af".into() }
-fn default_code_constant() -> String { "#fab387".into() }
-fn default_code_operator() -> String { "#89dceb".into() }
-fn default_code_property() -> String { "#89b4fa".into() }
-fn default_code_tag() -> String { "#f38ba8".into() }
-fn default_code_punctuation() -> String { "#6c7086".into() }
-fn default_code_attribute() -> String { "#f9e2af".into() }
+fn default_bg() -> String {
+    "#1e1e2e".into()
+}
+fn default_sidebar_bg() -> String {
+    "#181825".into()
+}
+fn default_border() -> String {
+    "#313244".into()
+}
+fn default_text() -> String {
+    "#cdd6f4".into()
+}
+fn default_text_dim() -> String {
+    "#a6adc8".into()
+}
+fn default_heading_fg() -> String {
+    "#89b4fa".into()
+}
+fn default_heading_marker() -> String {
+    "#89b4fa".into()
+}
+fn default_list_marker() -> String {
+    "#f9e2af".into()
+}
+fn default_code_bg() -> String {
+    "#313244".into()
+}
+fn default_code_fg() -> String {
+    "#a6e3a1".into()
+}
+fn default_link_fg() -> String {
+    "#89b4fa".into()
+}
+fn default_image_marker() -> String {
+    "#7f849c".into()
+}
+fn default_quote_fg() -> String {
+    "#9399b2".into()
+}
+fn default_quote_border() -> String {
+    "#585b70".into()
+}
+fn default_math_fg() -> String {
+    "#cba6f7".into()
+}
+fn default_strikethrough_fg() -> String {
+    "#7f849c".into()
+}
+fn default_bold_fg() -> String {
+    "#f9e2af".into()
+}
+fn default_italic_fg() -> String {
+    "#f5c2e7".into()
+}
+fn default_bold_weight() -> u32 {
+    700
+}
+fn default_code_keyword() -> String {
+    "#cba6f7".into()
+}
+fn default_code_function() -> String {
+    "#89b4fa".into()
+}
+fn default_code_string() -> String {
+    "#a6e3a1".into()
+}
+fn default_code_number() -> String {
+    "#fab387".into()
+}
+fn default_code_comment() -> String {
+    "#6c7086".into()
+}
+fn default_code_type() -> String {
+    "#f9e2af".into()
+}
+fn default_code_constant() -> String {
+    "#fab387".into()
+}
+fn default_code_operator() -> String {
+    "#89dceb".into()
+}
+fn default_code_property() -> String {
+    "#89b4fa".into()
+}
+fn default_code_tag() -> String {
+    "#f38ba8".into()
+}
+fn default_code_punctuation() -> String {
+    "#6c7086".into()
+}
+fn default_code_attribute() -> String {
+    "#f9e2af".into()
+}
 
 impl Default for ThemeConfig {
     fn default() -> Self {
@@ -200,8 +262,7 @@ impl ThemeConfig {
     }
 
     pub fn theme_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("cannot determine XDG config directory")?;
+        let config_dir = dirs::config_dir().context("cannot determine XDG config directory")?;
         Ok(config_dir.join("zelkova").join("theme.toml"))
     }
 }

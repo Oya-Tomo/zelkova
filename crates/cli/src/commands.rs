@@ -4,7 +4,12 @@ use uuid::Uuid;
 use zelkova_config::AppConfig;
 use zelkova_rpc::client::RpcClient;
 
-pub fn search(client: &RpcClient, query: &str, tags: Vec<String>, limit: Option<usize>) -> Result<()> {
+pub fn search(
+    client: &RpcClient,
+    query: &str,
+    tags: Vec<String>,
+    limit: Option<usize>,
+) -> Result<()> {
     let results = client.search(query, tags, limit).context("search failed")?;
     if results.results.is_empty() {
         println!("No results found.");
@@ -48,8 +53,15 @@ pub fn show(client: &RpcClient, id: &Uuid) -> Result<()> {
     Ok(())
 }
 
-pub fn create(client: &RpcClient, title: &str, directory: Option<&str>, tags: Vec<String>) -> Result<()> {
-    let result = client.create_note(title, directory, tags).context("create_note failed")?;
+pub fn create(
+    client: &RpcClient,
+    title: &str,
+    directory: Option<&str>,
+    tags: Vec<String>,
+) -> Result<()> {
+    let result = client
+        .create_note(title, directory, tags)
+        .context("create_note failed")?;
     println!("Created note: {}", result.id);
     println!("  Title: {}", result.title);
     println!("  Path:  {}", result.path.display());
@@ -71,9 +83,7 @@ pub fn daemon_status(config: &AppConfig) -> Result<()> {
     if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
         let pid: u32 = pid_str.trim().parse().context("invalid PID")?;
         // check if process is running
-        let running = std::path::Path::new("/proc")
-            .join(pid.to_string())
-            .exists();
+        let running = std::path::Path::new("/proc").join(pid.to_string()).exists();
         if running {
             println!("Daemon running (PID {pid})");
             println!("Socket: {}", socket.display());
@@ -117,12 +127,10 @@ pub fn daemon_stop(config: &AppConfig) -> Result<()> {
 }
 
 pub fn rebuild_index(client: &RpcClient) -> Result<()> {
-    let request = zelkova_rpc::JsonRpcRequest::new(
-        1,
-        zelkova_rpc::METHOD_REBUILD_INDEX,
-        None,
-    );
-    let response = client.send_request(&request).context("rebuild_index request failed")?;
+    let request = zelkova_rpc::JsonRpcRequest::new(1, zelkova_rpc::METHOD_REBUILD_INDEX, None);
+    let response = client
+        .send_request(&request)
+        .context("rebuild_index request failed")?;
 
     if let Some(error) = response.error {
         anyhow::bail!("rebuild_index error: {} ({})", error.message, error.code);

@@ -7,9 +7,8 @@ mod preview;
 use std::path::PathBuf;
 
 use gpui::{
-    px, size, div, prelude::*,
-    actions, App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds,
-    WindowOptions,
+    App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
+    actions, div, prelude::*, px, size,
 };
 use zelkova_config::AppConfig;
 
@@ -134,12 +133,7 @@ impl ZelkovaApp {
         cx.notify();
     }
 
-    fn handle_save(
-        &mut self,
-        _: &SaveNote,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn handle_save(&mut self, _: &SaveNote, _window: &mut Window, cx: &mut Context<Self>) {
         // Sync sidebar title from the active editor's frontmatter
         let (path, title) = self.pane_manager.read(cx).active_editor_title(cx);
         if let (Some(path), Some(title)) = (path, title) {
@@ -173,12 +167,7 @@ impl ZelkovaApp {
         }
     }
 
-    fn handle_create_note(
-        &mut self,
-        _: &CreateNote,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn handle_create_note(&mut self, _: &CreateNote, _window: &mut Window, cx: &mut Context<Self>) {
         if self.config.daemon.socket_path.exists() {
             let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
             if let Ok(result) = client.create_note("New Note", None, Vec::new()) {
@@ -244,28 +233,30 @@ impl Render for ZelkovaApp {
                             ),
                     ),
             )
-            .children(
-                self.notes.iter().enumerate().map(|(i, note)| {
-                    let is_selected = self.selected == Some(i);
-                    let note_bg = if is_selected { selection_bg } else { sidebar_bg };
-                    div()
-                        .px_3()
-                        .py_1()
-                        .bg(note_bg)
-                        .text_color(text)
-                        .text_xs()
-                        .cursor(gpui::CursorStyle::PointingHand)
-                        .child(note.title.clone())
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(move |this, _event, _window, cx| {
-                                this.selected = Some(i);
-                                let path = this.notes[i].path.clone();
-                                this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
-                            }),
-                        )
-                }),
-            );
+            .children(self.notes.iter().enumerate().map(|(i, note)| {
+                let is_selected = self.selected == Some(i);
+                let note_bg = if is_selected {
+                    selection_bg
+                } else {
+                    sidebar_bg
+                };
+                div()
+                    .px_3()
+                    .py_1()
+                    .bg(note_bg)
+                    .text_color(text)
+                    .text_xs()
+                    .cursor(gpui::CursorStyle::PointingHand)
+                    .child(note.title.clone())
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |this, _event, _window, cx| {
+                            this.selected = Some(i);
+                            let path = this.notes[i].path.clone();
+                            this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                        }),
+                    )
+            }));
 
         let mut main = div()
             .flex()
@@ -286,14 +277,7 @@ impl Render for ZelkovaApp {
         if self.sidebar_visible {
             main = main.child(sidebar);
         }
-        main = main.child(
-            div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .h_full()
-                .child(pane),
-        );
+        main = main.child(div().flex().flex_col().flex_1().h_full().child(pane));
 
         if let Some(ref palette) = self.command_palette {
             main = main.child(palette.clone());

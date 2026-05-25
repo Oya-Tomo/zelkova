@@ -18,12 +18,11 @@ struct DaemonState {
 fn main() -> Result<()> {
     let config = AppConfig::load().context("failed to load config")?;
 
-    let vault = Vault::new(config.note.vault_path.clone())
-        .context("failed to open vault")?;
+    let vault = Vault::new(config.note.vault_path.clone()).context("failed to open vault")?;
 
     let index_path = config.note.vault_path.join(".zelkova").join("index");
-    let search_index = zelkova_search::default_search_index(&index_path)
-        .context("failed to open search index")?;
+    let search_index =
+        zelkova_search::default_search_index(&index_path).context("failed to open search index")?;
 
     let state = Arc::new(DaemonState {
         vault,
@@ -38,10 +37,17 @@ fn main() -> Result<()> {
     }
 
     // start RPC server
-    let server = RpcServer::bind(&config.daemon.socket_path)
-        .with_context(|| format!("failed to bind RPC socket at {}", config.daemon.socket_path.display()))?;
+    let server = RpcServer::bind(&config.daemon.socket_path).with_context(|| {
+        format!(
+            "failed to bind RPC socket at {}",
+            config.daemon.socket_path.display()
+        )
+    })?;
 
-    eprintln!("zelkovad listening on {}", config.daemon.socket_path.display());
+    eprintln!(
+        "zelkovad listening on {}",
+        config.daemon.socket_path.display()
+    );
 
     write_pid_file(&config)?;
 

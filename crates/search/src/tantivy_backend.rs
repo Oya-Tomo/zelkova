@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use tantivy::collector::TopDocs;
 use tantivy::query::{BooleanQuery, Occur, QueryParser, TermQuery};
 use tantivy::schema::*;
-use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
+use tantivy::{Index, IndexWriter, ReloadPolicy, doc};
 use uuid::Uuid;
 
 pub struct TantivyIndex {
@@ -21,10 +21,10 @@ impl TantivyIndex {
             Index::open_in_dir(path)
                 .with_context(|| format!("failed to open index at {}", path.display()))?
         } else {
-            std::fs::create_dir_all(path)
-                .with_context(|| format!("failed to create index directory at {}", path.display()))?;
-            Index::create_in_dir(path, schema.clone())
-                .with_context(|| "failed to create index")?
+            std::fs::create_dir_all(path).with_context(|| {
+                format!("failed to create index directory at {}", path.display())
+            })?;
+            Index::create_in_dir(path, schema.clone()).with_context(|| "failed to create index")?
         };
 
         let writer = index
@@ -70,7 +70,9 @@ impl SearchIndex for TantivyIndex {
             self.field_path() => doc_input.path.to_string_lossy().as_ref(),
         );
         let mut writer = self.writer.lock().unwrap();
-        writer.add_document(doc).context("failed to add document to index")?;
+        writer
+            .add_document(doc)
+            .context("failed to add document to index")?;
         writer.commit().context("failed to commit index")?;
         Ok(())
     }
@@ -103,18 +105,23 @@ impl SearchIndex for TantivyIndex {
         let mut queries: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
 
         if !query.text.is_empty() {
-            let parsed = query_parser.parse_query(&query.text).context("failed to parse search query")?;
+            let parsed = query_parser
+                .parse_query(&query.text)
+                .context("failed to parse search query")?;
             queries.push((Occur::Must, parsed));
         }
 
         for tag in &query.tags {
             let term = tantivy::Term::from_field_text(self.field_tags(), tag);
-            let q: Box<dyn tantivy::query::Query> = Box::new(TermQuery::new(term, IndexRecordOption::Basic));
+            let q: Box<dyn tantivy::query::Query> =
+                Box::new(TermQuery::new(term, IndexRecordOption::Basic));
             queries.push((Occur::Must, q));
         }
 
         let combined: Box<dyn tantivy::query::Query> = if queries.is_empty() {
-            query_parser.parse_query("*").context("failed to parse wildcard query")?
+            query_parser
+                .parse_query("*")
+                .context("failed to parse wildcard query")?
         } else {
             Box::new(BooleanQuery::new(queries))
         };
@@ -125,10 +132,21 @@ impl SearchIndex for TantivyIndex {
 
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
-            let doc: TantivyDocument = searcher.doc(doc_address).context("failed to retrieve document")?;
-            let id_str = doc.get_first(self.field_id()).and_then(|v| v.as_str()).unwrap_or("");
-            let title = doc.get_first(self.field_title()).and_then(|v| v.as_str()).unwrap_or("");
-            let path_str = doc.get_first(self.field_path()).and_then(|v| v.as_str()).unwrap_or("");
+            let doc: TantivyDocument = searcher
+                .doc(doc_address)
+                .context("failed to retrieve document")?;
+            let id_str = doc
+                .get_first(self.field_id())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let title = doc
+                .get_first(self.field_title())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let path_str = doc
+                .get_first(self.field_path())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
 
             results.push(SearchResult {
                 id: Uuid::parse_str(id_str).unwrap_or_default(),
@@ -145,7 +163,9 @@ impl SearchIndex for TantivyIndex {
     fn rebuild(&self, docs: &[SearchDocument]) -> Result<()> {
         {
             let mut writer = self.writer.lock().unwrap();
-            writer.delete_all_documents().context("failed to clear index")?;
+            writer
+                .delete_all_documents()
+                .context("failed to clear index")?;
             writer.commit().context("failed to commit after clear")?;
         }
 

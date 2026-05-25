@@ -1,10 +1,9 @@
 use gpui::{
-    div, img, px, rgb,
-    prelude::*,
-    App, Context, FocusHandle, IntoElement, Render, SharedString, StyledText, Window,
+    App, Context, FocusHandle, IntoElement, Render, SharedString, StyledText, Window, div, img,
+    prelude::*, px, rgb,
 };
 use zelkova_config::EditorColors;
-use zelkova_markdown::{parse, Block, Inline, ListMarker, MarkdownDoc, TableAlign};
+use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
 
 pub struct Preview {
     doc: MarkdownDoc,
@@ -105,10 +104,7 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
                         .mb(px(4.0))
                         .child(lang_label),
                 )
-                .child(
-                    StyledText::new(code_text)
-                        .with_highlights(vec![]),
-                )
+                .child(StyledText::new(code_text).with_highlights(vec![]))
                 .into_any_element()
         }
         Block::List { items } => {
@@ -116,13 +112,15 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
                 .iter()
                 .map(|item| render_list_item(item, 0, theme))
                 .collect();
-            div().mb(px(8.0)).flex().flex_col().children(children).into_any_element()
+            div()
+                .mb(px(8.0))
+                .flex()
+                .flex_col()
+                .children(children)
+                .into_any_element()
         }
         Block::BlockQuote(blocks) => {
-            let children: Vec<_> = blocks
-                .iter()
-                .map(|b| render_block(b, theme))
-                .collect();
+            let children: Vec<_> = blocks.iter().map(|b| render_block(b, theme)).collect();
             div()
                 .mb(px(8.0))
                 .pl(px(12.0))
@@ -159,10 +157,7 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
             .child(content.clone())
             .into_any_element(),
         Block::FootnoteDefinition { label, content } => {
-            let blocks: Vec<_> = content
-                .iter()
-                .map(|b| render_block(b, theme))
-                .collect();
+            let blocks: Vec<_> = content.iter().map(|b| render_block(b, theme)).collect();
             div()
                 .mb(px(4.0))
                 .flex()
@@ -205,11 +200,7 @@ fn render_list_item(
             div()
                 .flex()
                 .flex_row()
-                .child(
-                    div()
-                        .text_color(rgb(0xf9e2af))
-                        .child(marker_text),
-                )
+                .child(div().text_color(rgb(0xf9e2af)).child(marker_text))
                 .children(inline),
         )
         .children(sub_children)
@@ -247,13 +238,7 @@ fn render_table(
                 .child(text)
         })
         .collect();
-    table_div = table_div.child(
-        div()
-            .flex()
-            .flex_row()
-            .w_full()
-            .children(header_cells),
-    );
+    table_div = table_div.child(div().flex().flex_row().w_full().children(header_cells));
 
     // Data rows
     for row in rows {
@@ -280,14 +265,15 @@ fn render_table(
 }
 
 fn render_inlines(inlines: &[Inline], theme: &EditorColors) -> Vec<gpui::AnyElement> {
-    inlines.iter().map(|inline| render_inline(inline, theme)).collect()
+    inlines
+        .iter()
+        .map(|inline| render_inline(inline, theme))
+        .collect()
 }
 
 fn render_inline(inline: &Inline, theme: &EditorColors) -> gpui::AnyElement {
     match inline {
-        Inline::Text(t) => div()
-            .child(t.clone())
-            .into_any_element(),
+        Inline::Text(t) => div().child(t.clone()).into_any_element(),
         Inline::Bold(children) => div()
             .font_weight(gpui::FontWeight::BOLD)
             .children(render_inlines(children, theme))
@@ -325,13 +311,8 @@ fn render_inline(inline: &Inline, theme: &EditorColors) -> gpui::AnyElement {
                         .object_fit(gpui::ObjectFit::Contain)
                         .max_h(px(300.0)),
                 )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(rgb(0xa6adc8))
-                    .child(alt_text),
-            )
-            .into_any_element()
+                .child(div().text_xs().text_color(rgb(0xa6adc8)).child(alt_text))
+                .into_any_element()
         }
         Inline::Math(content) => div()
             .text_color(rgb(0xcba6f7))
@@ -357,9 +338,7 @@ fn inline_to_string(inlines: &[Inline]) -> String {
         .iter()
         .map(|inline| match inline {
             Inline::Text(t) => t.clone(),
-            Inline::Bold(c) | Inline::Italic(c) | Inline::Strikethrough(c) => {
-                inline_to_string(c)
-            }
+            Inline::Bold(c) | Inline::Italic(c) | Inline::Strikethrough(c) => inline_to_string(c),
             Inline::Code(code) => code.clone(),
             Inline::Link { text, .. } => inline_to_string(text),
             Inline::Image { alt, .. } => alt.clone(),

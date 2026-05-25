@@ -1,7 +1,6 @@
 use gpui::{
-    div, px, rgb,
-    prelude::*,
     App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
+    div, prelude::*, px, rgb,
 };
 
 pub struct CommandPalette {
@@ -85,19 +84,23 @@ impl Render for CommandPalette {
         let dim_color: gpui::Hsla = gpui::rgba(0xa6adc8_ff).into();
         let query_display = if self.query.is_empty() {
             let text = "> Type to search actions...";
-            StyledText::new(SharedString::from(text))
-                .with_highlights(vec![(0..text.len(), gpui::HighlightStyle {
+            StyledText::new(SharedString::from(text)).with_highlights(vec![(
+                0..text.len(),
+                gpui::HighlightStyle {
                     color: Some(dim_color),
                     ..Default::default()
-                })])
+                },
+            )])
         } else {
             let text = format!("> {}", self.query);
             let prompt_len = 2; // "> "
-            StyledText::new(SharedString::from(text.clone()))
-                .with_highlights(vec![(0..prompt_len, gpui::HighlightStyle {
+            StyledText::new(SharedString::from(text.clone())).with_highlights(vec![(
+                0..prompt_len,
+                gpui::HighlightStyle {
                     color: Some(dim_color),
                     ..Default::default()
-                })])
+                },
+            )])
         };
 
         let visible_items: Vec<_> = self
@@ -108,7 +111,11 @@ impl Render for CommandPalette {
             .map(|(i, &idx)| {
                 let (_, label) = &self.entries[idx];
                 let is_selected = i == self.selected;
-                let bg = if is_selected { rgb(0x45475a) } else { rgb(0x313244) };
+                let bg = if is_selected {
+                    rgb(0x45475a)
+                } else {
+                    rgb(0x313244)
+                };
                 div()
                     .px_3()
                     .py_1()

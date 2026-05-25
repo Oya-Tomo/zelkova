@@ -16,8 +16,12 @@ impl RpcClient {
     }
 
     pub fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse> {
-        let mut stream = UnixStream::connect(&self.socket_path)
-            .with_context(|| format!("failed to connect to socket at {}", self.socket_path.display()))?;
+        let mut stream = UnixStream::connect(&self.socket_path).with_context(|| {
+            format!(
+                "failed to connect to socket at {}",
+                self.socket_path.display()
+            )
+        })?;
 
         let json = serde_json::to_string(request).context("failed to serialize request")?;
         stream.write_all(json.as_bytes())?;
@@ -26,7 +30,9 @@ impl RpcClient {
 
         let mut reader = BufReader::new(stream);
         let mut response_line = String::new();
-        reader.read_line(&mut response_line).context("failed to read response")?;
+        reader
+            .read_line(&mut response_line)
+            .context("failed to read response")?;
 
         let response: JsonRpcResponse =
             serde_json::from_str(&response_line).context("failed to parse response")?;
@@ -34,7 +40,12 @@ impl RpcClient {
         Ok(response)
     }
 
-    pub fn search(&self, query: &str, tags: Vec<String>, limit: Option<usize>) -> Result<SearchResults> {
+    pub fn search(
+        &self,
+        query: &str,
+        tags: Vec<String>,
+        limit: Option<usize>,
+    ) -> Result<SearchResults> {
         let params = SearchParams {
             query: query.to_string(),
             tags,
@@ -91,7 +102,12 @@ impl RpcClient {
         serde_json::from_value(result).context("failed to parse get_note result")
     }
 
-    pub fn create_note(&self, title: &str, directory: Option<&str>, tags: Vec<String>) -> Result<CreateNoteResult> {
+    pub fn create_note(
+        &self,
+        title: &str,
+        directory: Option<&str>,
+        tags: Vec<String>,
+    ) -> Result<CreateNoteResult> {
         let params = CreateNoteParams {
             title: title.to_string(),
             directory: directory.map(String::from),
@@ -125,7 +141,9 @@ impl RpcClient {
     }
 
     pub fn note_updated(&self, path: &std::path::Path) -> Result<()> {
-        let params = NoteUpdatedParams { path: path.to_path_buf() };
+        let params = NoteUpdatedParams {
+            path: path.to_path_buf(),
+        };
         let request = JsonRpcRequest::new(
             next_id(),
             METHOD_NOTE_UPDATED,

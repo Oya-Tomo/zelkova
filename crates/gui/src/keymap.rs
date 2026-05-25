@@ -52,27 +52,13 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
             crate::OpenCommandPalette,
             context,
         )),
-        "search_notes" => Some(KeyBinding::new(
-            &binding.key,
-            crate::SearchNotes,
-            context,
-        )),
-        "create_note" | "new_note" => Some(KeyBinding::new(
-            &binding.key,
-            crate::CreateNote,
-            context,
-        )),
-        "list_notes" => Some(KeyBinding::new(
-            &binding.key,
-            crate::ListNotes,
-            context,
-        )),
+        "search_notes" => Some(KeyBinding::new(&binding.key, crate::SearchNotes, context)),
+        "create_note" | "new_note" => {
+            Some(KeyBinding::new(&binding.key, crate::CreateNote, context))
+        }
+        "list_notes" => Some(KeyBinding::new(&binding.key, crate::ListNotes, context)),
         "show_tags" => Some(KeyBinding::new(&binding.key, crate::ShowTags, context)),
-        "toggle_sidebar" => Some(KeyBinding::new(
-            &binding.key,
-            crate::ToggleSidebar,
-            context,
-        )),
+        "toggle_sidebar" => Some(KeyBinding::new(&binding.key, crate::ToggleSidebar, context)),
         "save_note" => Some(KeyBinding::new(&binding.key, crate::SaveNote, context)),
         "quit" => Some(KeyBinding::new(&binding.key, crate::Quit, context)),
         "move_up" => Some(KeyBinding::new(&binding.key, crate::MoveUp, context)),
@@ -83,7 +69,11 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
         "insert_newline" => Some(KeyBinding::new(&binding.key, crate::InsertNewline, context)),
         "next_pane" => Some(KeyBinding::new(&binding.key, crate::NextPane, context)),
         "prev_pane" => Some(KeyBinding::new(&binding.key, crate::PrevPane, context)),
-        "toggle_view_mode" => Some(KeyBinding::new(&binding.key, crate::ToggleViewMode, context)),
+        "toggle_view_mode" => Some(KeyBinding::new(
+            &binding.key,
+            crate::ToggleViewMode,
+            context,
+        )),
         "undo" => Some(KeyBinding::new(&binding.key, crate::Undo, context)),
         "redo" => Some(KeyBinding::new(&binding.key, crate::Redo, context)),
         "confirm" => Some(KeyBinding::new(&binding.key, crate::Confirm, context)),

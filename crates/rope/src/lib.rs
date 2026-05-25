@@ -37,7 +37,10 @@ impl Node {
     pub fn from_str(s: &str) -> Self {
         if s.len() <= CHUNK_SIZE {
             let line_count = s.lines().count().max(1);
-            Node::Leaf { text: s.to_string(), line_count }
+            Node::Leaf {
+                text: s.to_string(),
+                line_count,
+            }
         } else {
             let mid = find_split_point(s);
             let left = Node::from_str(&s[..mid]);
@@ -58,10 +61,14 @@ impl Node {
     }
 
     pub fn insert(&self, pos: usize, text: &str) -> Self {
-        if text.is_empty() { return self.clone(); }
+        if text.is_empty() {
+            return self.clone();
+        }
 
         match self {
-            Node::Leaf { text: leaf_text, .. } => {
+            Node::Leaf {
+                text: leaf_text, ..
+            } => {
                 let mut new_text = leaf_text.clone();
                 if pos > new_text.len() {
                     new_text.push_str(text);
@@ -70,12 +77,20 @@ impl Node {
                 }
                 if new_text.len() <= CHUNK_SIZE {
                     let line_count = new_text.lines().count().max(1);
-                    Node::Leaf { text: new_text, line_count }
+                    Node::Leaf {
+                        text: new_text,
+                        line_count,
+                    }
                 } else {
                     Node::from_str(&new_text)
                 }
             }
-            Node::Internal { left, right, char_count, .. } => {
+            Node::Internal {
+                left,
+                right,
+                char_count,
+                ..
+            } => {
                 let left_len = left.char_count();
                 if pos <= left_len {
                     let new_left = left.insert(pos, text);
@@ -89,19 +104,29 @@ impl Node {
     }
 
     pub fn delete(&self, start: usize, end: usize) -> Self {
-        if start >= end { return self.clone(); }
+        if start >= end {
+            return self.clone();
+        }
 
         match self {
-            Node::Leaf { text: leaf_text, .. } => {
+            Node::Leaf {
+                text: leaf_text, ..
+            } => {
                 let s = start.min(leaf_text.len());
                 let e = end.min(leaf_text.len());
                 let mut new_text = leaf_text.clone();
                 new_text.replace_range(s..e, "");
                 if new_text.is_empty() {
-                    Node::Leaf { text: new_text, line_count: 1 }
+                    Node::Leaf {
+                        text: new_text,
+                        line_count: 1,
+                    }
                 } else {
                     let line_count = new_text.lines().count().max(1);
-                    Node::Leaf { text: new_text, line_count }
+                    Node::Leaf {
+                        text: new_text,
+                        line_count,
+                    }
                 }
             }
             Node::Internal { left, right, .. } => {
@@ -125,8 +150,12 @@ impl Node {
 
     fn rebalance(left: Node, right: Node) -> Node {
         // if one side is empty, return the other
-        if left.char_count() == 0 { return right; }
-        if right.char_count() == 0 { return left; }
+        if left.char_count() == 0 {
+            return right;
+        }
+        if right.char_count() == 0 {
+            return left;
+        }
         Node::merge(left, right)
     }
 
@@ -219,7 +248,10 @@ pub struct Rope {
 impl Rope {
     pub fn new() -> Self {
         Self {
-            root: Node::Leaf { text: String::new(), line_count: 1 },
+            root: Node::Leaf {
+                text: String::new(),
+                line_count: 1,
+            },
         }
     }
 
@@ -227,7 +259,9 @@ impl Rope {
         if text.is_empty() {
             Self::new()
         } else {
-            Self { root: Node::from_str(text) }
+            Self {
+                root: Node::from_str(text),
+            }
         }
     }
 
@@ -354,8 +388,15 @@ mod tests {
 
 #[derive(Debug, Clone)]
 enum Edit {
-    Insert { pos: usize, text: String },
-    Delete { start: usize, end: usize, text: String },
+    Insert {
+        pos: usize,
+        text: String,
+    },
+    Delete {
+        start: usize,
+        end: usize,
+        text: String,
+    },
 }
 
 pub struct Buffer {
@@ -387,8 +428,15 @@ impl Buffer {
         if !new_text.is_empty() {
             self.rope.insert(start, new_text);
         }
-        self.undo_stack.push(Edit::Insert { pos: start, text: new_text.to_string() });
-        self.undo_stack.push(Edit::Delete { start, end, text: deleted });
+        self.undo_stack.push(Edit::Insert {
+            pos: start,
+            text: new_text.to_string(),
+        });
+        self.undo_stack.push(Edit::Delete {
+            start,
+            end,
+            text: deleted,
+        });
         self.redo_stack.clear();
     }
 
@@ -401,19 +449,36 @@ impl Buffer {
     }
 
     pub fn undo(&mut self) -> bool {
-        let Some(delete_edit) = self.undo_stack.pop() else { return false };
-        let Some(insert_edit) = self.undo_stack.pop() else { return false };
+        let Some(delete_edit) = self.undo_stack.pop() else {
+            return false;
+        };
+        let Some(insert_edit) = self.undo_stack.pop() else {
+            return false;
+        };
 
         match (insert_edit, delete_edit) {
-            (Edit::Insert { pos, text: inserted }, Edit::Delete { text: deleted, .. }) => {
+            (
+                Edit::Insert {
+                    pos,
+                    text: inserted,
+                },
+                Edit::Delete { text: deleted, .. },
+            ) => {
                 if !inserted.is_empty() {
                     self.rope.delete(pos, pos + inserted.len());
                 }
                 if !deleted.is_empty() {
                     self.rope.insert(pos, &deleted);
                 }
-                self.redo_stack.push(Edit::Insert { pos, text: inserted });
-                self.redo_stack.push(Edit::Delete { start: pos, end: pos + deleted.len(), text: deleted });
+                self.redo_stack.push(Edit::Insert {
+                    pos,
+                    text: inserted,
+                });
+                self.redo_stack.push(Edit::Delete {
+                    start: pos,
+                    end: pos + deleted.len(),
+                    text: deleted,
+                });
                 true
             }
             _ => false,
@@ -421,19 +486,36 @@ impl Buffer {
     }
 
     pub fn redo(&mut self) -> bool {
-        let Some(delete_edit) = self.redo_stack.pop() else { return false };
-        let Some(insert_edit) = self.redo_stack.pop() else { return false };
+        let Some(delete_edit) = self.redo_stack.pop() else {
+            return false;
+        };
+        let Some(insert_edit) = self.redo_stack.pop() else {
+            return false;
+        };
 
         match (insert_edit, delete_edit) {
-            (Edit::Insert { pos, text: inserted }, Edit::Delete { text: deleted, .. }) => {
+            (
+                Edit::Insert {
+                    pos,
+                    text: inserted,
+                },
+                Edit::Delete { text: deleted, .. },
+            ) => {
                 if !deleted.is_empty() {
                     self.rope.delete(pos, pos + deleted.len());
                 }
                 if !inserted.is_empty() {
                     self.rope.insert(pos, &inserted);
                 }
-                self.undo_stack.push(Edit::Insert { pos, text: inserted });
-                self.undo_stack.push(Edit::Delete { start: pos, end: pos + deleted.len(), text: deleted });
+                self.undo_stack.push(Edit::Insert {
+                    pos,
+                    text: inserted,
+                });
+                self.undo_stack.push(Edit::Delete {
+                    start: pos,
+                    end: pos + deleted.len(),
+                    text: deleted,
+                });
                 true
             }
             _ => false,

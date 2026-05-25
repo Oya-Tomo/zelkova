@@ -17,7 +17,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
 
         // ATX heading
         if let Some(level) = parse_atx_heading(line) {
-            slices.push(BlockSlice { start: i, end: i, kind: BlockKind::Heading { level } });
+            slices.push(BlockSlice {
+                start: i,
+                end: i,
+                kind: BlockKind::Heading { level },
+            });
             i += 1;
             continue;
         }
@@ -31,7 +35,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                 i += 1;
             }
             let end = if i < lines.len() { i } else { lines.len() - 1 };
-            slices.push(BlockSlice { start, end, kind: BlockKind::CodeBlock { language: lang } });
+            slices.push(BlockSlice {
+                start,
+                end,
+                kind: BlockKind::CodeBlock { language: lang },
+            });
             i += 1;
             continue;
         }
@@ -44,14 +52,22 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                 i += 1;
             }
             let end = if i < lines.len() { i } else { lines.len() - 1 };
-            slices.push(BlockSlice { start, end, kind: BlockKind::MathBlock });
+            slices.push(BlockSlice {
+                start,
+                end,
+                kind: BlockKind::MathBlock,
+            });
             i += 1;
             continue;
         }
 
         // Horizontal rule
         if is_thematic_break(line) {
-            slices.push(BlockSlice { start: i, end: i, kind: BlockKind::ThematicBreak });
+            slices.push(BlockSlice {
+                start: i,
+                end: i,
+                kind: BlockKind::ThematicBreak,
+            });
             i += 1;
             continue;
         }
@@ -63,7 +79,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
             while i < lines.len() && is_table_row(lines[i]) {
                 i += 1;
             }
-            slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::Table });
+            slices.push(BlockSlice {
+                start,
+                end: i - 1,
+                kind: BlockKind::Table,
+            });
             continue;
         }
 
@@ -73,7 +93,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
             while i < lines.len() && (lines[i].starts_with('>') || lines[i].starts_with("> ")) {
                 i += 1;
             }
-            slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::BlockQuote });
+            slices.push(BlockSlice {
+                start,
+                end: i - 1,
+                kind: BlockKind::BlockQuote,
+            });
             continue;
         }
 
@@ -92,7 +116,13 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                     break;
                 }
             }
-            slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::List { first_marker: marker } });
+            slices.push(BlockSlice {
+                start,
+                end: i - 1,
+                kind: BlockKind::List {
+                    first_marker: marker,
+                },
+            });
             continue;
         }
 
@@ -103,7 +133,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
             while i < lines.len() && !lines[i].trim().is_empty() {
                 i += 1;
             }
-            slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::FootnoteDef { label } });
+            slices.push(BlockSlice {
+                start,
+                end: i - 1,
+                kind: BlockKind::FootnoteDef { label },
+            });
             continue;
         }
 
@@ -113,7 +147,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
             while i < lines.len() && !lines[i].trim().is_empty() {
                 i += 1;
             }
-            slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::HtmlBlock });
+            slices.push(BlockSlice {
+                start,
+                end: i - 1,
+                kind: BlockKind::HtmlBlock,
+            });
             continue;
         }
 
@@ -134,7 +172,11 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                 }
             }
         }
-        slices.push(BlockSlice { start, end: i - 1, kind: BlockKind::Paragraph });
+        slices.push(BlockSlice {
+            start,
+            end: i - 1,
+            kind: BlockKind::Paragraph,
+        });
     }
 
     slices
@@ -180,11 +222,26 @@ fn parse_atx_heading(line: &str) -> Option<u8> {
 
 fn parse_code_fence(line: &str) -> Option<FenceInfo> {
     let trimmed = line.trim();
-    let marker_char = if trimmed.starts_with("```") { '`' } else if trimmed.starts_with("~~~") { '~' } else { return None };
-    let marker_len = trimmed.bytes().take_while(|&b| b == marker_char as u8).count();
-    if marker_len < 3 { return None; }
+    let marker_char = if trimmed.starts_with("```") {
+        '`'
+    } else if trimmed.starts_with("~~~") {
+        '~'
+    } else {
+        return None;
+    };
+    let marker_len = trimmed
+        .bytes()
+        .take_while(|&b| b == marker_char as u8)
+        .count();
+    if marker_len < 3 {
+        return None;
+    }
     let lang = trimmed[marker_len..].trim();
-    let language = if lang.is_empty() { None } else { Some(lang.to_string()) };
+    let language = if lang.is_empty() {
+        None
+    } else {
+        Some(lang.to_string())
+    };
     Some(FenceInfo {
         marker: marker_char.to_string().repeat(marker_len),
         language,
@@ -203,9 +260,13 @@ fn is_closing_fence(line: &str, marker: &str) -> bool {
 
 fn is_thematic_break(line: &str) -> bool {
     let trimmed = line.trim();
-    if trimmed.is_empty() { return false; }
+    if trimmed.is_empty() {
+        return false;
+    }
     let first = trimmed.chars().next().unwrap();
-    if first != '-' && first != '*' && first != '_' { return false; }
+    if first != '-' && first != '*' && first != '_' {
+        return false;
+    }
     let count = trimmed.chars().filter(|&c| c == first).count();
     count >= 3 && trimmed.chars().all(|c| c == first || c == ' ' || c == '\t')
 }
@@ -217,20 +278,31 @@ fn is_table_row(line: &str) -> bool {
 
 fn is_table_separator(line: &str) -> bool {
     let trimmed = line.trim();
-    if !trimmed.contains('-') { return false; }
+    if !trimmed.contains('-') {
+        return false;
+    }
     trimmed.split('|').all(|cell| {
         let cell = cell.trim();
-        if cell.is_empty() { return true; }
-        cell == ":" || cell == "-:" || cell == ":-:" || cell == ":-" || cell.chars().all(|c| c == '-')
+        if cell.is_empty() {
+            return true;
+        }
+        cell == ":"
+            || cell == "-:"
+            || cell == ":-:"
+            || cell == ":-"
+            || cell.chars().all(|c| c == '-')
     })
 }
 
 pub fn parse_list_marker(line: &str) -> Option<ListMarker> {
     let trimmed = line.trim_start();
-    if trimmed.starts_with("- ") { Some(ListMarker::Dash) }
-    else if trimmed.starts_with("* ") { Some(ListMarker::Star) }
-    else if trimmed.starts_with("+ ") { Some(ListMarker::Plus) }
-    else {
+    if trimmed.starts_with("- ") {
+        Some(ListMarker::Dash)
+    } else if trimmed.starts_with("* ") {
+        Some(ListMarker::Star)
+    } else if trimmed.starts_with("+ ") {
+        Some(ListMarker::Plus)
+    } else {
         // numbered: "1. "
         let dot_pos = trimmed.find(". ")?;
         let num_str = &trimmed[..dot_pos];
@@ -241,7 +313,9 @@ pub fn parse_list_marker(line: &str) -> Option<ListMarker> {
 
 fn parse_footnote_def(line: &str) -> Option<String> {
     let trimmed = line.trim();
-    if !trimmed.starts_with("[^") { return None; }
+    if !trimmed.starts_with("[^") {
+        return None;
+    }
     let end = trimmed.find("]:")?;
     let label = trimmed[2..end].to_string();
     Some(label)
@@ -321,10 +395,22 @@ mod tests {
 
     #[test]
     fn parse_list_marker_variants() {
-        assert!(matches!(parse_list_marker("- item"), Some(ListMarker::Dash)));
-        assert!(matches!(parse_list_marker("* item"), Some(ListMarker::Star)));
-        assert!(matches!(parse_list_marker("+ item"), Some(ListMarker::Plus)));
-        assert!(matches!(parse_list_marker("1. item"), Some(ListMarker::Number(1))));
+        assert!(matches!(
+            parse_list_marker("- item"),
+            Some(ListMarker::Dash)
+        ));
+        assert!(matches!(
+            parse_list_marker("* item"),
+            Some(ListMarker::Star)
+        ));
+        assert!(matches!(
+            parse_list_marker("+ item"),
+            Some(ListMarker::Plus)
+        ));
+        assert!(matches!(
+            parse_list_marker("1. item"),
+            Some(ListMarker::Number(1))
+        ));
         assert!(parse_list_marker("plain text").is_none());
     }
 }

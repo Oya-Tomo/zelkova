@@ -121,7 +121,10 @@ fn ensure_daemon(config: &AppConfig) -> Result<RpcClient> {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         if !socket.exists() {
-            anyhow::bail!("daemon did not start: socket not found at {}", socket.display());
+            anyhow::bail!(
+                "daemon did not start: socket not found at {}",
+                socket.display()
+            );
         }
     }
     Ok(RpcClient::new(socket))

@@ -1,8 +1,8 @@
 mod theme;
 
-use std::ops::Range;
 use once_cell::sync::Lazy;
-use tree_sitter_highlight::{HighlightConfiguration, Highlighter as TsHighlighter, HighlightEvent};
+use std::ops::Range;
+use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter as TsHighlighter};
 
 pub use theme::CodeTheme;
 
@@ -109,22 +109,18 @@ pub struct StyledRange {
 ///
 /// `code` is the raw source text inside the fenced block.
 /// `language` should be a resolved key from `resolve_language()`.
-pub fn highlight_code(
-    code: &str,
-    language: &str,
-) -> Vec<StyledRange> {
+pub fn highlight_code(code: &str, language: &str) -> Vec<StyledRange> {
     let config = match CONFIGS.get(language) {
         Some(c) => c,
         None => return Vec::new(),
     };
 
     let mut highlighter = TsHighlighter::new();
-    let events = match highlighter.highlight(config, code.as_bytes(), None, |lang| {
-        CONFIGS.get(lang)
-    }) {
-        Ok(e) => e,
-        Err(_) => return Vec::new(),
-    };
+    let events =
+        match highlighter.highlight(config, code.as_bytes(), None, |lang| CONFIGS.get(lang)) {
+            Ok(e) => e,
+            Err(_) => return Vec::new(),
+        };
 
     let mut ranges = Vec::new();
     let mut stack: Vec<usize> = Vec::new();

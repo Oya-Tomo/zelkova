@@ -37,18 +37,18 @@ pub struct CodeTheme {
 impl Default for CodeTheme {
     fn default() -> Self {
         Self {
-            attribute: "#f9e2af".into(),    // yellow
-            comment: "#6c7086".into(),      // dim gray
-            constant: "#fab387".into(),     // peach
-            function: "#89b4fa".into(),     // blue
-            keyword: "#cba6f7".into(),      // mauve
-            number: "#fab387".into(),       // peach
-            operator: "#89dceb".into(),     // teal
-            property: "#89b4fa".into(),     // blue
-            punctuation: "#6c7086".into(),  // dim gray
-            string: "#a6e3a1".into(),       // green
-            tag: "#f38ba8".into(),          // red
-            r#type: "#f9e2af".into(),       // yellow
+            attribute: "#f9e2af".into(),   // yellow
+            comment: "#6c7086".into(),     // dim gray
+            constant: "#fab387".into(),    // peach
+            function: "#89b4fa".into(),    // blue
+            keyword: "#cba6f7".into(),     // mauve
+            number: "#fab387".into(),      // peach
+            operator: "#89dceb".into(),    // teal
+            property: "#89b4fa".into(),    // blue
+            punctuation: "#6c7086".into(), // dim gray
+            string: "#a6e3a1".into(),      // green
+            tag: "#f38ba8".into(),         // red
+            r#type: "#f9e2af".into(),      // yellow
         }
     }
 }

@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
 use gpui::{
-    div, px,
-    prelude::*,
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Window,
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
 };
 use zelkova_config::EditorColors;
 
@@ -105,9 +103,10 @@ impl PaneManager {
     }
 
     pub fn active_tab_info(&self) -> (Option<PathBuf>, Option<String>) {
-        self.tabs.get(self.active_tab).map(|t| {
-            (t.file_path.clone(), Some(t.title.clone()))
-        }).unwrap_or((None, None))
+        self.tabs
+            .get(self.active_tab)
+            .map(|t| (t.file_path.clone(), Some(t.title.clone())))
+            .unwrap_or((None, None))
     }
 
     pub fn active_editor_title(&self, cx: &App) -> (Option<PathBuf>, Option<String>) {
@@ -119,14 +118,24 @@ impl PaneManager {
         (None, None)
     }
 
-    pub fn handle_next_pane(&mut self, _: &NextPane, _window: &mut Window, _cx: &mut Context<Self>) {
+    pub fn handle_next_pane(
+        &mut self,
+        _: &NextPane,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
         if self.tabs.is_empty() {
             return;
         }
         self.active_tab = (self.active_tab + 1) % self.tabs.len();
     }
 
-    pub fn handle_prev_pane(&mut self, _: &PrevPane, _window: &mut Window, _cx: &mut Context<Self>) {
+    pub fn handle_prev_pane(
+        &mut self,
+        _: &PrevPane,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
         if self.tabs.is_empty() {
             return;
         }
@@ -196,32 +205,16 @@ impl Render for PaneManager {
         // Content area
         let content = if let Some(tab) = self.tabs.get(self.active_tab) {
             match tab.view_mode {
-                ViewMode::Editor => {
-                    div()
-                        .flex_1()
-                        .child(tab.editor.clone())
-                        .into_any_element()
-                }
-                ViewMode::Preview => {
-                    div()
-                        .flex_1()
-                        .child(tab.preview.clone())
-                        .into_any_element()
-                }
-                ViewMode::Split => {
-                    div()
-                        .flex()
-                        .flex_row()
-                        .flex_1()
-                        .child(div().flex_1().child(tab.editor.clone()))
-                        .child(
-                            div()
-                                .w(px(1.0))
-                                .bg(border),
-                        )
-                        .child(div().flex_1().child(tab.preview.clone()))
-                        .into_any_element()
-                }
+                ViewMode::Editor => div().flex_1().child(tab.editor.clone()).into_any_element(),
+                ViewMode::Preview => div().flex_1().child(tab.preview.clone()).into_any_element(),
+                ViewMode::Split => div()
+                    .flex()
+                    .flex_row()
+                    .flex_1()
+                    .child(div().flex_1().child(tab.editor.clone()))
+                    .child(div().w(px(1.0)).bg(border))
+                    .child(div().flex_1().child(tab.preview.clone()))
+                    .into_any_element(),
             }
         } else {
             div()
