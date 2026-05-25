@@ -55,7 +55,7 @@ pub fn show(client: &RpcClient, id: &Uuid) -> Result<()> {
 
 pub fn create(
     client: &RpcClient,
-    title: &str,
+    title: Option<&str>,
     directory: Option<&str>,
     tags: Vec<String>,
 ) -> Result<()> {
@@ -63,7 +63,12 @@ pub fn create(
         .create_note(title, directory, tags)
         .context("create_note failed")?;
     println!("Created note: {}", result.id);
-    println!("  Title: {}", result.title);
+    let display_title = if result.title.is_empty() {
+        "(untitled)"
+    } else {
+        &result.title
+    };
+    println!("  Title: {}", display_title);
     println!("  Path:  {}", result.path.display());
     Ok(())
 }

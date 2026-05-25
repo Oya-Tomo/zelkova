@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         }
         Commands::Create { title, dir, tags } => {
             let client = ensure_daemon(&config)?;
-            commands::create(&client, &title, dir.as_deref(), tags)?;
+            commands::create(&client, Some(&title), dir.as_deref(), tags)?;
         }
         Commands::Tags => {
             let client = ensure_daemon(&config)?;
