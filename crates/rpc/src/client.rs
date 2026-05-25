@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use uuid::Uuid;
 
 pub struct RpcClient {
     socket_path: std::path::PathBuf,
@@ -102,15 +103,9 @@ impl RpcClient {
         serde_json::from_value(result).context("failed to parse get_note result")
     }
 
-    pub fn create_note(
-        &self,
-        title: Option<&str>,
-        directory: Option<&str>,
-        tags: Vec<String>,
-    ) -> Result<CreateNoteResult> {
+    pub fn create_note(&self, title: Option<&str>, tags: Vec<String>) -> Result<CreateNoteResult> {
         let params = CreateNoteParams {
             title: title.map(String::from),
-            directory: directory.map(String::from),
             tags,
         };
         let request = JsonRpcRequest::new(
@@ -156,6 +151,54 @@ impl RpcClient {
         }
 
         Ok(())
+    }
+
+    pub fn create_folder(&self, name: &str, parent: Option<Uuid>) -> Result<CreateFolderResult> {
+        let params = CreateFolderParams {
+            name: name.to_string(),
+            parent,
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_CREATE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("create_folder error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse create_folder result")
+    }
+
+    pub fn move_note(&self, note_id: Uuid, folder_id: Option<Uuid>) -> Result<()> {
+        let params = MoveNoteParams { note_id, folder_id };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_MOVE_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("move_note error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn list_tree(&self) -> Result<ListTreeResult> {
+        let request = JsonRpcRequest::new(next_id(), METHOD_LIST_TREE, None);
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("list_tree error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse list_tree result")
     }
 }
 

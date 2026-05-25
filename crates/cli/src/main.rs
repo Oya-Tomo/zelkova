@@ -40,9 +40,6 @@ enum Commands {
     Create {
         /// Note title
         title: String,
-        /// Parent directory (relative to vault)
-        #[arg(long)]
-        dir: Option<String>,
         /// Tags
         #[arg(long, value_delimiter = ',')]
         tags: Vec<String>,
@@ -87,9 +84,9 @@ fn main() -> Result<()> {
             let uuid = uuid::Uuid::parse_str(&id).context("invalid UUID")?;
             commands::show(&client, &uuid)?;
         }
-        Commands::Create { title, dir, tags } => {
+        Commands::Create { title, tags } => {
             let client = ensure_daemon(&config)?;
-            commands::create(&client, Some(&title), dir.as_deref(), tags)?;
+            commands::create(&client, Some(&title), tags)?;
         }
         Commands::Tags => {
             let client = ensure_daemon(&config)?;

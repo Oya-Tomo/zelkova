@@ -9,6 +9,9 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
         METHOD_LIST_NOTES => handle_list_notes(&request, state),
         METHOD_GET_NOTE => handle_get_note(&request, state),
         METHOD_CREATE_NOTE => handle_create_note(&request, state),
+        METHOD_CREATE_FOLDER => handle_create_folder(&request, state),
+        METHOD_MOVE_NOTE => handle_move_note(&request, state),
+        METHOD_LIST_TREE => handle_list_tree(state),
         METHOD_TAGS => handle_tags(state),
         METHOD_REBUILD_INDEX => handle_rebuild_index(state),
         METHOD_NOTE_UPDATED => handle_note_updated(&request, state),
@@ -119,11 +122,7 @@ fn handle_create_note(
 
     let note = state
         .vault
-        .create_note(
-            params.title.as_deref(),
-            params.directory.as_deref().map(std::path::Path::new),
-            tags,
-        )
+        .create_note(params.title.as_deref(), tags)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     let result = CreateNoteResult {
@@ -168,6 +167,75 @@ fn handle_note_updated(
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_create_folder(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: CreateFolderParams = parse_params(request)?;
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+    let folder = directory.create_folder(&params.name, params.parent);
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    let result = CreateFolderResult {
+        id: folder.id,
+        name: folder.name,
+        parent: folder.parent,
+    };
+    serde_json::to_value(result).map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_move_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: MoveNoteParams = parse_params(request)?;
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+    directory.move_note_to_folder(params.note_id, params.folder_id);
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_list_tree(state: &DaemonState) -> Result<serde_json::Value, JsonRpcError> {
+    let directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+
+    let folders: Vec<FolderInfo> = directory
+        .folders
+        .iter()
+        .map(|f| FolderInfo {
+            id: f.id,
+            name: f.name.clone(),
+            parent: f.parent,
+        })
+        .collect();
+
+    let mappings: Vec<NoteMappingInfo> = directory
+        .mappings
+        .iter()
+        .map(|m| NoteMappingInfo {
+            note_id: m.note,
+            folder_id: m.folder,
+        })
+        .collect();
+
+    serde_json::to_value(ListTreeResult { folders, mappings })
         .map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
