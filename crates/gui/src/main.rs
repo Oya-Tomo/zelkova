@@ -4,6 +4,7 @@ mod keymap;
 mod pane;
 mod preview;
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use gpui::{
@@ -46,6 +47,9 @@ actions!(
 
 struct ZelkovaApp {
     notes: Vec<NoteEntry>,
+    folders: Vec<FolderEntry>,
+    mappings: Vec<MappingEntry>,
+    expanded: HashSet<uuid::Uuid>,
     selected: Option<usize>,
     sidebar_visible: bool,
     command_palette: Option<Entity<command_palette::CommandPalette>>,
@@ -61,9 +65,22 @@ struct NoteEntry {
     path: PathBuf,
 }
 
+struct FolderEntry {
+    id: uuid::Uuid,
+    name: String,
+    parent: Option<uuid::Uuid>,
+}
+
+struct MappingEntry {
+    note_id: uuid::Uuid,
+    folder_id: uuid::Uuid,
+}
+
 impl ZelkovaApp {
     fn new(config: AppConfig, cx: &mut App) -> Self {
         let mut notes = Vec::new();
+        let mut folders = Vec::new();
+        let mut mappings = Vec::new();
 
         if config.daemon.socket_path.exists() {
             let client = zelkova_rpc::client::RpcClient::new(&config.daemon.socket_path);
@@ -75,6 +92,25 @@ impl ZelkovaApp {
                         id: n.id.to_string(),
                         title: n.title,
                         path: n.path,
+                    })
+                    .collect();
+            }
+            if let Ok(result) = client.list_tree() {
+                folders = result
+                    .folders
+                    .into_iter()
+                    .map(|f| FolderEntry {
+                        id: f.id,
+                        name: f.name,
+                        parent: f.parent,
+                    })
+                    .collect();
+                mappings = result
+                    .mappings
+                    .into_iter()
+                    .map(|m| MappingEntry {
+                        note_id: m.note_id,
+                        folder_id: m.folder_id,
                     })
                     .collect();
             }
@@ -91,8 +127,14 @@ impl ZelkovaApp {
             pm
         });
 
+        // Expand all folders by default
+        let expanded: HashSet<uuid::Uuid> = folders.iter().map(|f| f.id).collect();
+
         Self {
             notes,
+            folders,
+            mappings,
+            expanded,
             selected: None,
             sidebar_visible: true,
             command_palette: None,
@@ -249,7 +291,10 @@ impl ZelkovaApp {
                 if self.config.daemon.socket_path.exists() {
                     let client =
                         zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                    let _ = client.create_folder(name, None);
+                    if let Ok(result) = client.create_folder(name, None) {
+                        self.expanded.insert(result.id);
+                        self.refresh_folders();
+                    }
                 }
             }
             "Move to Folder" => {
@@ -266,6 +311,199 @@ impl ZelkovaApp {
             }
             _ => {}
         }
+    }
+
+    fn refresh_folders(&mut self) {
+        if self.config.daemon.socket_path.exists() {
+            let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+            if let Ok(result) = client.list_tree() {
+                self.folders = result
+                    .folders
+                    .into_iter()
+                    .map(|f| FolderEntry {
+                        id: f.id,
+                        name: f.name,
+                        parent: f.parent,
+                    })
+                    .collect();
+                self.mappings = result
+                    .mappings
+                    .into_iter()
+                    .map(|m| MappingEntry {
+                        note_id: m.note_id,
+                        folder_id: m.folder_id,
+                    })
+                    .collect();
+            }
+        }
+    }
+
+    fn render_sidebar_tree(
+        &mut self,
+        parent_folder: Option<uuid::Uuid>,
+        depth: usize,
+        sidebar_bg: gpui::Hsla,
+        text: gpui::Hsla,
+        text_dim: gpui::Hsla,
+        selection_bg: gpui::Hsla,
+        cx: &mut Context<Self>,
+    ) -> Vec<gpui::AnyElement> {
+        let mut elements = Vec::new();
+        let indent = px(16.0) * depth as f32;
+
+        // Collect folder data at this level
+        let folders_at_level: Vec<(uuid::Uuid, String, bool)> = self
+            .folders
+            .iter()
+            .filter(|f| f.parent == parent_folder)
+            .map(|f| (f.id, f.name.clone(), self.expanded.contains(&f.id)))
+            .collect();
+
+        // Snapshot data needed for note rendering
+        let mappings_snapshot: Vec<(uuid::Uuid, usize)> = self
+            .mappings
+            .iter()
+            .filter_map(|m| {
+                let idx = self
+                    .notes
+                    .iter()
+                    .position(|n| n.id == m.note_id.to_string())?;
+                Some((m.folder_id, idx))
+            })
+            .collect();
+
+        let notes_snapshot: Vec<(usize, String, bool)> = self
+            .notes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                (
+                    i,
+                    if n.title.is_empty() {
+                        "Untitled".to_string()
+                    } else {
+                        n.title.clone()
+                    },
+                    n.title.is_empty(),
+                )
+            })
+            .collect();
+
+        let selected = self.selected;
+
+        for (folder_id, folder_name, is_expanded) in &folders_at_level {
+            let arrow = if *is_expanded { "▾" } else { "▸" };
+            let fid = *folder_id;
+
+            let folder_row = div()
+                .px(px(8.0))
+                .pl(indent)
+                .py_1()
+                .text_color(text)
+                .text_xs()
+                .cursor(gpui::CursorStyle::PointingHand)
+                .child(format!("{} {}", arrow, folder_name))
+                .on_mouse_down(
+                    gpui::MouseButton::Left,
+                    cx.listener(move |this, _event, _window, cx| {
+                        if this.expanded.contains(&fid) {
+                            this.expanded.remove(&fid);
+                        } else {
+                            this.expanded.insert(fid);
+                        }
+                        cx.notify();
+                    }),
+                );
+            elements.push(folder_row.into_any_element());
+
+            if *is_expanded {
+                // Notes in this folder
+                for &(map_folder, note_idx) in &mappings_snapshot {
+                    if map_folder != fid {
+                        continue;
+                    }
+                    let (idx, display_title, is_empty) = &notes_snapshot[note_idx];
+                    let is_selected = selected == Some(*idx);
+                    let note_bg = if is_selected {
+                        selection_bg
+                    } else {
+                        sidebar_bg
+                    };
+                    let title_color = if *is_empty { text_dim } else { text };
+                    let note_row = div()
+                        .px(px(8.0))
+                        .pl(indent + px(16.0))
+                        .py_1()
+                        .bg(note_bg)
+                        .text_color(title_color)
+                        .text_xs()
+                        .cursor(gpui::CursorStyle::PointingHand)
+                        .child(display_title.clone())
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _event, _window, cx| {
+                                this.selected = Some(note_idx);
+                                let path = this.notes[note_idx].path.clone();
+                                this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                                cx.notify();
+                            }),
+                        );
+                    elements.push(note_row.into_any_element());
+                }
+
+                // Sub-folders (recursive)
+                let mut sub_tree = self.render_sidebar_tree(
+                    Some(fid),
+                    depth + 1,
+                    sidebar_bg,
+                    text,
+                    text_dim,
+                    selection_bg,
+                    cx,
+                );
+                elements.append(&mut sub_tree);
+            }
+        }
+
+        // At root level, render unmapped notes
+        if parent_folder.is_none() {
+            let mapped_note_indices: HashSet<usize> =
+                mappings_snapshot.iter().map(|&(_, idx)| idx).collect();
+            for (idx, display_title, is_empty) in &notes_snapshot {
+                if mapped_note_indices.contains(idx) {
+                    continue;
+                }
+                let is_selected = selected == Some(*idx);
+                let note_bg = if is_selected {
+                    selection_bg
+                } else {
+                    sidebar_bg
+                };
+                let title_color = if *is_empty { text_dim } else { text };
+                let ni = *idx;
+                let dt = display_title.clone();
+                let note_row = div()
+                    .px(px(8.0))
+                    .py_1()
+                    .bg(note_bg)
+                    .text_color(title_color)
+                    .text_xs()
+                    .cursor(gpui::CursorStyle::PointingHand)
+                    .child(dt)
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |this, _event, _window, cx| {
+                            this.selected = Some(ni);
+                            let path = this.notes[ni].path.clone();
+                            this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                            cx.notify();
+                        }),
+                    );
+                elements.push(note_row.into_any_element());
+            }
+        }
+
+        elements
     }
 }
 
@@ -317,41 +555,15 @@ impl Render for ZelkovaApp {
                             ),
                     ),
             )
-            .children(self.notes.iter().enumerate().map(|(i, note)| {
-                let is_selected = self.selected == Some(i);
-                let note_bg = if is_selected {
-                    selection_bg
-                } else {
-                    sidebar_bg
-                };
-                let display_title = if note.title.is_empty() {
-                    "Untitled"
-                } else {
-                    &note.title
-                };
-                let title_color = if note.title.is_empty() {
-                    text_dim
-                } else {
-                    text
-                };
-                div()
-                    .px_3()
-                    .py_1()
-                    .bg(note_bg)
-                    .text_color(title_color)
-                    .text_xs()
-                    .cursor(gpui::CursorStyle::PointingHand)
-                    .child(display_title.to_string())
-                    .on_mouse_down(
-                        gpui::MouseButton::Left,
-                        cx.listener(move |this, _event, _window, cx| {
-                            this.selected = Some(i);
-                            let path = this.notes[i].path.clone();
-                            this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
-                            cx.notify();
-                        }),
-                    )
-            }));
+            .children(self.render_sidebar_tree(
+                None,
+                0,
+                sidebar_bg,
+                text,
+                text_dim,
+                selection_bg,
+                cx,
+            ));
 
         let mut main = div()
             .flex()
