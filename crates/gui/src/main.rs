@@ -152,7 +152,8 @@ impl ZelkovaApp {
         cx: &mut Context<Self>,
     ) {
         if self.command_palette.is_none() {
-            let palette = cx.new(|cx| command_palette::CommandPalette::new(cx));
+            let folder_names: Vec<String> = self.folders.iter().map(|f| f.name.clone()).collect();
+            let palette = cx.new(|cx| command_palette::CommandPalette::new(&folder_names, cx));
             palette.update(cx, |_, cx| cx.focus_handle()).focus(window);
             self.command_palette = Some(palette);
             cx.notify();
@@ -298,7 +299,30 @@ impl ZelkovaApp {
                 }
             }
             "Move to Folder" => {
-                // Future: implement folder selection
+                let folder_name = args.first().and_then(|a| a.as_deref());
+                let folder_id = if folder_name == Some("(root)") || folder_name.is_none() {
+                    None
+                } else {
+                    self.folders
+                        .iter()
+                        .find(|f| Some(f.name.as_str()) == folder_name)
+                        .map(|f| f.id)
+                };
+                // Move the currently selected note
+                if let Some(sel) = self.selected {
+                    if let Some(note) = self.notes.get(sel) {
+                        if let Ok(note_id) = uuid::Uuid::parse_str(&note.id) {
+                            if self.config.daemon.socket_path.exists() {
+                                let client = zelkova_rpc::client::RpcClient::new(
+                                    &self.config.daemon.socket_path,
+                                );
+                                if client.move_note(note_id, folder_id).is_ok() {
+                                    self.refresh_folders();
+                                }
+                            }
+                        }
+                    }
+                }
             }
             "Toggle Sidebar" => {
                 self.sidebar_visible = !self.sidebar_visible;
