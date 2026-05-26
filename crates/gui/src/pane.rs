@@ -80,7 +80,7 @@ impl PaneManager {
             editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
         }
         let text = editor.read(cx).text().to_string();
-        let preview = cx.new(|_cx| Preview::from_markdown(&text));
+        let preview = cx.new(|cx| Preview::from_markdown(&text, cx));
 
         self.tabs.push(Tab {
             title,
@@ -247,9 +247,13 @@ impl Render for PaneManager {
                 .into_any_element()
         };
 
-        // Focus the active editor, or self when no tabs are open
+        // Focus the active view, or self when no tabs are open
         if let Some(tab) = self.tabs.get(self.active_tab) {
-            tab.editor.focus_handle(cx).focus(window);
+            match tab.view_mode {
+                ViewMode::Editor => tab.editor.focus_handle(cx).focus(window),
+                ViewMode::Preview => tab.preview.focus_handle(cx).focus(window),
+                ViewMode::Split => tab.editor.focus_handle(cx).focus(window),
+            }
         } else {
             self.focus_handle.focus(window);
         }
