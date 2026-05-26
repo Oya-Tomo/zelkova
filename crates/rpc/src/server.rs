@@ -101,51 +101,51 @@ mod tests {
     #[test]
     fn server_accepts_and_responds() {
         let socket = test_socket();
-        let server = RpcServer::bind(Path::new(&socket)).unwrap();
+        let server = RpcServer::bind(Path::new(&socket)).expect("test socket bind");
 
         let socket_clone = socket.clone();
         let handle = thread::spawn(move || {
-            let mut stream = UnixStream::connect(&socket_clone).unwrap();
+            let mut stream = UnixStream::connect(&socket_clone).expect("connect to test socket");
             let request = JsonRpcRequest::new(1, "echo", Some(serde_json::json!("hello")));
-            let json = serde_json::to_string(&request).unwrap();
-            stream.write_all(json.as_bytes()).unwrap();
-            stream.write_all(b"\n").unwrap();
-            stream.flush().unwrap();
+            let json = serde_json::to_string(&request).expect("serialize request");
+            stream.write_all(json.as_bytes()).expect("write request");
+            stream.write_all(b"\n").expect("write newline");
+            stream.flush().expect("flush stream");
 
             let mut reader = BufReader::new(stream);
             let mut response_line = String::new();
-            reader.read_line(&mut response_line).unwrap();
-            let response: JsonRpcResponse = serde_json::from_str(&response_line).unwrap();
+            reader.read_line(&mut response_line).expect("read response");
+            let response: JsonRpcResponse = serde_json::from_str(&response_line).expect("parse response");
             assert!(response.error.is_none());
             assert!(response.result.is_some());
         });
 
-        server.accept_one(&simple_handler).unwrap();
-        handle.join().unwrap();
+        server.accept_one(&simple_handler).expect("accept connection");
+        handle.join().expect("test thread panicked");
     }
 
     #[test]
     fn server_unknown_method_returns_error() {
         let socket = format!("/tmp/zelkova-test-err-{}.sock", std::process::id());
-        let server = RpcServer::bind(Path::new(&socket)).unwrap();
+        let server = RpcServer::bind(Path::new(&socket)).expect("test socket bind");
 
         let socket_clone = socket.clone();
         let handle = thread::spawn(move || {
-            let mut stream = UnixStream::connect(&socket_clone).unwrap();
+            let mut stream = UnixStream::connect(&socket_clone).expect("connect to test socket");
             let request = JsonRpcRequest::new(2, "nonexistent", None);
-            let json = serde_json::to_string(&request).unwrap();
-            stream.write_all(json.as_bytes()).unwrap();
-            stream.write_all(b"\n").unwrap();
-            stream.flush().unwrap();
+            let json = serde_json::to_string(&request).expect("serialize request");
+            stream.write_all(json.as_bytes()).expect("write request");
+            stream.write_all(b"\n").expect("write newline");
+            stream.flush().expect("flush stream");
 
             let mut reader = BufReader::new(stream);
             let mut response_line = String::new();
-            reader.read_line(&mut response_line).unwrap();
-            let response: JsonRpcResponse = serde_json::from_str(&response_line).unwrap();
+            reader.read_line(&mut response_line).expect("read response");
+            let response: JsonRpcResponse = serde_json::from_str(&response_line).expect("parse response");
             assert!(response.error.is_some());
         });
 
-        server.accept_one(&simple_handler).unwrap();
-        handle.join().unwrap();
+        server.accept_one(&simple_handler).expect("accept connection");
+        handle.join().expect("test thread panicked");
     }
 }
