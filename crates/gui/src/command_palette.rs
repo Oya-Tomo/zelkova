@@ -107,8 +107,7 @@ impl CommandPalette {
                 }
             }
             Phase::InputArg { .. } => {
-                if let Some(ArgType::Select { options }) = self.current_arg_type() {
-                    let _ = options;
+                if matches!(self.current_arg_type(), Some(ArgType::Select { .. })) {
                     if self.arg_selected > 0 {
                         self.arg_selected -= 1;
                     }
@@ -125,8 +124,9 @@ impl CommandPalette {
                 }
             }
             Phase::InputArg { .. } => {
-                if let Some(ArgType::Select { options }) = self.current_arg_type() {
-                    if self.arg_selected + 1 < options.len() {
+                if matches!(self.current_arg_type(), Some(ArgType::Select { .. })) {
+                    let count = self.filtered_arg_options().len();
+                    if self.arg_selected + 1 < count {
                         self.arg_selected += 1;
                     }
                 }
@@ -143,6 +143,19 @@ impl CommandPalette {
                 .map(|s| s.arg_type.clone())
         } else {
             None
+        }
+    }
+
+    /// Fuzzy-filtered option list for the current Select arg.
+    fn filtered_arg_options(&self) -> Vec<String> {
+        if let Some(ArgType::Select { options }) = self.current_arg_type() {
+            options
+                .iter()
+                .filter(|opt| fuzzy_match(&self.arg_input, opt))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
         }
     }
 
@@ -170,24 +183,26 @@ impl CommandPalette {
                 let i = *index;
                 let spec = self.commands[cmd_idx].args.get(i)?.clone();
 
-                if !spec.optional && self.arg_input.is_empty() {
-                    if let ArgType::Select { options } = &spec.arg_type {
-                        let val = options.get(self.arg_selected).cloned();
-                        return self.advance_arg(cmd_idx, i, values.clone(), val);
+                let val = match &spec.arg_type {
+                    ArgType::Select { .. } => {
+                        let filtered = self.filtered_arg_options();
+                        let selected = filtered.get(self.arg_selected).cloned();
+                        if !spec.optional && selected.is_none() {
+                            return None;
+                        }
+                        selected
                     }
-                    return None;
-                }
-
-                let val = if self.arg_input.is_empty() {
-                    if spec.optional {
-                        None
-                    } else if let ArgType::Select { options } = &spec.arg_type {
-                        options.get(self.arg_selected).cloned()
-                    } else {
-                        return None;
+                    ArgType::FreeText { .. } => {
+                        if self.arg_input.is_empty() {
+                            if spec.optional {
+                                None
+                            } else {
+                                return None;
+                            }
+                        } else {
+                            Some(self.arg_input.clone())
+                        }
                     }
-                } else {
-                    Some(self.arg_input.clone())
                 };
 
                 self.advance_arg(cmd_idx, i, values.clone(), val)
@@ -394,8 +409,9 @@ impl Render for CommandPalette {
                                 .border_color(rgb(0x585b70))
                                 .child(prompt_text),
                         ),
-                    ArgType::Select { options } => {
-                        let items: Vec<_> = options
+                    ArgType::Select { .. } => {
+                        let filtered = self.filtered_arg_options();
+                        let items: Vec<_> = filtered
                             .iter()
                             .enumerate()
                             .take(10)
@@ -427,7 +443,7 @@ impl Render for CommandPalette {
                                     .py_2()
                                     .border_b_1()
                                     .border_color(rgb(0x585b70))
-                                    .child(spec.prompt.clone() + ":"),
+                                    .child(prompt_text),
                             )
                             .children(items)
                     }
@@ -515,6 +531,9 @@ impl gpui::EntityInputHandler for CommandPalette {
             }
             Phase::InputArg { .. } => {
                 replace_in_string(&mut self.arg_input, &mut self.arg_cursor, range, new_text);
+                if matches!(self.current_arg_type(), Some(ArgType::Select { .. })) {
+                    self.arg_selected = 0;
+                }
             }
         }
         cx.notify();
