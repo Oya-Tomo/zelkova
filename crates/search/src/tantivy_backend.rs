@@ -39,23 +39,33 @@ impl TantivyIndex {
     }
 
     fn field_id(&self) -> Field {
-        self.schema.get_field("id").unwrap()
+        self.schema
+            .get_field("id")
+            .expect("id field exists in schema built by build_schema()")
     }
 
     fn field_title(&self) -> Field {
-        self.schema.get_field("title").unwrap()
+        self.schema
+            .get_field("title")
+            .expect("title field exists in schema built by build_schema()")
     }
 
     fn field_content(&self) -> Field {
-        self.schema.get_field("content").unwrap()
+        self.schema
+            .get_field("content")
+            .expect("content field exists in schema built by build_schema()")
     }
 
     fn field_tags(&self) -> Field {
-        self.schema.get_field("tags").unwrap()
+        self.schema
+            .get_field("tags")
+            .expect("tags field exists in schema built by build_schema()")
     }
 
     fn field_path(&self) -> Field {
-        self.schema.get_field("path").unwrap()
+        self.schema
+            .get_field("path")
+            .expect("path field exists in schema built by build_schema()")
     }
 }
 
@@ -69,7 +79,7 @@ impl SearchIndex for TantivyIndex {
             self.field_tags() => doc_input.tags.join(" "),
             self.field_path() => doc_input.path.to_string_lossy().as_ref(),
         );
-        let mut writer = self.writer.lock().unwrap();
+        let mut writer = self.writer.lock().expect("index writer mutex not poisoned");
         writer
             .add_document(doc)
             .context("failed to add document to index")?;
@@ -80,7 +90,7 @@ impl SearchIndex for TantivyIndex {
     fn remove_document(&self, id: &Uuid) -> Result<()> {
         let id_str = id.to_string();
         let term = tantivy::Term::from_field_text(self.field_id(), &id_str);
-        let mut writer = self.writer.lock().unwrap();
+        let mut writer = self.writer.lock().expect("index writer mutex not poisoned");
         writer.delete_term(term);
         writer.commit().context("failed to commit after delete")?;
         Ok(())
@@ -162,7 +172,7 @@ impl SearchIndex for TantivyIndex {
 
     fn rebuild(&self, docs: &[SearchDocument]) -> Result<()> {
         {
-            let mut writer = self.writer.lock().unwrap();
+            let mut writer = self.writer.lock().expect("index writer mutex not poisoned");
             writer
                 .delete_all_documents()
                 .context("failed to clear index")?;
@@ -192,16 +202,16 @@ mod tests {
     use crate::engine::SearchDocument;
 
     fn test_index() -> TantivyIndex {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
         let path = tmp.path().to_path_buf();
         // hold onto tmp so it doesn't get dropped and deleted
         std::mem::forget(tmp);
-        TantivyIndex::open(&path).unwrap()
+        TantivyIndex::open(&path).expect("open test index")
     }
 
     fn sample_doc(id: &str, title: &str, content: &str, tags: &[&str]) -> SearchDocument {
         SearchDocument {
-            id: Uuid::parse_str(id).unwrap(),
+            id: Uuid::parse_str(id).expect("valid UUID in test"),
             title: title.to_string(),
             content: content.to_string(),
             tags: tags.iter().map(|t| t.to_string()).collect(),
@@ -218,7 +228,7 @@ mod tests {
             "Learn Rust programming language",
             &["rust", "programming"],
         );
-        index.add_document(&doc).unwrap();
+        index.add_document(&doc).expect("add document in test");
 
         let results = index
             .search(&SearchQuery {
@@ -226,7 +236,7 @@ mod tests {
                 limit: None,
                 tags: vec![],
             })
-            .unwrap();
+            .expect("search in test");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Rust Guide");
     }
@@ -240,7 +250,7 @@ mod tests {
             "content",
             &["important"],
         );
-        index.add_document(&doc).unwrap();
+        index.add_document(&doc).expect("add document in test");
 
         let results = index
             .search(&SearchQuery {
@@ -248,17 +258,18 @@ mod tests {
                 limit: None,
                 tags: vec!["important".to_string()],
             })
-            .unwrap();
+            .expect("search in test");
         assert_eq!(results.len(), 1);
     }
 
     #[test]
     fn remove_document() {
         let index = test_index();
-        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
+        let id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000003").expect("valid UUID in test");
         let doc = sample_doc(&id.to_string(), "To Remove", "gone", &[]);
-        index.add_document(&doc).unwrap();
-        index.remove_document(&id).unwrap();
+        index.add_document(&doc).expect("add document in test");
+        index.remove_document(&id).expect("remove document in test");
 
         let results = index
             .search(&SearchQuery {
@@ -266,7 +277,7 @@ mod tests {
                 limit: None,
                 tags: vec![],
             })
-            .unwrap();
+            .expect("search in test");
         assert!(results.is_empty());
     }
 
@@ -279,7 +290,7 @@ mod tests {
             "old content",
             &[],
         );
-        index.add_document(&doc1).unwrap();
+        index.add_document(&doc1).expect("add document in test");
 
         let doc2 = sample_doc(
             "00000000-0000-0000-0000-000000000005",
@@ -287,7 +298,7 @@ mod tests {
             "new content",
             &[],
         );
-        index.rebuild(&[doc2]).unwrap();
+        index.rebuild(&[doc2]).expect("rebuild in test");
 
         let results = index
             .search(&SearchQuery {
@@ -295,7 +306,7 @@ mod tests {
                 limit: None,
                 tags: vec![],
             })
-            .unwrap();
+            .expect("search in test");
         assert!(results.is_empty());
 
         let results = index
@@ -304,7 +315,7 @@ mod tests {
                 limit: None,
                 tags: vec![],
             })
-            .unwrap();
+            .expect("search in test");
         assert_eq!(results.len(), 1);
     }
 }
