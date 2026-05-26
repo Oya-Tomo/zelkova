@@ -354,7 +354,7 @@ impl Render for CommandPalette {
         let content = match &self.phase {
             Phase::SelectCommand => {
                 let prompt = if self.query.is_empty() {
-                    let text = "> \u{2588}".to_string();
+                    let text = "> \u{2502}".to_string();
                     StyledText::new(SharedString::from(text.clone())).with_highlights(vec![
                         (
                             0..2,
@@ -374,9 +374,9 @@ impl Render for CommandPalette {
                 } else {
                     let before = format!("> {}", &self.query[..self.query_cursor]);
                     let after = &self.query[self.query_cursor..];
-                    let text = format!("{}\u{2588}{}", before, after);
+                    let text = format!("{}\u{2502}{}", before, after);
                     let cursor_start = before.len();
-                    let cursor_end = cursor_start + "\u{2588}".len();
+                    let cursor_end = cursor_start + "\u{2502}".len();
                     StyledText::new(SharedString::from(text)).with_highlights(vec![
                         (
                             0..2,
@@ -433,10 +433,10 @@ impl Render for CommandPalette {
                 let step = format!("{} [{}/{}]", cmd.label, index + 1, cmd.args.len());
 
                 let prompt_text = if self.arg_input.is_empty() {
-                    let text = format!("{}: \u{2588}", spec.prompt);
+                    let text = format!("{}: \u{2502}", spec.prompt);
                     let placeholder = if spec.optional { "(optional)" } else { "" };
                     let full = format!("{}{}", text, placeholder);
-                    let cursor_start = text.len() - "\u{2588}".len();
+                    let cursor_start = text.len() - "\u{2502}".len();
                     let cursor_end = text.len();
                     StyledText::new(SharedString::from(full.clone())).with_highlights(vec![
                         (
@@ -465,11 +465,11 @@ impl Render for CommandPalette {
                     let prefix = format!("{}: ", spec.prompt);
                     let before = &self.arg_input[..self.arg_cursor];
                     let after = &self.arg_input[self.arg_cursor..];
-                    let text = format!("{}\u{2588}{}", before, after);
+                    let text = format!("{}\u{2502}{}", before, after);
                     let full = format!("{}{}", prefix, text);
                     let prompt_len = prefix.len();
                     let cursor_start = prompt_len + before.len();
-                    let cursor_end = cursor_start + "\u{2588}".len();
+                    let cursor_end = cursor_start + "\u{2502}".len();
                     StyledText::new(SharedString::from(full)).with_highlights(vec![
                         (
                             0..prompt_len,
