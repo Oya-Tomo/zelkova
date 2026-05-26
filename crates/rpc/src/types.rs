@@ -235,6 +235,7 @@ pub const METHOD_REBUILD_INDEX: &str = "rebuild_index";
 pub const METHOD_NOTE_UPDATED: &str = "note_updated";
 pub const METHOD_DELETE_NOTE: &str = "delete_note";
 pub const METHOD_RENAME_NOTE: &str = "rename_note";
+pub const METHOD_MOVE_FOLDER: &str = "move_folder";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteUpdatedParams {
@@ -263,4 +264,11 @@ pub struct DeleteNoteParams {
 pub struct RenameNoteParams {
     pub note_id: Uuid,
     pub new_title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoveFolderParams {
+    pub folder_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_parent: Option<Uuid>,
 }

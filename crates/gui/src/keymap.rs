@@ -93,7 +93,8 @@ pub fn all_action_entries() -> Vec<(String, String)> {
         ("SearchNotes".into(), "Search Notes".into()),
         ("CreateNote".into(), "Create Note".into()),
         ("CreateFolder".into(), "Create Folder".into()),
-        ("MoveToFolder".into(), "Move to Folder".into()),
+        ("MoveNoteToFolder".into(), "Move Note to Folder".into()),
+        ("MoveFolderToFolder".into(), "Move Folder to Folder".into()),
         ("DeleteFolder".into(), "Delete Folder".into()),
         ("RenameFolder".into(), "Rename Folder".into()),
         ("DeleteNote".into(), "Delete Note".into()),
@@ -161,7 +162,7 @@ pub fn all_command_specs(
             ],
         ),
         CommandSpec::with_args(
-            "Move to Folder",
+            "Move Note to Folder",
             vec![
                 ArgSpec {
                     prompt: "Note".into(),
@@ -171,7 +172,26 @@ pub fn all_command_specs(
                     optional: false,
                 },
                 ArgSpec {
-                    prompt: "Target folder".into(),
+                    prompt: "Destination".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options.clone(),
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Move Folder to Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Destination".into(),
                     arg_type: ArgType::Select {
                         options: folder_options,
                     },

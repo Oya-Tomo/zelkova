@@ -302,14 +302,7 @@ impl ZelkovaApp {
                     .and_then(|a| a.as_deref())
                     .unwrap_or("New Folder");
                 let parent_name = args.get(1).and_then(|a| a.as_deref());
-                let parent_id = if parent_name == Some("(root)") || parent_name.is_none() {
-                    None
-                } else {
-                    self.folders
-                        .iter()
-                        .find(|f| Some(f.name.as_str()) == parent_name)
-                        .map(|f| f.id)
-                };
+                let parent_id = resolve_folder_id(&self.folders, parent_name);
                 if self.config.daemon.socket_path.exists() {
                     let client =
                         zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
@@ -319,17 +312,10 @@ impl ZelkovaApp {
                     }
                 }
             }
-            "Move to Folder" => {
+            "Move Note to Folder" => {
                 let note_title = args.first().and_then(|a| a.as_deref());
-                let folder_name = args.get(1).and_then(|a| a.as_deref());
-                let folder_id = if folder_name == Some("(root)") || folder_name.is_none() {
-                    None
-                } else {
-                    self.folders
-                        .iter()
-                        .find(|f| Some(f.name.as_str()) == folder_name)
-                        .map(|f| f.id)
-                };
+                let dest_name = args.get(1).and_then(|a| a.as_deref());
+                let dest_id = resolve_folder_id(&self.folders, dest_name);
                 let note = self.notes.iter().find(|n| {
                     note_title == Some(n.title.as_str())
                         || (n.title.is_empty() && note_title == Some("Untitled"))
@@ -340,9 +326,28 @@ impl ZelkovaApp {
                             let client = zelkova_rpc::client::RpcClient::new(
                                 &self.config.daemon.socket_path,
                             );
-                            if client.move_note(note_id, folder_id).is_ok() {
+                            if client.move_note(note_id, dest_id).is_ok() {
                                 self.refresh_folders();
                             }
+                        }
+                    }
+                }
+            }
+            "Move Folder to Folder" => {
+                let folder_name = args.first().and_then(|a| a.as_deref());
+                let dest_name = args.get(1).and_then(|a| a.as_deref());
+                let dest_id = resolve_folder_id(&self.folders, dest_name);
+                let folder_id = self
+                    .folders
+                    .iter()
+                    .find(|f| Some(f.name.as_str()) == folder_name)
+                    .map(|f| f.id);
+                if let Some(folder_id) = folder_id {
+                    if self.config.daemon.socket_path.exists() {
+                        let client =
+                            zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                        if client.move_folder(folder_id, dest_id).is_ok() {
+                            self.refresh_folders();
                         }
                     }
                 }
@@ -658,6 +663,17 @@ impl ZelkovaApp {
         }
 
         elements
+    }
+}
+
+fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid::Uuid> {
+    if name == Some("(root)") || name.is_none() {
+        None
+    } else {
+        folders
+            .iter()
+            .find(|f| Some(f.name.as_str()) == name)
+            .map(|f| f.id)
     }
 }
 
