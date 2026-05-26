@@ -98,7 +98,10 @@ pub fn daemon_status(config: &AppConfig) -> Result<()> {
 pub fn daemon_start(_config: &AppConfig) -> Result<()> {
     // find zelkovad binary
     let exe = std::env::current_exe().context("cannot determine current executable")?;
-    let daemon_exe = exe.parent().unwrap().join("zelkovad");
+    let daemon_exe = exe
+        .parent()
+        .expect("current executable path always has a parent directory")
+        .join("zelkovad");
 
     if !daemon_exe.exists() {
         anyhow::bail!("zelkovad binary not found at {}", daemon_exe.display());
