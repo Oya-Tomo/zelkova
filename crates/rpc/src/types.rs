@@ -242,6 +242,8 @@ pub struct NoteUpdatedParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderParams {
     pub folder_id: Uuid,
+    #[serde(default)]
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

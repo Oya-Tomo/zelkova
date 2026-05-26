@@ -94,6 +94,8 @@ pub fn all_action_entries() -> Vec<(String, String)> {
         ("CreateNote".into(), "Create Note".into()),
         ("CreateFolder".into(), "Create Folder".into()),
         ("MoveToFolder".into(), "Move to Folder".into()),
+        ("DeleteFolder".into(), "Delete Folder".into()),
+        ("RenameFolder".into(), "Rename Folder".into()),
         ("ListNotes".into(), "List Notes".into()),
         ("ShowTags".into(), "Show Tags".into()),
         ("ToggleSidebar".into(), "Toggle Sidebar".into()),
@@ -113,6 +115,7 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
         opts.extend(folder_names.iter().cloned());
         opts
     };
+    let folder_only_options: Vec<String> = folder_names.iter().cloned().collect();
 
     vec![
         CommandSpec::no_arg("Open Command Palette"),
@@ -160,6 +163,49 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
                 },
                 optional: true,
             }],
+        ),
+        CommandSpec::with_args(
+            "Delete Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Contents".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Move notes to root".into(), "Delete notes too".into()],
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Confirm".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Cancel".into(), "Yes, delete".into()],
+                    },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Rename Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options,
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "New name".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+            ],
         ),
         CommandSpec::no_arg("List Notes"),
         CommandSpec::no_arg("Show Tags"),
