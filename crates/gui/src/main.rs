@@ -208,6 +208,27 @@ impl ZelkovaApp {
         }
     }
 
+    fn handle_move_left(&mut self, _: &MoveLeft, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref palette) = self.command_palette {
+            palette.update(cx, |p, _| p.move_cursor_left());
+            cx.notify();
+        }
+    }
+
+    fn handle_move_right(&mut self, _: &MoveRight, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref palette) = self.command_palette {
+            palette.update(cx, |p, _| p.move_cursor_right());
+            cx.notify();
+        }
+    }
+
+    fn handle_backspace(&mut self, _: &Backspace, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref palette) = self.command_palette {
+            palette.update(cx, |p, _| p.handle_backspace());
+            cx.notify();
+        }
+    }
+
     fn handle_move_up(&mut self, _: &MoveUp, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             palette.update(cx, |p, _| p.move_selection_up());
@@ -745,6 +766,9 @@ impl Render for ZelkovaApp {
             .on_action(cx.listener(ZelkovaApp::handle_toggle_sidebar))
             .on_action(cx.listener(ZelkovaApp::handle_quit))
             .on_action(cx.listener(ZelkovaApp::handle_cancel))
+            .on_action(cx.listener(ZelkovaApp::handle_move_left))
+            .on_action(cx.listener(ZelkovaApp::handle_move_right))
+            .on_action(cx.listener(ZelkovaApp::handle_backspace))
             .on_action(cx.listener(ZelkovaApp::handle_move_up))
             .on_action(cx.listener(ZelkovaApp::handle_move_down))
             .on_action(cx.listener(ZelkovaApp::handle_confirm))
