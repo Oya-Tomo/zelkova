@@ -392,6 +392,106 @@ impl Editor {
         }
     }
 
+    pub fn handle_copy(&mut self, _: &crate::Copy, _window: &mut Window, cx: &mut Context<Self>) {
+        let text = match self.edit_zone {
+            EditZone::Title => self
+                .frontmatter
+                .as_ref()
+                .map(|fm| fm.title.clone())
+                .unwrap_or_default(),
+            EditZone::Content => {
+                if let Some(ref sel) = self.selection {
+                    let start = sel.start.min(self.cached_text.len());
+                    let end = sel.end.min(self.cached_text.len());
+                    self.cached_text[start..end].to_string()
+                } else {
+                    return;
+                }
+            }
+        };
+        if !text.is_empty() {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+        }
+    }
+
+    pub fn handle_paste(&mut self, _: &crate::Paste, _window: &mut Window, cx: &mut Context<Self>) {
+        let Some(item) = cx.read_from_clipboard() else {
+            return;
+        };
+        let text = item.text().unwrap_or_default().to_string();
+        if text.is_empty() {
+            return;
+        }
+        match self.edit_zone {
+            EditZone::Title => {
+                if let Some(fm) = &mut self.frontmatter {
+                    let byte_pos = char_idx_to_byte(&fm.title, self.title_cursor);
+                    fm.title.insert_str(byte_pos, &text);
+                    self.title_cursor += text.chars().count();
+                    self.dirty = true;
+                    cx.notify();
+                }
+            }
+            EditZone::Content => {
+                if let Some(sel) = self.selection.take() {
+                    self.buffer.delete(sel.start, sel.end);
+                    self.cache_edit(sel.start, sel.end, "");
+                    self.cursor_pos = sel.start;
+                }
+                self.buffer.insert(self.cursor_pos, &text);
+                self.cache_edit(self.cursor_pos, self.cursor_pos, &text);
+                self.cursor_pos += text.len();
+                self.dirty = true;
+                cx.notify();
+            }
+        }
+    }
+
+    pub fn handle_cut(&mut self, _: &crate::Cut, window: &mut Window, cx: &mut Context<Self>) {
+        self.handle_copy(&crate::Copy, window, cx);
+        match self.edit_zone {
+            EditZone::Title => {
+                if self.title_cursor > 0 {
+                    if let Some(fm) = &mut self.frontmatter {
+                        let byte_pos = char_idx_to_byte(&fm.title, self.title_cursor);
+                        let prev_len = fm.title[..byte_pos]
+                            .chars()
+                            .last()
+                            .map(|c| c.len_utf8())
+                            .unwrap_or(0);
+                        if prev_len > 0 {
+                            fm.title.drain((byte_pos - prev_len)..byte_pos);
+                            self.title_cursor -= 1;
+                            self.dirty = true;
+                        }
+                    }
+                    cx.notify();
+                }
+            }
+            EditZone::Content => {
+                if let Some(sel) = self.selection.take() {
+                    self.buffer.delete(sel.start, sel.end);
+                    self.cache_edit(sel.start, sel.end, "");
+                    self.cursor_pos = sel.start;
+                    self.dirty = true;
+                    cx.notify();
+                } else if self.cursor_pos > 0 {
+                    let prev_len = self.cached_text[..self.cursor_pos]
+                        .chars()
+                        .last()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(1);
+                    let start = self.cursor_pos - prev_len;
+                    self.buffer.delete(start, self.cursor_pos);
+                    self.cache_edit(start, self.cursor_pos, "");
+                    self.cursor_pos = start;
+                    self.dirty = true;
+                    cx.notify();
+                }
+            }
+        }
+    }
+
     fn handle_move_up(&mut self, _: &MoveUp, _window: &mut Window, cx: &mut Context<Self>) {
         self.selection = None;
         match self.edit_zone {
@@ -1266,6 +1366,9 @@ impl Render for Editor {
             .on_action(cx.listener(Editor::handle_redo))
             .on_action(cx.listener(Editor::handle_save))
             .on_action(cx.listener(Editor::handle_select_all))
+            .on_action(cx.listener(Editor::handle_copy))
+            .on_action(cx.listener(Editor::handle_paste))
+            .on_action(cx.listener(Editor::handle_cut))
             .on_mouse_up(
                 gpui::MouseButton::Left,
                 cx.listener(|this, _event, _window, _cx| {

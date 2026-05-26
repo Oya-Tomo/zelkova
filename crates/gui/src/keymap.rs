@@ -33,6 +33,11 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
     // SelectAll
     bindings.push(KeyBinding::new("ctrl-a", crate::SelectAll, None));
 
+    // Clipboard
+    bindings.push(KeyBinding::new("ctrl-c", crate::Copy, None));
+    bindings.push(KeyBinding::new("ctrl-v", crate::Paste, None));
+    bindings.push(KeyBinding::new("ctrl-x", crate::Cut, None));
+
     // User-defined bindings from config
     let resolved = keymap_config.resolved_bindings();
     for binding in resolved {
@@ -79,6 +84,9 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
         "confirm" => Some(KeyBinding::new(&binding.key, crate::Confirm, context)),
         "cancel" => Some(KeyBinding::new(&binding.key, crate::Cancel, context)),
         "select_all" => Some(KeyBinding::new(&binding.key, crate::SelectAll, context)),
+        "copy" => Some(KeyBinding::new(&binding.key, crate::Copy, context)),
+        "paste" => Some(KeyBinding::new(&binding.key, crate::Paste, context)),
+        "cut" => Some(KeyBinding::new(&binding.key, crate::Cut, context)),
         _ => {
             eprintln!("warning: unknown action in keymap: {}", binding.action);
             None
