@@ -103,8 +103,17 @@ pub fn all_action_entries() -> Vec<(String, String)> {
 }
 
 /// Command specs with argument definitions for the command palette.
-pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
+/// `folder_names` are the current folder names from the daemon, used to
+/// populate Select-style argument options dynamically.
+pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette::CommandSpec> {
     use super::command_palette::{ArgSpec, ArgType, CommandSpec};
+
+    let folder_options = {
+        let mut opts = vec!["(root)".into()];
+        opts.extend(folder_names.iter().cloned());
+        opts
+    };
+
     vec![
         CommandSpec::no_arg("Open Command Palette"),
         CommandSpec::no_arg("Search Notes"),
@@ -119,7 +128,7 @@ pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
                 ArgSpec {
                     prompt: "Folder".into(),
                     arg_type: ArgType::Select {
-                        options: vec!["(root)".into()],
+                        options: folder_options.clone(),
                     },
                     optional: true,
                 },
@@ -136,7 +145,7 @@ pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
                 ArgSpec {
                     prompt: "Parent folder".into(),
                     arg_type: ArgType::Select {
-                        options: vec!["(root)".into()],
+                        options: folder_options.clone(),
                     },
                     optional: true,
                 },
@@ -147,7 +156,7 @@ pub fn all_command_specs() -> Vec<super::command_palette::CommandSpec> {
             vec![ArgSpec {
                 prompt: "Target folder".into(),
                 arg_type: ArgType::Select {
-                    options: vec!["(root)".into()],
+                    options: folder_options,
                 },
                 optional: true,
             }],

@@ -82,8 +82,8 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
-    pub fn new(cx: &mut App) -> Self {
-        let commands = super::keymap::all_command_specs();
+    pub fn new(folder_names: &[String], cx: &mut App) -> Self {
+        let commands = super::keymap::all_command_specs(folder_names);
         let filtered: Vec<usize> = (0..commands.len()).collect();
         Self {
             phase: Phase::SelectCommand,
