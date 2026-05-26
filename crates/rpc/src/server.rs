@@ -115,12 +115,15 @@ mod tests {
             let mut reader = BufReader::new(stream);
             let mut response_line = String::new();
             reader.read_line(&mut response_line).expect("read response");
-            let response: JsonRpcResponse = serde_json::from_str(&response_line).expect("parse response");
+            let response: JsonRpcResponse =
+                serde_json::from_str(&response_line).expect("parse response");
             assert!(response.error.is_none());
             assert!(response.result.is_some());
         });
 
-        server.accept_one(&simple_handler).expect("accept connection");
+        server
+            .accept_one(&simple_handler)
+            .expect("accept connection");
         handle.join().expect("test thread panicked");
     }
 
@@ -141,11 +144,14 @@ mod tests {
             let mut reader = BufReader::new(stream);
             let mut response_line = String::new();
             reader.read_line(&mut response_line).expect("read response");
-            let response: JsonRpcResponse = serde_json::from_str(&response_line).expect("parse response");
+            let response: JsonRpcResponse =
+                serde_json::from_str(&response_line).expect("parse response");
             assert!(response.error.is_some());
         });
 
-        server.accept_one(&simple_handler).expect("accept connection");
+        server
+            .accept_one(&simple_handler)
+            .expect("accept connection");
         handle.join().expect("test thread panicked");
     }
 }
