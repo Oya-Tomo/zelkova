@@ -17,6 +17,8 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
         METHOD_TAGS => handle_tags(state),
         METHOD_REBUILD_INDEX => handle_rebuild_index(state),
         METHOD_NOTE_UPDATED => handle_note_updated(&request, state),
+        METHOD_DELETE_NOTE => handle_delete_note(&request, state),
+        METHOD_RENAME_NOTE => handle_rename_note(&request, state),
         _ => Err(JsonRpcError::not_found(format!(
             "unknown method: {}",
             request.method
@@ -315,4 +317,77 @@ fn parse_params<T: serde::de::DeserializeOwned>(
         .ok_or_else(|| JsonRpcError::invalid_params("missing params"))?;
 
     serde_json::from_value(params.clone()).map_err(|e| JsonRpcError::invalid_params(e.to_string()))
+}
+
+fn handle_delete_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: DeleteNoteParams = parse_params(request)?;
+
+    // Remove from directory mappings
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+    directory.mappings.retain(|m| m.note != params.note_id);
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    drop(directory);
+
+    // Find and delete the note file
+    let notes = state
+        .vault
+        .list_notes()
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    let note = notes
+        .into_iter()
+        .find(|n| n.frontmatter.id == params.note_id)
+        .ok_or_else(|| JsonRpcError::not_found("note not found"))?;
+    let rel = note
+        .path
+        .strip_prefix(&state.vault.vault_path)
+        .unwrap_or(&note.path);
+    state
+        .vault
+        .delete_note(rel)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    // Remove from search index
+    if let Err(e) = state.search_index.remove_document(&params.note_id) {
+        eprintln!("warning: failed to remove note from index: {e}");
+    }
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_rename_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: RenameNoteParams = parse_params(request)?;
+
+    state
+        .vault
+        .rename_note(params.note_id, &params.new_title)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    // Re-index the note
+    let notes = state
+        .vault
+        .list_notes()
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    if let Some(note) = notes
+        .into_iter()
+        .find(|n| n.frontmatter.id == params.note_id)
+    {
+        if let Err(e) = crate::indexer::reindex_note(&note.path, state) {
+            eprintln!("warning: failed to reindex renamed note: {e}");
+        }
+    }
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
 }

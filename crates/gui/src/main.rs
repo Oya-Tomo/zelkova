@@ -153,7 +153,19 @@ impl ZelkovaApp {
     ) {
         if self.command_palette.is_none() {
             let folder_names: Vec<String> = self.folders.iter().map(|f| f.name.clone()).collect();
-            let palette = cx.new(|cx| command_palette::CommandPalette::new(&folder_names, cx));
+            let note_titles: Vec<String> = self
+                .notes
+                .iter()
+                .map(|n| {
+                    if n.title.is_empty() {
+                        "Untitled".to_string()
+                    } else {
+                        n.title.clone()
+                    }
+                })
+                .collect();
+            let palette =
+                cx.new(|cx| command_palette::CommandPalette::new(&folder_names, &note_titles, cx));
             palette.update(cx, |_, cx| cx.focus_handle()).focus(window);
             self.command_palette = Some(palette);
             cx.notify();
@@ -377,6 +389,48 @@ impl ZelkovaApp {
                             zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                         if client.rename_folder(folder_id, new_name).is_ok() {
                             self.refresh_folders();
+                        }
+                    }
+                }
+            }
+            "Rename Note" => {
+                let note_title = args.first().and_then(|a| a.as_deref());
+                let new_title = args.get(1).and_then(|a| a.as_deref()).unwrap_or("");
+                if let Some(note) = self.notes.iter().find(|n| {
+                    note_title == Some(n.title.as_str())
+                        || (n.title.is_empty() && note_title == Some("Untitled"))
+                }) {
+                    if let Ok(note_id) = uuid::Uuid::parse_str(&note.id) {
+                        if self.config.daemon.socket_path.exists() {
+                            let client = zelkova_rpc::client::RpcClient::new(
+                                &self.config.daemon.socket_path,
+                            );
+                            if client.rename_note(note_id, new_title).is_ok() {
+                                self.refresh_notes();
+                            }
+                        }
+                    }
+                }
+            }
+            "Delete Note" => {
+                let confirmation = args.get(1).and_then(|a| a.as_deref()).unwrap_or("Cancel");
+                if confirmation != "Yes, delete" {
+                    return;
+                }
+                let note_title = args.first().and_then(|a| a.as_deref());
+                if let Some(note) = self.notes.iter().find(|n| {
+                    note_title == Some(n.title.as_str())
+                        || (n.title.is_empty() && note_title == Some("Untitled"))
+                }) {
+                    if let Ok(note_id) = uuid::Uuid::parse_str(&note.id) {
+                        if self.config.daemon.socket_path.exists() {
+                            let client = zelkova_rpc::client::RpcClient::new(
+                                &self.config.daemon.socket_path,
+                            );
+                            if client.delete_note(note_id).is_ok() {
+                                self.refresh_notes();
+                                self.refresh_folders();
+                            }
                         }
                     }
                 }

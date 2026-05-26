@@ -233,6 +233,8 @@ pub const METHOD_RENAME_FOLDER: &str = "rename_folder";
 pub const METHOD_TAGS: &str = "tags";
 pub const METHOD_REBUILD_INDEX: &str = "rebuild_index";
 pub const METHOD_NOTE_UPDATED: &str = "note_updated";
+pub const METHOD_DELETE_NOTE: &str = "delete_note";
+pub const METHOD_RENAME_NOTE: &str = "rename_note";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteUpdatedParams {
@@ -250,4 +252,15 @@ pub struct DeleteFolderParams {
 pub struct RenameFolderParams {
     pub folder_id: Uuid,
     pub new_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteNoteParams {
+    pub note_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameNoteParams {
+    pub note_id: Uuid,
+    pub new_title: String,
 }
