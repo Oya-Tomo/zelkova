@@ -114,6 +114,21 @@ impl CommandPalette {
         }
     }
 
+    pub fn paste_text(&mut self, text: String) {
+        match self.phase {
+            Phase::SelectCommand => {
+                replace_in_string(&mut self.query, &mut self.query_cursor, None, &text);
+                self.update_filter();
+            }
+            Phase::InputArg { .. } => {
+                replace_in_string(&mut self.arg_input, &mut self.arg_cursor, None, &text);
+                if matches!(self.current_arg_type(), Some(ArgType::Select { .. })) {
+                    self.arg_selected = 0;
+                }
+            }
+        }
+    }
+
     pub fn move_cursor_right(&mut self) {
         match self.phase {
             Phase::SelectCommand => {

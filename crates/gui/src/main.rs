@@ -42,6 +42,9 @@ actions!(
         SelectUp,
         SelectDown,
         SelectAll,
+        Copy,
+        Paste,
+        Cut,
     ]
 );
 
@@ -243,6 +246,25 @@ impl ZelkovaApp {
             cx.notify();
             return;
         }
+    }
+
+    fn handle_copy(&mut self, _: &Copy, _window: &mut Window, _cx: &mut Context<Self>) {
+        // Editor handles via its own on_action; command palette doesn't need copy
+    }
+
+    fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref palette) = self.command_palette {
+            if let Some(item) = cx.read_from_clipboard() {
+                if let Some(text) = item.text() {
+                    palette.update(cx, |p, _| p.paste_text(text.to_string()));
+                }
+            }
+            cx.notify();
+        }
+    }
+
+    fn handle_cut(&mut self, _: &Cut, _window: &mut Window, _cx: &mut Context<Self>) {
+        // Editor handles via its own on_action; command palette doesn't need cut
     }
 
     fn handle_insert_newline(
@@ -779,7 +801,10 @@ impl Render for ZelkovaApp {
             .on_action(cx.listener(ZelkovaApp::handle_confirm))
             .on_action(cx.listener(ZelkovaApp::handle_insert_newline))
             .on_action(cx.listener(ZelkovaApp::handle_create_note))
-            .on_action(cx.listener(ZelkovaApp::handle_save));
+            .on_action(cx.listener(ZelkovaApp::handle_save))
+            .on_action(cx.listener(ZelkovaApp::handle_copy))
+            .on_action(cx.listener(ZelkovaApp::handle_paste))
+            .on_action(cx.listener(ZelkovaApp::handle_cut));
 
         if self.sidebar_visible {
             main = main.child(sidebar);
