@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn config_path_is_under_xdg() {
-        let path = AppConfig::config_path().unwrap();
+        let path = AppConfig::config_path().expect("config path is valid in test env");
         assert!(path.to_string_lossy().contains("zelkova"));
         assert!(path.to_string_lossy().ends_with("config.toml"));
     }
@@ -140,7 +140,7 @@ mod tests {
 [note]
 vault_path = "/tmp/test-vault"
 "#;
-        let config: AppConfig = toml::from_str(toml).unwrap();
+        let config: AppConfig = toml::from_str(toml).expect("valid TOML in test");
         assert_eq!(config.note.vault_path, PathBuf::from("/tmp/test-vault"));
         assert!(config.daemon.index_on_start);
     }
@@ -148,8 +148,8 @@ vault_path = "/tmp/test-vault"
     #[test]
     fn roundtrip_default() {
         let config = AppConfig::default();
-        let toml_str = toml::to_string_pretty(&config).unwrap();
-        let parsed: AppConfig = toml::from_str(&toml_str).unwrap();
+        let toml_str = toml::to_string_pretty(&config).expect("default config serializes");
+        let parsed: AppConfig = toml::from_str(&toml_str).expect("roundtrip TOML parses");
         assert_eq!(config.note.vault_path, parsed.note.vault_path);
         assert_eq!(config.daemon.socket_path, parsed.daemon.socket_path);
     }

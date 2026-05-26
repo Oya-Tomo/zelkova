@@ -285,7 +285,7 @@ mod tests {
 [ui]
 bg = "#ffffff"
 "##;
-        let theme: ThemeConfig = toml::from_str(toml).unwrap();
+        let theme: ThemeConfig = toml::from_str(toml).expect("valid TOML in test");
         assert_eq!(theme.ui.bg, "#ffffff");
         assert_eq!(theme.editor.heading_fg, "#89b4fa");
     }
@@ -293,8 +293,8 @@ bg = "#ffffff"
     #[test]
     fn roundtrip_default() {
         let theme = ThemeConfig::default();
-        let toml_str = toml::to_string_pretty(&theme).unwrap();
-        let parsed: ThemeConfig = toml::from_str(&toml_str).unwrap();
+        let toml_str = toml::to_string_pretty(&theme).expect("default theme serializes");
+        let parsed: ThemeConfig = toml::from_str(&toml_str).expect("roundtrip TOML parses");
         assert_eq!(theme.ui.bg, parsed.ui.bg);
         assert_eq!(theme.editor.heading_fg, parsed.editor.heading_fg);
     }

@@ -118,7 +118,7 @@ leader = "ctrl-x"
 key = "ctrl-p"
 action = "open_command_palette"
 "#;
-        let km: KeymapConfig = toml::from_str(toml).unwrap();
+        let km: KeymapConfig = toml::from_str(toml).expect("valid TOML in test");
         assert_eq!(km.leader, "ctrl-x");
         assert_eq!(km.bindings.len(), 1);
     }
@@ -139,15 +139,15 @@ action = "open_command_palette"
     #[test]
     fn empty_bindings_default() {
         let toml = r#"leader = "space""#;
-        let km: KeymapConfig = toml::from_str(toml).unwrap();
+        let km: KeymapConfig = toml::from_str(toml).expect("valid TOML in test");
         assert!(km.bindings.is_empty());
     }
 
     #[test]
     fn roundtrip_default() {
         let km = KeymapConfig::default();
-        let toml_str = toml::to_string_pretty(&km).unwrap();
-        let parsed: KeymapConfig = toml::from_str(&toml_str).unwrap();
+        let toml_str = toml::to_string_pretty(&km).expect("default keymap serializes");
+        let parsed: KeymapConfig = toml::from_str(&toml_str).expect("roundtrip TOML parses");
         assert_eq!(km.leader, parsed.leader);
         assert_eq!(km.bindings.len(), parsed.bindings.len());
     }
