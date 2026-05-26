@@ -102,6 +102,7 @@ pub fn all_action_entries() -> Vec<(String, String)> {
         ("ListNotes".into(), "List Notes".into()),
         ("ShowTags".into(), "Show Tags".into()),
         ("ToggleSidebar".into(), "Toggle Sidebar".into()),
+        ("ToggleViewMode".into(), "Toggle View Mode".into()),
         ("SaveNote".into(), "Save Note".into()),
         ("Quit".into(), "Quit".into()),
     ]
@@ -281,6 +282,7 @@ pub fn all_command_specs(
         CommandSpec::no_arg("List Notes"),
         CommandSpec::no_arg("Show Tags"),
         CommandSpec::no_arg("Toggle Sidebar"),
+        CommandSpec::no_arg("Toggle View Mode"),
         CommandSpec::no_arg("Save Note"),
         CommandSpec::no_arg("Quit"),
     ]
