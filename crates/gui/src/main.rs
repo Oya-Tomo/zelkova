@@ -860,7 +860,7 @@ fn main() {
                 })
             },
         )
-        .unwrap();
+        .expect("window creation is infallible on supported platforms");
         cx.activate(true);
     });
 }
