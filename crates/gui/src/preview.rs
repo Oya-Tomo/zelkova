@@ -1,6 +1,6 @@
 use gpui::{
-    App, Context, FocusHandle, IntoElement, Render, SharedString, StyledText, Window, div, img,
-    prelude::*, px, rgb,
+    App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
+    div, img, prelude::*, px, rgb,
 };
 use zelkova_config::EditorColors;
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
@@ -8,23 +8,26 @@ use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse
 pub struct Preview {
     doc: MarkdownDoc,
     theme: EditorColors,
+    focus_handle: FocusHandle,
 }
 
 impl Preview {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut App) -> Self {
         Self {
             doc: MarkdownDoc {
                 frontmatter: None,
                 blocks: Vec::new(),
             },
             theme: EditorColors::default(),
+            focus_handle: cx.focus_handle(),
         }
     }
 
-    pub fn from_markdown(text: &str) -> Self {
+    pub fn from_markdown(text: &str, cx: &mut App) -> Self {
         Self {
             doc: parse(text),
             theme: EditorColors::default(),
+            focus_handle: cx.focus_handle(),
         }
     }
 
@@ -34,6 +37,12 @@ impl Preview {
 
     pub fn update_content(&mut self, text: &str) {
         self.doc = parse(text);
+    }
+}
+
+impl Focusable for Preview {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus_handle.clone()
     }
 }
 
@@ -54,6 +63,7 @@ impl Render for Preview {
             .p(px(16.0))
             .text_color(rgb(0xcdd6f4))
             .text_sm()
+            .track_focus(&self.focus_handle)
             .children(children)
     }
 }
