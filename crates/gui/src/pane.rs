@@ -91,13 +91,17 @@ impl PaneManager {
         });
         self.active_tab = self.tabs.len() - 1;
 
-        // Observe editor for title changes (syncs tab title in real-time)
+        // Observe editor for title changes and preview sync
         let sub = cx.observe(&editor, |this, editor, cx| {
-            let new_title = editor.read(cx).title().to_string();
             let active = this.active_tab;
             if let Some(tab) = this.tabs.get_mut(active) {
-                if tab.editor == editor && tab.title != new_title {
-                    tab.title = new_title;
+                if tab.editor == editor {
+                    let new_title = editor.read(cx).title().to_string();
+                    if tab.title != new_title {
+                        tab.title = new_title;
+                    }
+                    let text = editor.read(cx).text().to_string();
+                    tab.preview.update(cx, |p, _| p.update_content(&text));
                     cx.notify();
                 }
             }
@@ -169,7 +173,7 @@ impl PaneManager {
         &mut self,
         _: &ToggleViewMode,
         _window: &mut Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) {
         if let Some(tab) = self.tabs.get_mut(self.active_tab) {
             tab.view_mode = match tab.view_mode {
@@ -177,6 +181,9 @@ impl PaneManager {
                 ViewMode::Split => ViewMode::Preview,
                 ViewMode::Preview => ViewMode::Editor,
             };
+            // Sync preview content when switching away from editor-only mode
+            let text = tab.editor.read(cx).text().to_string();
+            tab.preview.update(cx, |p, _| p.update_content(&text));
         }
     }
 }
