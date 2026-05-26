@@ -1,8 +1,9 @@
 use gpui::{
-    App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
-    div, img, prelude::*, px, rgb,
+    App, Context, FocusHandle, Focusable, HighlightStyle, IntoElement, Render, SharedString,
+    StyledText, Window, div, img, prelude::*, px, rgb,
 };
 use zelkova_config::EditorColors;
+use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
 
 pub struct Preview {
@@ -102,6 +103,15 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
         Block::CodeBlock { language, code } => {
             let lang_label = language.clone().unwrap_or_default();
             let code_text = SharedString::from(code.to_string());
+
+            let highlights = match language.as_deref() {
+                Some(lang) if !lang.is_empty() => {
+                    let code_theme = CodeTheme::from_editor_colors(theme);
+                    build_code_highlights(code, lang, &code_theme)
+                }
+                _ => Vec::new(),
+            };
+
             div()
                 .mb(px(8.0))
                 .bg(rgb(0x313244))
@@ -114,7 +124,7 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
                         .mb(px(4.0))
                         .child(lang_label),
                 )
-                .child(StyledText::new(code_text).with_highlights(vec![]))
+                .child(StyledText::new(code_text).with_highlights(highlights))
                 .into_any_element()
         }
         Block::List { items } => {
@@ -357,6 +367,33 @@ fn inline_to_string(inlines: &[Inline]) -> String {
             Inline::HtmlTag(tag) => tag.clone(),
             Inline::HardBreak => "\n".to_string(),
             Inline::SoftBreak => " ".to_string(),
+        })
+        .collect()
+}
+
+fn build_code_highlights(
+    code: &str,
+    language: &str,
+    theme: &CodeTheme,
+) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
+    let resolved = match resolve_language(language) {
+        Some(lang) => lang,
+        None => return Vec::new(),
+    };
+    let ranges = highlight_code(code, resolved);
+    ranges
+        .into_iter()
+        .filter_map(|sr| {
+            theme.color_by_index(sr.highlight_index).map(|hex| {
+                let color = crate::editor::parse_hex(hex);
+                (
+                    sr.range,
+                    HighlightStyle {
+                        color: Some(color),
+                        ..Default::default()
+                    },
+                )
+            })
         })
         .collect()
 }
