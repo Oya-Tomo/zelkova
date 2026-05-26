@@ -268,16 +268,16 @@ mod tests {
 
     #[test]
     fn save_and_load() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
         let vault_path = tmp.path().to_path_buf();
 
         let mut ds = DirectoryStructure::default();
         let folder = ds.create_folder("Work", None);
         let note_id = Uuid::new_v4();
         ds.move_note_to_folder(note_id, Some(folder.id));
-        ds.save(&vault_path).unwrap();
+        ds.save(&vault_path).expect("save directory structure");
 
-        let loaded = DirectoryStructure::load(&vault_path).unwrap();
+        let loaded = DirectoryStructure::load(&vault_path).expect("load directory structure");
         assert_eq!(loaded.folders.len(), 1);
         assert_eq!(loaded.folders[0].name, "Work");
         assert_eq!(loaded.mappings.len(), 1);
@@ -286,9 +286,9 @@ mod tests {
 
     #[test]
     fn load_missing_file_returns_default() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
         let vault_path = tmp.path().to_path_buf();
-        let ds = DirectoryStructure::load(&vault_path).unwrap();
+        let ds = DirectoryStructure::load(&vault_path).expect("load returns default");
         assert!(ds.folders.is_empty());
         assert!(ds.mappings.is_empty());
     }
@@ -310,7 +310,7 @@ mod tests {
         ds.move_note_to_folder(note_id, Some(work.id));
         assert_eq!(ds.mappings.len(), 1);
 
-        let removed = ds.delete_folder(work.id).unwrap();
+        let removed = ds.delete_folder(work.id).expect("delete folder in test");
         assert!(ds.folders.is_empty());
         assert!(ds.mappings.is_empty());
         assert_eq!(removed, vec![note_id]);
@@ -322,7 +322,7 @@ mod tests {
         let work = ds.create_folder("Work", None);
         let projects = ds.create_folder("Projects", Some(work.id));
 
-        ds.delete_folder(work.id).unwrap();
+        ds.delete_folder(work.id).expect("delete folder in test");
         assert_eq!(ds.folders.len(), 1);
         assert!(ds.folders[0].parent.is_none());
         assert_eq!(ds.folders[0].name, "Projects");
@@ -333,7 +333,7 @@ mod tests {
         let mut ds = DirectoryStructure::default();
         let work = ds.create_folder("Work", None);
 
-        let removed = ds.delete_folder(work.id).unwrap();
+        let removed = ds.delete_folder(work.id).expect("delete folder in test");
         assert!(removed.is_empty());
     }
 

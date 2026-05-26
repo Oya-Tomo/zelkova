@@ -158,42 +158,44 @@ mod tests {
 
     #[test]
     fn vault_create_with_empty_title() {
-        let tmp = tempfile::tempdir().unwrap();
-        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
 
-        let note = vault.create_note(None, HashSet::new()).unwrap();
+        let note = vault
+            .create_note(None, HashSet::new())
+            .expect("create note");
         assert!(note.path.exists());
         assert_eq!(note.frontmatter.title, "");
 
-        let notes = vault.list_notes().unwrap();
+        let notes = vault.list_notes().expect("list notes");
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].frontmatter.title, "");
     }
 
     #[test]
     fn vault_create_no_duplicate_filenames() {
-        let tmp = tempfile::tempdir().unwrap();
-        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
 
         let note1 = vault
             .create_note(Some("Same Title"), HashSet::new())
-            .unwrap();
+            .expect("create note1");
         let note2 = vault
             .create_note(Some("Same Title"), HashSet::new())
-            .unwrap();
+            .expect("create note2");
 
         assert_ne!(note1.path, note2.path, "UUID filenames must differ");
         assert!(note1.path.exists());
         assert!(note2.path.exists());
 
-        let notes = vault.list_notes().unwrap();
+        let notes = vault.list_notes().expect("list notes");
         assert_eq!(notes.len(), 2);
     }
 
     #[test]
     fn parse_frontmatter_basic() {
         let content = "---\nid: \"00000000-0000-0000-0000-000000000001\"\ntitle: Test\ntags:\n  - rust\ncreated: 2025-01-01T00:00:00Z\nupdated: 2025-01-01T00:00:00Z\n---\nHello world\n";
-        let (fm, body) = parse_frontmatter(content).unwrap();
+        let (fm, body) = parse_frontmatter(content).expect("parse frontmatter");
         assert_eq!(fm.title, "Test");
         assert!(fm.tags.contains("rust"));
         assert_eq!(body, "Hello world\n");
@@ -207,8 +209,8 @@ mod tests {
 
     #[test]
     fn format_roundtrip() {
-        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let now = "2025-01-01T00:00:00Z".parse().unwrap();
+        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
+        let now = "2025-01-01T00:00:00Z".parse().expect("valid timestamp");
         let mut tags = HashSet::new();
         tags.insert("test".to_string());
 
@@ -228,50 +230,52 @@ mod tests {
 
     #[test]
     fn vault_create_and_list() {
-        let tmp = tempfile::tempdir().unwrap();
-        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
 
         let mut tags = HashSet::new();
         tags.insert("demo".to_string());
-        let note = vault.create_note(Some("Test Note"), tags).unwrap();
+        let note = vault
+            .create_note(Some("Test Note"), tags)
+            .expect("create note");
 
         assert!(note.path.exists());
         assert!(
             note.path
                 .file_name()
-                .unwrap()
+                .expect("path has filename")
                 .to_string_lossy()
                 .ends_with(".md")
         );
         assert_ne!(
-            note.path.file_stem().unwrap(),
+            note.path.file_stem().expect("path has stem"),
             "Test Note",
             "filename should be UUID, not title"
         );
 
-        let notes = vault.list_notes().unwrap();
+        let notes = vault.list_notes().expect("list notes");
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].frontmatter.title, "Test Note");
 
-        let all_tags = vault.all_tags().unwrap();
+        let all_tags = vault.all_tags().expect("get tags");
         assert!(all_tags.contains("demo"));
     }
 
     #[test]
     fn vault_delete_note() {
-        let tmp = tempfile::tempdir().unwrap();
-        let vault = Vault::new(tmp.path().to_path_buf()).unwrap();
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
 
         let note = vault
             .create_note(Some("To Delete"), HashSet::new())
-            .unwrap();
+            .expect("create note");
         let rel = note
             .path
             .strip_prefix(&vault.vault_path)
-            .unwrap()
+            .expect("strip prefix")
             .to_path_buf();
 
-        vault.delete_note(&rel).unwrap();
+        vault.delete_note(&rel).expect("delete note");
         assert!(!note.path.exists());
     }
 }
