@@ -466,6 +466,11 @@ impl ZelkovaApp {
             "Toggle Sidebar" => {
                 self.sidebar_visible = !self.sidebar_visible;
             }
+            "Toggle View Mode" => {
+                self.pane_manager.update(cx, |pm, cx| {
+                    pm.handle_toggle_view(&ToggleViewMode, window, cx);
+                });
+            }
             "Save Note" => {
                 self.handle_save(&SaveNote, window, cx);
             }
