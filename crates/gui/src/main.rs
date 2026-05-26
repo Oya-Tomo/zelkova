@@ -330,10 +330,7 @@ impl ZelkovaApp {
                     .get(1)
                     .and_then(|a| a.as_deref())
                     .unwrap_or("Move notes to root");
-                let confirmation = args
-                    .get(2)
-                    .and_then(|a| a.as_deref())
-                    .unwrap_or("Cancel");
+                let confirmation = args.get(2).and_then(|a| a.as_deref()).unwrap_or("Cancel");
                 if confirmation != "Yes, delete" {
                     return;
                 }

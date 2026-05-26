@@ -177,10 +177,7 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
                 ArgSpec {
                     prompt: "Contents".into(),
                     arg_type: ArgType::Select {
-                        options: vec![
-                            "Move notes to root".into(),
-                            "Delete notes too".into(),
-                        ],
+                        options: vec!["Move notes to root".into(), "Delete notes too".into()],
                     },
                     optional: false,
                 },
