@@ -99,13 +99,21 @@ impl DirectoryStructure {
         }
     }
 
-    pub fn delete_folder(&mut self, folder_id: Uuid) -> Result<()> {
+    pub fn delete_folder(&mut self, folder_id: Uuid) -> Result<Vec<Uuid>> {
         // Check folder exists
         if !self.folders.iter().any(|f| f.id == folder_id) {
             anyhow::bail!("folder not found");
         }
 
-        // Move notes in this folder to root (remove mappings)
+        // Collect note IDs in this folder before removing mappings
+        let note_ids: Vec<Uuid> = self
+            .mappings
+            .iter()
+            .filter(|m| m.folder == folder_id)
+            .map(|m| m.note)
+            .collect();
+
+        // Remove mappings for notes in this folder
         self.mappings.retain(|m| m.folder != folder_id);
 
         // Move sub-folders to parent of deleted folder
@@ -121,7 +129,7 @@ impl DirectoryStructure {
         }
 
         self.folders.retain(|f| f.id != folder_id);
-        Ok(())
+        Ok(note_ids)
     }
 
     pub fn build_tree(&self) -> Vec<FolderTree> {
@@ -269,9 +277,10 @@ mod tests {
         ds.move_note_to_folder(note_id, Some(work.id));
         assert_eq!(ds.mappings.len(), 1);
 
-        ds.delete_folder(work.id).unwrap();
+        let removed = ds.delete_folder(work.id).unwrap();
         assert!(ds.folders.is_empty());
         assert!(ds.mappings.is_empty());
+        assert_eq!(removed, vec![note_id]);
     }
 
     #[test]
@@ -284,6 +293,15 @@ mod tests {
         assert_eq!(ds.folders.len(), 1);
         assert!(ds.folders[0].parent.is_none());
         assert_eq!(ds.folders[0].name, "Projects");
+    }
+
+    #[test]
+    fn delete_folder_returns_empty_when_no_notes() {
+        let mut ds = DirectoryStructure::default();
+        let work = ds.create_folder("Work", None);
+
+        let removed = ds.delete_folder(work.id).unwrap();
+        assert!(removed.is_empty());
     }
 
     #[test]

@@ -201,8 +201,8 @@ impl RpcClient {
         serde_json::from_value(result).context("failed to parse list_tree result")
     }
 
-    pub fn delete_folder(&self, folder_id: Uuid) -> Result<()> {
-        let params = DeleteFolderParams { folder_id };
+    pub fn delete_folder(&self, folder_id: Uuid, cascade: bool) -> Result<()> {
+        let params = DeleteFolderParams { folder_id, cascade };
         let request = JsonRpcRequest::new(
             next_id(),
             METHOD_DELETE_FOLDER,

@@ -251,12 +251,35 @@ fn handle_delete_folder(
         .lock()
         .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
 
-    directory
+    let removed_notes = directory
         .delete_folder(params.folder_id)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
     directory
         .save(&state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    // Cascade: delete note files from vault
+    if params.cascade {
+        drop(directory);
+        let all_notes = state
+            .vault
+            .list_notes()
+            .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+        let removed_set: std::collections::HashSet<uuid::Uuid> =
+            removed_notes.into_iter().collect();
+        for note in &all_notes {
+            if removed_set.contains(&note.frontmatter.id) {
+                let rel = note
+                    .path
+                    .strip_prefix(&state.vault.vault_path)
+                    .unwrap_or(&note.path);
+                state
+                    .vault
+                    .delete_note(rel)
+                    .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+            }
+        }
+    }
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
         .map_err(|e| JsonRpcError::internal(e.to_string()))
