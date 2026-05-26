@@ -236,6 +236,25 @@ impl RpcClient {
         Ok(())
     }
 
+    pub fn move_folder(&self, folder_id: Uuid, new_parent: Option<Uuid>) -> Result<()> {
+        let params = MoveFolderParams {
+            folder_id,
+            new_parent,
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_MOVE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("move_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
     pub fn delete_note(&self, note_id: Uuid) -> Result<()> {
         let params = DeleteNoteParams { note_id };
         let request = JsonRpcRequest::new(

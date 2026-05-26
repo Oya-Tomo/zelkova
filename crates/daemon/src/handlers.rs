@@ -11,6 +11,7 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
         METHOD_CREATE_NOTE => handle_create_note(&request, state),
         METHOD_CREATE_FOLDER => handle_create_folder(&request, state),
         METHOD_MOVE_NOTE => handle_move_note(&request, state),
+        METHOD_MOVE_FOLDER => handle_move_folder(&request, state),
         METHOD_LIST_TREE => handle_list_tree(state),
         METHOD_DELETE_FOLDER => handle_delete_folder(&request, state),
         METHOD_RENAME_FOLDER => handle_rename_folder(&request, state),
@@ -206,6 +207,29 @@ fn handle_move_note(
         .lock()
         .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
     directory.move_note_to_folder(params.note_id, params.folder_id);
+    directory
+        .save(&state.vault.vault_path)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    serde_json::to_value(serde_json::json!({"status": "ok"}))
+        .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_move_folder(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: MoveFolderParams = parse_params(request)?;
+    let mut directory = state
+        .directory
+        .lock()
+        .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+
+    if !directory.move_folder_to(params.folder_id, params.new_parent) {
+        return Err(JsonRpcError::not_found(
+            "folder not found or would create cycle",
+        ));
+    }
     directory
         .save(&state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;

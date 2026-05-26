@@ -79,6 +79,39 @@ impl DirectoryStructure {
         }
     }
 
+    pub fn move_folder_to(&mut self, folder_id: Uuid, new_parent: Option<Uuid>) -> bool {
+        if !self.folders.iter().any(|f| f.id == folder_id) {
+            return false;
+        }
+        // Prevent moving into self or a descendant
+        if let Some(parent) = new_parent {
+            if parent == folder_id {
+                return false;
+            }
+            if self.is_descendant(folder_id, parent) {
+                return false;
+            }
+        }
+        if let Some(folder) = self.folders.iter_mut().find(|f| f.id == folder_id) {
+            folder.parent = new_parent;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_descendant(&self, ancestor: Uuid, candidate: Uuid) -> bool {
+        let mut current = candidate;
+        while let Some(folder) = self.folders.iter().find(|f| f.id == current) {
+            match folder.parent {
+                Some(p) if p == ancestor => return true,
+                Some(p) => current = p,
+                None => return false,
+            }
+        }
+        false
+    }
+
     pub fn get_folder_for_note(&self, note_id: Uuid) -> Option<Uuid> {
         self.mappings
             .iter()
