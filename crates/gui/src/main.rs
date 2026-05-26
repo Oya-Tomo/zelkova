@@ -289,10 +289,19 @@ impl ZelkovaApp {
                     .first()
                     .and_then(|a| a.as_deref())
                     .unwrap_or("New Folder");
+                let parent_name = args.get(1).and_then(|a| a.as_deref());
+                let parent_id = if parent_name == Some("(root)") || parent_name.is_none() {
+                    None
+                } else {
+                    self.folders
+                        .iter()
+                        .find(|f| Some(f.name.as_str()) == parent_name)
+                        .map(|f| f.id)
+                };
                 if self.config.daemon.socket_path.exists() {
                     let client =
                         zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                    if let Ok(result) = client.create_folder(name, None) {
+                    if let Ok(result) = client.create_folder(name, parent_id) {
                         self.expanded.insert(result.id);
                         self.refresh_folders();
                     }
