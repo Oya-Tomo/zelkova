@@ -162,13 +162,22 @@ pub fn all_command_specs(
         ),
         CommandSpec::with_args(
             "Move to Folder",
-            vec![ArgSpec {
-                prompt: "Target folder".into(),
-                arg_type: ArgType::Select {
-                    options: folder_options,
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options.clone(),
+                    },
+                    optional: false,
                 },
-                optional: true,
-            }],
+                ArgSpec {
+                    prompt: "Target folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options,
+                    },
+                    optional: true,
+                },
+            ],
         ),
         CommandSpec::with_args(
             "Delete Folder",

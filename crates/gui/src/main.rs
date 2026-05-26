@@ -320,7 +320,8 @@ impl ZelkovaApp {
                 }
             }
             "Move to Folder" => {
-                let folder_name = args.first().and_then(|a| a.as_deref());
+                let note_title = args.first().and_then(|a| a.as_deref());
+                let folder_name = args.get(1).and_then(|a| a.as_deref());
                 let folder_id = if folder_name == Some("(root)") || folder_name.is_none() {
                     None
                 } else {
@@ -329,17 +330,18 @@ impl ZelkovaApp {
                         .find(|f| Some(f.name.as_str()) == folder_name)
                         .map(|f| f.id)
                 };
-                // Move the currently selected note
-                if let Some(sel) = self.selected {
-                    if let Some(note) = self.notes.get(sel) {
-                        if let Ok(note_id) = uuid::Uuid::parse_str(&note.id) {
-                            if self.config.daemon.socket_path.exists() {
-                                let client = zelkova_rpc::client::RpcClient::new(
-                                    &self.config.daemon.socket_path,
-                                );
-                                if client.move_note(note_id, folder_id).is_ok() {
-                                    self.refresh_folders();
-                                }
+                let note = self.notes.iter().find(|n| {
+                    note_title == Some(n.title.as_str())
+                        || (n.title.is_empty() && note_title == Some("Untitled"))
+                });
+                if let Some(note) = note {
+                    if let Ok(note_id) = uuid::Uuid::parse_str(&note.id) {
+                        if self.config.daemon.socket_path.exists() {
+                            let client = zelkova_rpc::client::RpcClient::new(
+                                &self.config.daemon.socket_path,
+                            );
+                            if client.move_note(note_id, folder_id).is_ok() {
+                                self.refresh_folders();
                             }
                         }
                     }

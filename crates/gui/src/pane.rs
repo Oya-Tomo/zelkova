@@ -247,15 +247,18 @@ impl Render for PaneManager {
                 .into_any_element()
         };
 
-        // Focus the active editor
+        // Focus the active editor, or self when no tabs are open
         if let Some(tab) = self.tabs.get(self.active_tab) {
             tab.editor.focus_handle(cx).focus(window);
+        } else {
+            self.focus_handle.focus(window);
         }
 
         div()
             .flex()
             .flex_col()
             .size_full()
+            .track_focus(&self.focus_handle)
             .child(tab_bar)
             .child(content)
             .on_action(cx.listener(PaneManager::handle_next_pane))
