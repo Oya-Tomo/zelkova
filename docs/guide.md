@@ -52,6 +52,9 @@ zelkova      # launch GUI
 | `Enter` | New line |
 | `Ctrl+Z` | Undo |
 | `Ctrl+Shift+Z` | Redo |
+| `Ctrl+C` | Copy selection |
+| `Ctrl+V` | Paste |
+| `Ctrl+X` | Cut selection |
 
 ### Pane
 
