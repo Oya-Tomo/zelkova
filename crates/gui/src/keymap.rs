@@ -166,13 +166,32 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
         ),
         CommandSpec::with_args(
             "Delete Folder",
-            vec![ArgSpec {
-                prompt: "Folder".into(),
-                arg_type: ArgType::Select {
-                    options: folder_only_options.clone(),
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options.clone(),
+                    },
+                    optional: false,
                 },
-                optional: false,
-            }],
+                ArgSpec {
+                    prompt: "Contents".into(),
+                    arg_type: ArgType::Select {
+                        options: vec![
+                            "Move notes to root".into(),
+                            "Delete notes too".into(),
+                        ],
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Confirm".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Cancel".into(), "Yes, delete".into()],
+                    },
+                    optional: false,
+                },
+            ],
         ),
         CommandSpec::with_args(
             "Rename Folder",

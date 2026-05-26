@@ -326,6 +326,18 @@ impl ZelkovaApp {
             }
             "Delete Folder" => {
                 let folder_name = args.first().and_then(|a| a.as_deref());
+                let content_choice = args
+                    .get(1)
+                    .and_then(|a| a.as_deref())
+                    .unwrap_or("Move notes to root");
+                let confirmation = args
+                    .get(2)
+                    .and_then(|a| a.as_deref())
+                    .unwrap_or("Cancel");
+                if confirmation != "Yes, delete" {
+                    return;
+                }
+                let cascade = content_choice == "Delete notes too";
                 let folder_id = self
                     .folders
                     .iter()
@@ -335,9 +347,12 @@ impl ZelkovaApp {
                     if self.config.daemon.socket_path.exists() {
                         let client =
                             zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                        if client.delete_folder(folder_id).is_ok() {
+                        if client.delete_folder(folder_id, cascade).is_ok() {
                             self.expanded.remove(&folder_id);
                             self.refresh_folders();
+                            if cascade {
+                                self.refresh_notes();
+                            }
                         }
                     }
                 }
@@ -392,6 +407,23 @@ impl ZelkovaApp {
                     .map(|m| MappingEntry {
                         note_id: m.note_id,
                         folder_id: m.folder_id,
+                    })
+                    .collect();
+            }
+        }
+    }
+
+    fn refresh_notes(&mut self) {
+        if self.config.daemon.socket_path.exists() {
+            let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+            if let Ok(result) = client.list_notes(None) {
+                self.notes = result
+                    .notes
+                    .into_iter()
+                    .map(|n| NoteEntry {
+                        id: n.id.to_string(),
+                        title: n.title,
+                        path: n.path,
                     })
                     .collect();
             }
