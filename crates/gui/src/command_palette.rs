@@ -351,48 +351,47 @@ impl Render for CommandPalette {
 
         let dim_color: gpui::Hsla = gpui::rgba(0xa6adc8_ff).into();
 
+        let cursor_bg = rgb(0xcdd6f4);
+
+        let make_cursor = || div().w(px(1.0)).h(px(14.0)).bg(cursor_bg).flex_shrink_0();
+
         let content = match &self.phase {
             Phase::SelectCommand => {
-                let prompt = if self.query.is_empty() {
-                    let text = "> \u{2502}".to_string();
-                    StyledText::new(SharedString::from(text.clone())).with_highlights(vec![
-                        (
+                let before_cursor = format!("> {}", &self.query[..self.query_cursor]);
+                let after_cursor = self.query[self.query_cursor..].to_string();
+
+                let mut input_row = div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .child(
+                        StyledText::new(SharedString::from(before_cursor)).with_highlights(vec![(
                             0..2,
                             gpui::HighlightStyle {
                                 color: Some(dim_color),
                                 ..Default::default()
                             },
-                        ),
-                        (
-                            2..3,
-                            gpui::HighlightStyle {
-                                color: Some(rgb(0xcdd6f4).into()),
-                                ..Default::default()
-                            },
-                        ),
-                    ])
+                        )]),
+                    )
+                    .child(make_cursor());
+
+                if !after_cursor.is_empty() {
+                    input_row = input_row.child(StyledText::new(SharedString::from(after_cursor)));
+                }
+
+                let placeholder = if self.query.is_empty() {
+                    Some(
+                        StyledText::new(SharedString::from("Type to search commands..."))
+                            .with_highlights(vec![(
+                                0..27,
+                                gpui::HighlightStyle {
+                                    color: Some(dim_color),
+                                    ..Default::default()
+                                },
+                            )]),
+                    )
                 } else {
-                    let before = format!("> {}", &self.query[..self.query_cursor]);
-                    let after = &self.query[self.query_cursor..];
-                    let text = format!("{}\u{2502}{}", before, after);
-                    let cursor_start = before.len();
-                    let cursor_end = cursor_start + "\u{2502}".len();
-                    StyledText::new(SharedString::from(text)).with_highlights(vec![
-                        (
-                            0..2,
-                            gpui::HighlightStyle {
-                                color: Some(dim_color),
-                                ..Default::default()
-                            },
-                        ),
-                        (
-                            cursor_start..cursor_end,
-                            gpui::HighlightStyle {
-                                color: Some(rgb(0xcdd6f4).into()),
-                                ..Default::default()
-                            },
-                        ),
-                    ])
+                    None
                 };
 
                 let items: Vec<_> = self
@@ -420,7 +419,8 @@ impl Render for CommandPalette {
                             .py_2()
                             .border_b_1()
                             .border_color(rgb(0x585b70))
-                            .child(prompt),
+                            .child(input_row)
+                            .children(placeholder),
                     )
                     .children(items)
             }
@@ -429,64 +429,44 @@ impl Render for CommandPalette {
                 let cmd = &self.commands[cmd_idx];
                 let spec = &cmd.args[*index];
 
-                // Progress indicator
                 let step = format!("{} [{}/{}]", cmd.label, index + 1, cmd.args.len());
 
-                let prompt_text = if self.arg_input.is_empty() {
-                    let text = format!("{}: \u{2502}", spec.prompt);
-                    let placeholder = if spec.optional { "(optional)" } else { "" };
-                    let full = format!("{}{}", text, placeholder);
-                    let cursor_start = text.len() - "\u{2502}".len();
-                    let cursor_end = text.len();
-                    StyledText::new(SharedString::from(full.clone())).with_highlights(vec![
-                        (
-                            0..spec.prompt.len() + 2,
-                            gpui::HighlightStyle {
-                                color: Some(rgb(0xcdd6f4).into()),
-                                ..Default::default()
-                            },
-                        ),
-                        (
-                            cursor_start..cursor_end,
-                            gpui::HighlightStyle {
-                                color: Some(rgb(0xcdd6f4).into()),
-                                ..Default::default()
-                            },
-                        ),
-                        (
-                            text.len()..full.len(),
-                            gpui::HighlightStyle {
-                                color: Some(dim_color),
-                                ..Default::default()
-                            },
-                        ),
-                    ])
-                } else {
-                    let prefix = format!("{}: ", spec.prompt);
-                    let before = &self.arg_input[..self.arg_cursor];
-                    let after = &self.arg_input[self.arg_cursor..];
-                    let text = format!("{}\u{2502}{}", before, after);
-                    let full = format!("{}{}", prefix, text);
-                    let prompt_len = prefix.len();
-                    let cursor_start = prompt_len + before.len();
-                    let cursor_end = cursor_start + "\u{2502}".len();
-                    StyledText::new(SharedString::from(full)).with_highlights(vec![
-                        (
-                            0..prompt_len,
+                let prefix = format!("{}: ", spec.prompt);
+                let before_input = &self.arg_input[..self.arg_cursor];
+                let after_input = &self.arg_input[self.arg_cursor..];
+
+                let mut input_row = div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .child(
+                        StyledText::new(SharedString::from(format!("{}{}", prefix, before_input)))
+                            .with_highlights(vec![(
+                                0..prefix.len(),
+                                gpui::HighlightStyle {
+                                    color: Some(dim_color),
+                                    ..Default::default()
+                                },
+                            )]),
+                    )
+                    .child(make_cursor());
+
+                if !after_input.is_empty() {
+                    input_row = input_row
+                        .child(StyledText::new(SharedString::from(after_input.to_string())));
+                }
+
+                if self.arg_input.is_empty() && spec.optional {
+                    input_row = input_row.child(
+                        StyledText::new(SharedString::from(" (optional)")).with_highlights(vec![(
+                            0..11,
                             gpui::HighlightStyle {
                                 color: Some(dim_color),
                                 ..Default::default()
                             },
-                        ),
-                        (
-                            cursor_start..cursor_end,
-                            gpui::HighlightStyle {
-                                color: Some(rgb(0xcdd6f4).into()),
-                                ..Default::default()
-                            },
-                        ),
-                    ])
-                };
+                        )]),
+                    );
+                }
 
                 match &spec.arg_type {
                     ArgType::FreeText { .. } => div()
@@ -504,7 +484,7 @@ impl Render for CommandPalette {
                                 .py_2()
                                 .border_b_1()
                                 .border_color(rgb(0x585b70))
-                                .child(prompt_text),
+                                .child(input_row),
                         ),
                     ArgType::Select { .. } => {
                         let filtered = self.filtered_arg_options();
@@ -540,7 +520,7 @@ impl Render for CommandPalette {
                                     .py_2()
                                     .border_b_1()
                                     .border_color(rgb(0x585b70))
-                                    .child(prompt_text),
+                                    .child(input_row),
                             )
                             .children(items)
                     }
