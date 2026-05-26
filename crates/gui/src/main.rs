@@ -152,10 +152,8 @@ impl ZelkovaApp {
         cx: &mut Context<Self>,
     ) {
         if self.command_palette.is_none() {
-            let folder_names: Vec<String> =
-                self.folders.iter().map(|f| f.name.clone()).collect();
-            let palette =
-                cx.new(|cx| command_palette::CommandPalette::new(&folder_names, cx));
+            let folder_names: Vec<String> = self.folders.iter().map(|f| f.name.clone()).collect();
+            let palette = cx.new(|cx| command_palette::CommandPalette::new(&folder_names, cx));
             palette.update(cx, |_, cx| cx.focus_handle()).focus(window);
             self.command_palette = Some(palette);
             cx.notify();
