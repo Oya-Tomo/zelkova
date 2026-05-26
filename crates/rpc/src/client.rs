@@ -235,6 +235,41 @@ impl RpcClient {
 
         Ok(())
     }
+
+    pub fn delete_note(&self, note_id: Uuid) -> Result<()> {
+        let params = DeleteNoteParams { note_id };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_DELETE_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("delete_note error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn rename_note(&self, note_id: Uuid, new_title: &str) -> Result<()> {
+        let params = RenameNoteParams {
+            note_id,
+            new_title: new_title.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_RENAME_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("rename_note error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
 }
 
 fn next_id() -> u64 {

@@ -96,6 +96,8 @@ pub fn all_action_entries() -> Vec<(String, String)> {
         ("MoveToFolder".into(), "Move to Folder".into()),
         ("DeleteFolder".into(), "Delete Folder".into()),
         ("RenameFolder".into(), "Rename Folder".into()),
+        ("DeleteNote".into(), "Delete Note".into()),
+        ("RenameNote".into(), "Rename Note".into()),
         ("ListNotes".into(), "List Notes".into()),
         ("ShowTags".into(), "Show Tags".into()),
         ("ToggleSidebar".into(), "Toggle Sidebar".into()),
@@ -105,9 +107,12 @@ pub fn all_action_entries() -> Vec<(String, String)> {
 }
 
 /// Command specs with argument definitions for the command palette.
-/// `folder_names` are the current folder names from the daemon, used to
-/// populate Select-style argument options dynamically.
-pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette::CommandSpec> {
+/// `folder_names` and `note_titles` are populated from daemon data to
+/// fill Select-style argument options dynamically.
+pub fn all_command_specs(
+    folder_names: &[String],
+    note_titles: &[String],
+) -> Vec<super::command_palette::CommandSpec> {
     use super::command_palette::{ArgSpec, ArgType, CommandSpec};
 
     let folder_options = {
@@ -116,6 +121,7 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
         opts
     };
     let folder_only_options: Vec<String> = folder_names.iter().cloned().collect();
+    let note_options: Vec<String> = note_titles.iter().cloned().collect();
 
     vec![
         CommandSpec::no_arg("Open Command Palette"),
@@ -203,6 +209,42 @@ pub fn all_command_specs(folder_names: &[String]) -> Vec<super::command_palette:
                 ArgSpec {
                     prompt: "New name".into(),
                     arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Rename Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "New title".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Delete Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options,
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Confirm".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Cancel".into(), "Yes, delete".into()],
+                    },
                     optional: false,
                 },
             ],

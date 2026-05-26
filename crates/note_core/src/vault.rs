@@ -68,6 +68,21 @@ impl Vault {
         Ok(())
     }
 
+    pub fn rename_note(&self, note_id: Uuid, new_title: &str) -> Result<()> {
+        let notes = self.list_notes()?;
+        let note = notes
+            .into_iter()
+            .find(|n| n.frontmatter.id == note_id)
+            .ok_or_else(|| anyhow::anyhow!("note not found"))?;
+        let mut frontmatter = note.frontmatter;
+        frontmatter.title = new_title.to_string();
+        frontmatter.updated = chrono::Utc::now();
+        let content = format_note_file(&frontmatter, &note.content);
+        fs::write(&note.path, &content)
+            .with_context(|| format!("failed to write note at {}", note.path.display()))?;
+        Ok(())
+    }
+
     pub fn all_tags(&self) -> Result<HashSet<String>> {
         let notes = self.list_notes()?;
         Ok(notes.into_iter().flat_map(|n| n.frontmatter.tags).collect())
