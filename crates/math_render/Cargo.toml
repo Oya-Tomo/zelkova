@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 ratex-layout = "0.1.9"
 ratex-parser = "0.1.9"
-ratex-svg = { version = "0.1.9", features = ["embed-fonts"] }
+ratex-render = { version = "0.1.9", features = ["embed-fonts"] }
 ratex-types = "0.1.9"

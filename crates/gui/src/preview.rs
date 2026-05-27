@@ -32,13 +32,15 @@ impl Preview {
     }
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
-        Self {
+        let mut preview = Self {
             doc: parse(text),
             theme: EditorColors::default(),
             focus_handle: cx.focus_handle(),
             file_path,
             math_renderer: MathRenderer::new(),
-        }
+        };
+        preview.prerender_math();
+        preview
     }
 
     pub fn set_theme(&mut self, theme: EditorColors) {
@@ -243,24 +245,21 @@ fn render_block(
             .bg(rgb(0x313244))
             .into_any_element(),
         Block::MathBlock { content } => {
-            let svg = math_renderer.get_block(content);
-            match svg {
-                Some(svg_str) => {
-                    let path = write_svg_to_temp(svg_str, content);
-                    div()
-                        .mb(px(8.0))
-                        .bg(rgb(0x313244))
-                        .rounded(px(4.0))
-                        .p(px(8.0))
-                        .flex()
-                        .justify_center()
-                        .child(
-                            gpui::svg()
-                                .path(gpui::SharedString::from(path))
-                                .max_h(px(200.0)),
-                        )
-                        .into_any_element()
-                }
+            let cached = math_renderer.get_block(content);
+            match cached {
+                Some(path) => div()
+                    .mb(px(8.0))
+                    .bg(rgb(0x313244))
+                    .rounded(px(4.0))
+                    .p(px(8.0))
+                    .flex()
+                    .justify_center()
+                    .child(
+                        img(path.clone())
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(200.0)),
+                    )
+                    .into_any_element(),
                 None => div()
                     .mb(px(8.0))
                     .bg(rgb(0x313244))
@@ -461,18 +460,15 @@ fn render_inline(
             }
         }
         Inline::Math(content) => {
-            let svg = math_renderer.get_inline(content);
-            match svg {
-                Some(svg_str) => {
-                    let path = write_svg_to_temp(svg_str, content);
-                    div()
-                        .child(
-                            gpui::svg()
-                                .path(gpui::SharedString::from(path))
-                                .max_h(px(20.0)),
-                        )
-                        .into_any_element()
-                }
+            let cached = math_renderer.get_inline(content);
+            match cached {
+                Some(path) => div()
+                    .child(
+                        img(path.clone())
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(20.0)),
+                    )
+                    .into_any_element(),
                 None => div()
                     .text_color(rgb(0xcba6f7))
                     .child(content.clone())
@@ -558,20 +554,4 @@ fn resolve_preview_image_path(
         return dir.join(url);
     }
     std::path::PathBuf::from(url)
-}
-
-/// Write SVG content to a temp file and return the path.
-/// Uses a hash of the content as filename for caching.
-fn write_svg_to_temp(svg_content: &str, seed: &str) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    seed.hash(&mut hasher);
-    let hash = hasher.finish();
-    let dir = std::env::temp_dir().join("zelkova-math");
-    let _ = std::fs::create_dir_all(&dir);
-    let path = dir.join(format!("{hash:016x}.svg"));
-    if !path.exists() {
-        let _ = std::fs::write(&path, svg_content);
-    }
-    path.to_string_lossy().to_string()
 }

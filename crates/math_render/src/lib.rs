@@ -1,49 +1,53 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 
 use ratex_layout::{layout, to_display_list, LayoutOptions};
 use ratex_parser::parser::parse;
-use ratex_svg::{render_to_svg, SvgOptions};
+use ratex_render::{render_to_png, RenderOptions};
 use ratex_types::math_style::MathStyle;
 
-/// Renders LaTeX math expressions to SVG strings with caching.
+/// Renders LaTeX math expressions to PNG temp files with caching.
 pub struct MathRenderer {
-    cache: HashMap<String, String>,
-    svg_opts: SvgOptions,
+    cache: HashMap<String, PathBuf>,
+    render_opts: RenderOptions,
 }
 
 impl MathRenderer {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
-            svg_opts: SvgOptions {
-                font_size: 20.0,
+            render_opts: RenderOptions {
+                font_size: 24.0,
                 padding: 4.0,
-                stroke_width: 0.8,
-                embed_glyphs: true,
+                background_color: ratex_types::color::Color::new(0.0, 0.0, 0.0, 0.0),
                 font_dir: String::new(),
+                device_pixel_ratio: 2.0,
             },
         }
     }
 
-    /// Render a block math expression ($$...$$). Returns SVG string or None on parse failure.
-    pub fn render_block(&mut self, latex: &str) -> Option<String> {
+    /// Render block math to PNG file. Returns cached path or None on parse failure.
+    pub fn render_block(&mut self, latex: &str) -> Option<PathBuf> {
         self.render(latex, false)
     }
 
-    /// Get a cached SVG for block math. Must have been pre-rendered via `render_block`.
-    pub fn get_block(&self, latex: &str) -> Option<&str> {
-        self.cache.get(&format!("b:{}", latex)).map(|s| s.as_str())
+    /// Get cached PNG path for block math.
+    pub fn get_block(&self, latex: &str) -> Option<&PathBuf> {
+        self.cache.get(&format!("b:{}", latex))
     }
 
-    /// Get a cached SVG for inline math. Must have been pre-rendered via `render_inline`.
-    pub fn get_inline(&self, latex: &str) -> Option<&str> {
-        self.cache.get(&format!("i:{}", latex)).map(|s| s.as_str())
-    }
-    pub fn render_inline(&mut self, latex: &str) -> Option<String> {
+    /// Render inline math to PNG file. Returns cached path or None on parse failure.
+    pub fn render_inline(&mut self, latex: &str) -> Option<PathBuf> {
         self.render(latex, true)
     }
 
-    fn render(&mut self, latex: &str, inline: bool) -> Option<String> {
+    /// Get cached PNG path for inline math.
+    pub fn get_inline(&self, latex: &str) -> Option<&PathBuf> {
+        self.cache.get(&format!("i:{}", latex))
+    }
+
+    fn render(&mut self, latex: &str, inline: bool) -> Option<PathBuf> {
         let key = if inline {
             format!("i:{}", latex)
         } else {
@@ -61,9 +65,10 @@ impl MathRenderer {
         let ast = parse(latex).ok()?;
         let lbox = layout(&ast, &layout_opts);
         let display_list = to_display_list(&lbox);
-        let svg = render_to_svg(&display_list, &self.svg_opts);
-        self.cache.insert(key, svg.clone());
-        Some(svg)
+        let png_bytes = render_to_png(&display_list, &self.render_opts).ok()?;
+        let path = write_png_to_temp(&png_bytes, &key);
+        self.cache.insert(key, path.clone());
+        Some(path)
     }
 }
 
@@ -73,6 +78,19 @@ impl Default for MathRenderer {
     }
 }
 
+fn write_png_to_temp(png_bytes: &[u8], key: &str) -> PathBuf {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    let hash = hasher.finish();
+    let dir = std::env::temp_dir().join("zelkova-math");
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join(format!("{hash:016x}.png"));
+    if !path.exists() {
+        let _ = std::fs::write(&path, png_bytes);
+    }
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,24 +98,24 @@ mod tests {
     #[test]
     fn render_simple_fraction() {
         let mut renderer = MathRenderer::new();
-        let svg = renderer.render_block(r"\frac{1}{2}");
-        assert!(svg.is_some());
-        assert!(svg.expect("svg").contains("<svg"));
+        let path = renderer.render_block(r"\frac{1}{2}");
+        assert!(path.is_some());
+        assert!(path.expect("path").exists());
     }
 
     #[test]
     fn render_inline_x() {
         let mut renderer = MathRenderer::new();
-        let svg = renderer.render_inline("x^2 + y^2 = z^2");
-        assert!(svg.is_some());
+        let path = renderer.render_inline("x^2 + y^2 = z^2");
+        assert!(path.is_some());
     }
 
     #[test]
     fn cache_hit() {
         let mut renderer = MathRenderer::new();
         let _ = renderer.render_block("E = mc^2");
-        let svg2 = renderer.render_block("E = mc^2");
-        assert!(svg2.is_some());
+        let path2 = renderer.render_block("E = mc^2");
+        assert!(path2.is_some());
         assert_eq!(renderer.cache.len(), 1);
     }
 
