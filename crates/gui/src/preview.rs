@@ -348,13 +348,12 @@ fn render_inline(
         Inline::Image { alt, url, .. } => {
             let resolved = resolve_preview_image_path(note_path, url);
             if resolved.exists() {
-                let img_url = SharedString::from(resolved.to_string_lossy().to_string());
                 let alt_text = alt.clone();
                 div()
                     .flex()
                     .flex_col()
                     .child(
-                        img(img_url)
+                        img(resolved)
                             .object_fit(gpui::ObjectFit::Contain)
                             .max_h(px(300.0)),
                     )

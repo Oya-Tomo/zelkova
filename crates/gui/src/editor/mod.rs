@@ -1115,7 +1115,7 @@ impl Editor {
             if resolved.exists() {
                 line_div = line_div.child(
                     div().ml(px(16.0)).py(px(4.0)).child(
-                        img(SharedString::from(resolved.to_string_lossy().to_string()))
+                        img(resolved)
                             .object_fit(gpui::ObjectFit::Contain)
                             .max_h(px(200.0)),
                     ),
