@@ -32,6 +32,8 @@ pub struct PaneManager {
     focus_handle: FocusHandle,
     ui: UiColors,
     socket_path: Option<PathBuf>,
+    editor_wrap: bool,
+    preview_wrap: bool,
     _editor_subscriptions: Vec<Subscription>,
 }
 
@@ -43,6 +45,8 @@ impl PaneManager {
             focus_handle: cx.focus_handle(),
             ui: UiColors::default(),
             socket_path: None,
+            editor_wrap: true,
+            preview_wrap: true,
             _editor_subscriptions: Vec::new(),
         }
     }
@@ -53,6 +57,15 @@ impl PaneManager {
 
     pub fn set_theme(&mut self, ui: UiColors) {
         self.ui = ui;
+    }
+
+    pub fn set_wrap(&mut self, editor_wrap: bool, preview_wrap: bool, cx: &mut App) {
+        self.editor_wrap = editor_wrap;
+        self.preview_wrap = preview_wrap;
+        for tab in &mut self.tabs {
+            tab.editor.update(cx, |ed, _| ed.set_wrap(editor_wrap));
+            tab.preview.update(cx, |p, _| p.set_wrap(preview_wrap));
+        }
     }
 
     pub fn open_tab(&mut self, path: PathBuf, cx: &mut Context<Self>) {
@@ -79,8 +92,10 @@ impl PaneManager {
         if let Some(ref socket) = self.socket_path {
             editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
         }
+        editor.update(cx, |ed, _| ed.set_wrap(self.editor_wrap));
         let text = editor.read(cx).text().to_string();
         let preview = cx.new(|cx| Preview::from_markdown(&text, Some(path.clone()), cx));
+        preview.update(cx, |p, _| p.set_wrap(self.preview_wrap));
 
         self.tabs.push(Tab {
             title,

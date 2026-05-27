@@ -16,8 +16,8 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use gpui::{
-    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, SharedString,
-    StyledText, Window, div, prelude::*, px,
+    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, ScrollHandle,
+    SharedString, StyledText, Window, div, prelude::*, px,
 };
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
@@ -55,6 +55,8 @@ pub struct Editor {
     pub(super) cached_highlights: Vec<HighlightedLine>,
     pub(super) highlights_dirty: bool,
     pub(super) dragging: bool,
+    pub(super) scroll_handle: ScrollHandle,
+    wrap: bool,
 }
 
 impl Editor {
@@ -79,6 +81,8 @@ impl Editor {
             cached_highlights: Vec::new(),
             highlights_dirty: false,
             dragging: false,
+            scroll_handle: ScrollHandle::new(),
+            wrap: true,
         }
     }
 
@@ -113,6 +117,8 @@ impl Editor {
             cached_highlights: Vec::new(),
             highlights_dirty: false,
             dragging: false,
+            scroll_handle: ScrollHandle::new(),
+            wrap: true,
         })
     }
 
@@ -124,6 +130,19 @@ impl Editor {
     pub fn set_theme(&mut self, theme: EditorColors, ui: &UiColors) {
         self.resolved_colors = ResolvedColors::new(&theme, ui);
         self.highlights_dirty = true;
+    }
+
+    pub fn set_wrap(&mut self, wrap: bool) {
+        self.wrap = wrap;
+    }
+
+    pub(super) fn scroll_to_cursor(&self, header_count: usize) {
+        if self.edit_zone != EditZone::Content {
+            return;
+        }
+        let (cursor_line, _) = self.byte_to_line_col(self.cursor_pos);
+        self.scroll_handle
+            .scroll_to_item(cursor_line + header_count);
     }
 
     pub fn text(&self) -> &str {
@@ -799,7 +818,8 @@ impl Render for Editor {
 
             let mut line_div = div()
                 .w_full()
-                .h(px(22.0))
+                .when(!self.wrap, |el| el.h(px(22.0)))
+                .when(self.wrap, |el| el.min_h(px(22.0)).whitespace_normal())
                 .flex()
                 .flex_row()
                 .items_start()
@@ -931,11 +951,17 @@ impl Render for Editor {
             );
         }
 
+        let header_count = header_children.len();
+        self.scroll_to_cursor(header_count);
+
         div()
+            .id("editor-scroll")
             .flex()
             .flex_col()
             .size_full()
-            .overflow_hidden()
+            .when(self.wrap, |el| el.overflow_y_scroll())
+            .when(!self.wrap, |el| el.overflow_scroll())
+            .track_scroll(&self.scroll_handle)
             .track_focus(&self.focus_handle)
             .text_color(self.resolved_colors.text)
             .text_sm()

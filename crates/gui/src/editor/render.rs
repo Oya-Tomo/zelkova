@@ -279,16 +279,16 @@ impl Editor {
             }
         }
 
-        line_div =
-            line_div
-                .h(px(lh))
-                .when_some(highlighted.heading_level, |el, level| match level {
-                    1 => el.text_2xl(),
-                    2 => el.text_xl(),
-                    3 => el.text_lg(),
-                    4 => el.text_base(),
-                    _ => el.text_sm(),
-                });
+        line_div = line_div
+            .when(!self.wrap, |el| el.h(px(lh)))
+            .when(self.wrap, |el| el.min_h(px(lh)).whitespace_normal())
+            .when_some(highlighted.heading_level, |el, level| match level {
+                1 => el.text_2xl(),
+                2 => el.text_xl(),
+                3 => el.text_lg(),
+                4 => el.text_base(),
+                _ => el.text_sm(),
+            });
 
         // Apply line-level background (e.g. code block bg extending to right edge)
         if let Some(bg) = highlighted.line_bg {
