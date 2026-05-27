@@ -245,4 +245,191 @@ mod tests {
         let tags = parse_tags_from_input("#work #work #meeting");
         assert_eq!(tags.len(), 2);
     }
+
+    // --- resolve_image_path tests ---
+
+    #[test]
+    fn resolve_absolute_path() {
+        let resolved = resolve_image_path(None, "/absolute/path.png");
+        assert_eq!(resolved, std::path::PathBuf::from("/absolute/path.png"));
+    }
+
+    #[test]
+    fn resolve_relative_to_note() {
+        let note = std::path::Path::new("/home/user/notes/note.md");
+        let resolved = resolve_image_path(Some(note), "images/photo.png");
+        assert_eq!(
+            resolved,
+            std::path::PathBuf::from("/home/user/notes/images/photo.png")
+        );
+    }
+
+    #[test]
+    fn resolve_no_note_path() {
+        let resolved = resolve_image_path(None, "photo.png");
+        assert_eq!(resolved, std::path::PathBuf::from("photo.png"));
+    }
+
+    // --- overlay_selection tests ---
+
+    #[test]
+    fn overlay_empty_selection() {
+        let bg = gpui::Hsla::default();
+        let h = vec![(
+            0..5,
+            HighlightStyle {
+                color: Some(bg),
+                ..Default::default()
+            },
+        )];
+        let result = overlay_selection(h.clone(), 3..3, bg);
+        assert_eq!(result, h);
+    }
+
+    #[test]
+    fn overlay_no_highlights() {
+        let bg = gpui::Hsla::default();
+        let result = overlay_selection(vec![], 0..5, bg);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, 0..5);
+    }
+
+    #[test]
+    fn overlay_full_overlap() {
+        let bg = gpui::Hsla::default();
+        let style = HighlightStyle {
+            color: Some(bg),
+            ..Default::default()
+        };
+        let result = overlay_selection(vec![(0..10, style)], 2..8, bg);
+        // before, overlap, after
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].0, 0..2);
+        assert_eq!(result[1].0, 2..8);
+        assert!(result[1].1.background_color.is_some());
+        assert_eq!(result[2].0, 8..10);
+    }
+
+    #[test]
+    fn overlay_highlight_outside_selection() {
+        let bg = gpui::Hsla::default();
+        let style = HighlightStyle {
+            color: Some(bg),
+            ..Default::default()
+        };
+        let result = overlay_selection(vec![(0..3, style), (8..12, style)], 4..7, bg);
+        // highlight before + gap + gap + highlight after
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].0, 0..3);
+        assert_eq!(result[1].0, 4..7);
+        assert_eq!(result[2].0, 8..12);
+    }
+
+    // --- adjust_highlight_offsets tests ---
+
+    #[test]
+    fn adjust_keeps_overlapping() {
+        let bg = gpui::Hsla::default();
+        let style = HighlightStyle {
+            color: Some(bg),
+            ..Default::default()
+        };
+        let result = adjust_highlight_offsets(&[(2..8, style)], 2, 10);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, 0..6);
+    }
+
+    #[test]
+    fn adjust_removes_non_overlapping() {
+        let bg = gpui::Hsla::default();
+        let style = HighlightStyle {
+            color: Some(bg),
+            ..Default::default()
+        };
+        let result = adjust_highlight_offsets(&[(0..3, style), (10..15, style)], 5, 10);
+        assert!(result.is_empty());
+    }
+
+    // --- split_lines tests ---
+
+    #[test]
+    fn split_empty() {
+        assert_eq!(split_lines(""), vec![""]);
+    }
+
+    #[test]
+    fn split_single_line() {
+        assert_eq!(split_lines("hello"), vec!["hello"]);
+    }
+
+    #[test]
+    fn split_trailing_newline() {
+        assert_eq!(split_lines("a\nb\n"), vec!["a", "b", ""]);
+    }
+
+    #[test]
+    fn split_no_trailing_newline() {
+        assert_eq!(split_lines("a\nb"), vec!["a", "b"]);
+    }
+
+    // --- split_at_char_col tests ---
+
+    #[test]
+    fn split_at_start() {
+        let (before, after) = split_at_char_col("hello", 0);
+        assert_eq!(before, "");
+        assert_eq!(after, "hello");
+    }
+
+    #[test]
+    fn split_at_middle() {
+        let (before, after) = split_at_char_col("hello", 2);
+        assert_eq!(before, "he");
+        assert_eq!(after, "llo");
+    }
+
+    #[test]
+    fn split_at_end() {
+        let (before, after) = split_at_char_col("hello", 5);
+        assert_eq!(before, "hello");
+        assert_eq!(after, "");
+    }
+
+    #[test]
+    fn split_past_end() {
+        let (before, after) = split_at_char_col("hello", 10);
+        assert_eq!(before, "hello");
+        assert_eq!(after, "");
+    }
+
+    #[test]
+    fn split_multibyte() {
+        let (before, after) = split_at_char_col("aあb", 1);
+        assert_eq!(before, "a");
+        assert_eq!(after, "あb");
+    }
+
+    // --- byte_to_utf16 / utf16_to_byte roundtrip ---
+
+    #[test]
+    fn utf16_roundtrip_ascii() {
+        let text = "hello";
+        assert_eq!(utf16_to_byte(text, byte_to_utf16(text, 3)), 3);
+    }
+
+    #[test]
+    fn utf16_roundtrip_multibyte() {
+        let text = "aあb";
+        // 'あ' is U+3042 (> 0xFFFF? no, it's in BMP so 1 UTF-16 unit)
+        assert_eq!(byte_to_utf16(text, 4), 2); // "a" + "あ" = 2 UTF-16 units
+        assert_eq!(utf16_to_byte(text, 2), 4); // byte 4 = start of 'b'
+    }
+
+    #[test]
+    fn utf16_surrogate_pair() {
+        let text = "a🎉b"; // 🎉 = U+1F389, surrogate pair (2 UTF-16 units)
+        assert_eq!(byte_to_utf16(text, 1), 1); // "a"
+        assert_eq!(byte_to_utf16(text, 5), 3); // "a" + 2 for surrogate
+        assert_eq!(utf16_to_byte(text, 3), 5); // byte 5 = start of 'b'
+    }
 }
