@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, Context, FocusHandle, Focusable, HighlightStyle, Hsla, IntoElement, Render, SharedString,
-    StyledText, Window, div, img, prelude::*, px,
+    App, Context, FocusHandle, Focusable, HighlightStyle, Hsla, IntoElement, Render, ScrollHandle,
+    SharedString, StyledText, Window, div, img, prelude::*, px,
 };
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
@@ -21,6 +21,8 @@ pub struct Preview {
     focus_handle: FocusHandle,
     file_path: Option<PathBuf>,
     math_renderer: MathRenderer,
+    scroll_handle: ScrollHandle,
+    wrap: bool,
 }
 
 impl Preview {
@@ -39,6 +41,8 @@ impl Preview {
             focus_handle: cx.focus_handle(),
             file_path: None,
             math_renderer,
+            scroll_handle: ScrollHandle::new(),
+            wrap: true,
         }
     }
 
@@ -54,6 +58,8 @@ impl Preview {
             focus_handle: cx.focus_handle(),
             file_path,
             math_renderer,
+            scroll_handle: ScrollHandle::new(),
+            wrap: true,
         };
         preview.prerender_math();
         preview
@@ -63,6 +69,10 @@ impl Preview {
     pub fn set_theme(&mut self, theme: EditorColors) {
         self.math_renderer.set_text_color(&theme.math_fg);
         self.theme = theme;
+    }
+
+    pub fn set_wrap(&mut self, wrap: bool) {
+        self.wrap = wrap;
     }
 
     pub fn update_content(&mut self, text: &str) {
@@ -193,10 +203,13 @@ impl Render for Preview {
             .collect();
 
         div()
+            .id("preview-scroll")
             .flex()
             .flex_col()
             .size_full()
-            .overflow_hidden()
+            .when(self.wrap, |el| el.overflow_y_scroll())
+            .when(!self.wrap, |el| el.overflow_scroll())
+            .track_scroll(&self.scroll_handle)
             .p(px(16.0))
             .text_color(text)
             .text_sm()

@@ -149,6 +149,7 @@ impl ZelkovaApp {
             let mut pm = pane::PaneManager::new(cx);
             pm.set_socket_path(config.daemon.socket_path.clone());
             pm.set_theme(ui_colors.clone());
+            pm.set_wrap(config.editor.wrap, config.preview.wrap, cx);
             pm
         });
 

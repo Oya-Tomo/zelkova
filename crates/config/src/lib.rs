@@ -15,6 +15,22 @@ pub struct AppConfig {
     pub daemon: DaemonConfig,
     #[serde(default)]
     pub mcp: McpConfig,
+    #[serde(default)]
+    pub editor: EditorBehavior,
+    #[serde(default)]
+    pub preview: PreviewBehavior,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditorBehavior {
+    #[serde(default = "default_true")]
+    pub wrap: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewBehavior {
+    #[serde(default = "default_true")]
+    pub wrap: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +97,18 @@ impl Default for McpConfig {
     }
 }
 
+impl Default for EditorBehavior {
+    fn default() -> Self {
+        Self { wrap: true }
+    }
+}
+
+impl Default for PreviewBehavior {
+    fn default() -> Self {
+        Self { wrap: true }
+    }
+}
+
 impl AppConfig {
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
@@ -115,6 +143,8 @@ mod tests {
         );
         assert!(config.daemon.index_on_start);
         assert!(config.mcp.enabled);
+        assert!(config.editor.wrap);
+        assert!(config.preview.wrap);
     }
 
     #[test]
