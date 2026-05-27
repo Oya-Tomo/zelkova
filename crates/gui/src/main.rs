@@ -79,6 +79,13 @@ struct MappingEntry {
     folder_id: uuid::Uuid,
 }
 
+struct SidebarColors {
+    bg: gpui::Hsla,
+    text: gpui::Hsla,
+    text_dim: gpui::Hsla,
+    selection_bg: gpui::Hsla,
+}
+
 impl ZelkovaApp {
     fn rpc_client(&self) -> Option<zelkova_rpc::client::RpcClient> {
         if self.config.daemon.socket_path.exists() {
@@ -526,10 +533,7 @@ impl ZelkovaApp {
         &mut self,
         parent_folder: Option<uuid::Uuid>,
         depth: usize,
-        sidebar_bg: gpui::Hsla,
-        text: gpui::Hsla,
-        text_dim: gpui::Hsla,
-        selection_bg: gpui::Hsla,
+        colors: &SidebarColors,
         cx: &mut Context<Self>,
     ) -> Vec<gpui::AnyElement> {
         let mut elements = Vec::new();
@@ -583,7 +587,7 @@ impl ZelkovaApp {
                 .px(px(8.0))
                 .pl(indent)
                 .py_1()
-                .text_color(text)
+                .text_color(colors.text)
                 .text_xs()
                 .cursor(gpui::CursorStyle::PointingHand)
                 .child(format!("{} {}", arrow, folder_name))
@@ -609,11 +613,15 @@ impl ZelkovaApp {
                     let (idx, display_title, is_empty) = &notes_snapshot[note_idx];
                     let is_selected = selected == Some(*idx);
                     let note_bg = if is_selected {
-                        selection_bg
+                        colors.selection_bg
                     } else {
-                        sidebar_bg
+                        colors.bg
                     };
-                    let title_color = if *is_empty { text_dim } else { text };
+                    let title_color = if *is_empty {
+                        colors.text_dim
+                    } else {
+                        colors.text
+                    };
                     let note_row = div()
                         .px(px(8.0))
                         .pl(indent + px(16.0))
@@ -636,15 +644,7 @@ impl ZelkovaApp {
                 }
 
                 // Sub-folders (recursive)
-                let mut sub_tree = self.render_sidebar_tree(
-                    Some(fid),
-                    depth + 1,
-                    sidebar_bg,
-                    text,
-                    text_dim,
-                    selection_bg,
-                    cx,
-                );
+                let mut sub_tree = self.render_sidebar_tree(Some(fid), depth + 1, colors, cx);
                 elements.append(&mut sub_tree);
             }
         }
@@ -659,11 +659,15 @@ impl ZelkovaApp {
                 }
                 let is_selected = selected == Some(*idx);
                 let note_bg = if is_selected {
-                    selection_bg
+                    colors.selection_bg
                 } else {
-                    sidebar_bg
+                    colors.bg
                 };
-                let title_color = if *is_empty { text_dim } else { text };
+                let title_color = if *is_empty {
+                    colors.text_dim
+                } else {
+                    colors.text
+                };
                 let ni = *idx;
                 let dt = display_title.clone();
                 let note_row = div()
@@ -713,6 +717,13 @@ impl Render for ZelkovaApp {
         let text_dim = editor::parse_hex(&ui.text_dim);
         let selection_bg = editor::parse_hex(&ui.selection_bg);
 
+        let sidebar_colors = SidebarColors {
+            bg: sidebar_bg,
+            text,
+            text_dim,
+            selection_bg,
+        };
+
         let sidebar = div()
             .flex()
             .flex_col()
@@ -750,15 +761,7 @@ impl Render for ZelkovaApp {
                             ),
                     ),
             )
-            .children(self.render_sidebar_tree(
-                None,
-                0,
-                sidebar_bg,
-                text,
-                text_dim,
-                selection_bg,
-                cx,
-            ));
+            .children(self.render_sidebar_tree(None, 0, &sidebar_colors, cx));
 
         let mut main = div()
             .flex()
