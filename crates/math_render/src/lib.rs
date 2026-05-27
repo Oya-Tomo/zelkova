@@ -5,7 +5,12 @@ use std::path::PathBuf;
 use ratex_layout::{layout, to_display_list, LayoutOptions};
 use ratex_parser::parser::parse;
 use ratex_render::{render_to_png, RenderOptions};
+use ratex_types::display_item::DisplayItem;
 use ratex_types::math_style::MathStyle;
+
+/// Text color for rendered math (Catppuccin Mocha Text: #cdd6f4).
+const MATH_TEXT_COLOR: ratex_types::color::Color =
+    ratex_types::color::Color::rgb(205.0 / 255.0, 214.0 / 255.0, 244.0 / 255.0);
 
 /// Renders LaTeX math expressions to PNG temp files with caching.
 pub struct MathRenderer {
@@ -64,7 +69,8 @@ impl MathRenderer {
         let layout_opts = LayoutOptions::default().with_style(style);
         let ast = parse(latex).ok()?;
         let lbox = layout(&ast, &layout_opts);
-        let display_list = to_display_list(&lbox);
+        let mut display_list = to_display_list(&lbox);
+        override_colors(&mut display_list);
         let png_bytes = render_to_png(&display_list, &self.render_opts).ok()?;
         let path = write_png_to_temp(&png_bytes, &key);
         self.cache.insert(key, path.clone());
@@ -75,6 +81,21 @@ impl MathRenderer {
 impl Default for MathRenderer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Override glyph, line, and path colors to match the preview text color.
+/// Rect items are skipped as they represent background fills (e.g. \colorbox).
+fn override_colors(display_list: &mut ratex_types::display_item::DisplayList) {
+    for item in &mut display_list.items {
+        match item {
+            DisplayItem::GlyphPath { color, .. }
+            | DisplayItem::Line { color, .. }
+            | DisplayItem::Path { color, .. } => {
+                *color = MATH_TEXT_COLOR;
+            }
+            DisplayItem::Rect { .. } => {}
+        }
     }
 }
 
