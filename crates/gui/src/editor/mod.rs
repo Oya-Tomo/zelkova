@@ -916,13 +916,11 @@ impl Editor {
                             .flex()
                             .flex_row()
                             .items_center()
-                            .child(
-                                div().text_color(rgb(0xcdd6f4)).child(if before.is_empty() {
-                                    SharedString::from("")
-                                } else {
-                                    SharedString::from(before.clone())
-                                }),
-                            )
+                            .child(div().text_color(rgb(0xcdd6f4)).child(if before.is_empty() {
+                                SharedString::from("")
+                            } else {
+                                SharedString::from(before.clone())
+                            }))
                             .child(
                                 div()
                                     .w(px(2.0))
@@ -930,17 +928,15 @@ impl Editor {
                                     .bg(rgb(0xcdd6f4))
                                     .flex_shrink_0(),
                             )
-                            .child(
-                                div().text_color(rgb(0xcdd6f4)).child(if after.is_empty() {
-                                    if before.is_empty() {
-                                        SharedString::from("Type #tag ...")
-                                    } else {
-                                        SharedString::from("")
-                                    }
+                            .child(div().text_color(rgb(0xcdd6f4)).child(if after.is_empty() {
+                                if before.is_empty() {
+                                    SharedString::from("Type #tag ...")
                                 } else {
-                                    SharedString::from(after)
-                                }),
-                            ),
+                                    SharedString::from("")
+                                }
+                            } else {
+                                SharedString::from(after)
+                            })),
                     )
                     .into_any_element(),
             );
