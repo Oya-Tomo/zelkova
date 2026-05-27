@@ -1,5 +1,5 @@
 use gpui::{
-    Context, FontWeight, HighlightStyle, SharedString, StyledText, div, img, prelude::*, px, rgb,
+    Context, FontWeight, HighlightStyle, SharedString, StyledText, div, img, prelude::*, px,
 };
 
 use super::{EditZone, Editor};
@@ -16,6 +16,7 @@ impl Editor {
         &self,
         cx: &mut Context<Self>,
     ) -> Vec<gpui::AnyElement> {
+        let colors = &self.resolved_colors;
         let mut children = Vec::new();
 
         let Some(fm) = &self.frontmatter else {
@@ -59,21 +60,15 @@ impl Editor {
                         div()
                             .text_xl()
                             .font_weight(gpui::FontWeight::BOLD)
-                            .text_color(rgb(0xcdd6f4))
+                            .text_color(colors.text)
                             .child(before),
                     )
-                    .child(
-                        div()
-                            .w(px(2.0))
-                            .h(px(24.0))
-                            .bg(rgb(0xcdd6f4))
-                            .flex_shrink_0(),
-                    )
+                    .child(div().w(px(2.0)).h(px(24.0)).bg(colors.text).flex_shrink_0())
                     .child(
                         div()
                             .text_xl()
                             .font_weight(gpui::FontWeight::BOLD)
-                            .text_color(rgb(0xcdd6f4))
+                            .text_color(colors.text)
                             .child(if after.is_empty() {
                                 " ".to_string()
                             } else {
@@ -82,9 +77,9 @@ impl Editor {
                     );
             } else {
                 let title_color = if title.is_empty() {
-                    rgb(0xa6adc8)
+                    colors.text_dim
                 } else {
-                    rgb(0xcdd6f4)
+                    colors.text
                 };
                 container = container.child(
                     div()
@@ -110,8 +105,8 @@ impl Editor {
                     .px(px(6.0))
                     .py(px(2.0))
                     .rounded_md()
-                    .bg(rgb(0x45475a))
-                    .text_color(rgb(0x89b4fa))
+                    .bg(colors.selection_bg)
+                    .text_color(colors.tag_fg)
                     .text_xs()
                     .flex()
                     .flex_row()
@@ -121,7 +116,7 @@ impl Editor {
                     .child(
                         div()
                             .cursor(gpui::CursorStyle::PointingHand)
-                            .text_color(rgb(0x6c7086))
+                            .text_color(colors.text_muted)
                             .child("x")
                             .on_mouse_down(
                                 gpui::MouseButton::Left,
@@ -150,25 +145,19 @@ impl Editor {
                             .py(px(2.0))
                             .rounded_md()
                             .border_1()
-                            .border_color(rgb(0x585b70))
-                            .bg(rgb(0x1e1e2e))
+                            .border_color(colors.border_dim)
+                            .bg(colors.bg)
                             .text_xs()
                             .flex()
                             .flex_row()
                             .items_center()
-                            .child(div().text_color(rgb(0xcdd6f4)).child(if before.is_empty() {
+                            .child(div().text_color(colors.text).child(if before.is_empty() {
                                 SharedString::from("")
                             } else {
                                 SharedString::from(before.clone())
                             }))
-                            .child(
-                                div()
-                                    .w(px(2.0))
-                                    .h(px(14.0))
-                                    .bg(rgb(0xcdd6f4))
-                                    .flex_shrink_0(),
-                            )
-                            .child(div().text_color(rgb(0xcdd6f4)).child(if after.is_empty() {
+                            .child(div().w(px(2.0)).h(px(14.0)).bg(colors.text).flex_shrink_0())
+                            .child(div().text_color(colors.text).child(if after.is_empty() {
                                 if before.is_empty() {
                                     SharedString::from("Type #tag ...")
                                 } else {
@@ -213,13 +202,13 @@ impl Editor {
                 .child(
                     div()
                         .text_xs()
-                        .text_color(rgb(0x6c7086))
+                        .text_color(colors.text_muted)
                         .child(format!("Created: {created}")),
                 )
                 .child(
                     div()
                         .text_xs()
-                        .text_color(rgb(0x6c7086))
+                        .text_color(colors.text_muted)
                         .child(format!("Updated: {updated}")),
                 )
                 .into_any_element(),
@@ -229,7 +218,7 @@ impl Editor {
             div()
                 .w_full()
                 .h(px(1.0))
-                .bg(rgb(0x313244))
+                .bg(colors.border)
                 .my(px(4.0))
                 .into_any_element(),
         );
@@ -326,7 +315,7 @@ impl Editor {
             None
         });
         if let Some(sel_range) = sel_byte_range {
-            let sel_bg: gpui::Hsla = gpui::rgba(0x45475a88).into();
+            let sel_bg = self.resolved_colors.selection_bg;
             highlighted.highlights = overlay_selection(highlighted.highlights, sel_range, sel_bg);
         }
 
@@ -351,7 +340,7 @@ impl Editor {
                     div()
                         .w(px(2.0))
                         .h(px(lh - 4.0))
-                        .bg(rgb(0xcdd6f4))
+                        .bg(self.resolved_colors.text)
                         .flex_shrink_0(),
                 )
                 .child(after_styled);
@@ -389,9 +378,9 @@ impl Editor {
                         .py(px(4.0))
                         .px(px(8.0))
                         .rounded_md()
-                        .bg(rgb(0x313244))
+                        .bg(self.resolved_colors.border)
                         .text_xs()
-                        .text_color(rgb(0x6c7086))
+                        .text_color(self.resolved_colors.text_muted)
                         .child(format!("[image not found: {url}]"))
                         .into_any_element(),
                 );

@@ -26,6 +26,8 @@ pub struct UiColors {
     pub selection_bg: String,
     #[serde(default = "default_border_dim")]
     pub border_dim: String,
+    #[serde(default = "default_text_muted")]
+    pub text_muted: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +54,8 @@ pub struct EditorColors {
     pub math_fg: String,
     #[serde(default = "default_strikethrough_fg")]
     pub strikethrough_fg: String,
+    #[serde(default = "default_tag_fg")]
+    pub tag_fg: String,
     #[serde(default = "default_bold_fg")]
     pub bold_fg: String,
     #[serde(default = "default_italic_fg")]
@@ -106,6 +110,12 @@ fn default_selection_bg() -> String {
 }
 fn default_border_dim() -> String {
     "#585b70".into()
+}
+fn default_text_muted() -> String {
+    "#6c7086".into()
+}
+fn default_tag_fg() -> String {
+    "#89b4fa".into()
 }
 fn default_heading_fg() -> String {
     "#89b4fa".into()
@@ -196,6 +206,7 @@ impl Default for UiColors {
             text_dim: default_text_dim(),
             selection_bg: default_selection_bg(),
             border_dim: default_border_dim(),
+            text_muted: default_text_muted(),
         }
     }
 }
@@ -214,6 +225,7 @@ impl Default for EditorColors {
             quote_border: default_quote_border(),
             math_fg: default_math_fg(),
             strikethrough_fg: default_strikethrough_fg(),
+            tag_fg: default_tag_fg(),
             bold_fg: default_bold_fg(),
             italic_fg: default_italic_fg(),
             bold_weight: default_bold_weight(),

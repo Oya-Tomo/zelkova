@@ -17,9 +17,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use gpui::{
     App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, SharedString,
-    StyledText, Window, div, prelude::*, px, rgb,
+    StyledText, Window, div, prelude::*, px,
 };
-use zelkova_config::EditorColors;
+use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
 
 use crate::{
@@ -69,7 +69,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: None,
             socket_path: None,
-            resolved_colors: ResolvedColors::new(&EditorColors::default()),
+            resolved_colors: ResolvedColors::new(&EditorColors::default(), &UiColors::default()),
             dirty: false,
             frontmatter: None,
             tag_input: String::new(),
@@ -103,7 +103,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: Some(path),
             socket_path: None,
-            resolved_colors: ResolvedColors::new(&EditorColors::default()),
+            resolved_colors: ResolvedColors::new(&EditorColors::default(), &UiColors::default()),
             dirty: false,
             frontmatter,
             tag_input: String::new(),
@@ -121,8 +121,8 @@ impl Editor {
     }
 
     #[allow(dead_code)]
-    pub fn set_theme(&mut self, theme: EditorColors) {
-        self.resolved_colors = ResolvedColors::new(&theme);
+    pub fn set_theme(&mut self, theme: EditorColors, ui: &UiColors) {
+        self.resolved_colors = ResolvedColors::new(&theme, ui);
         self.highlights_dirty = true;
     }
 
@@ -850,7 +850,7 @@ impl Render for Editor {
                             div()
                                 .w(px(2.0))
                                 .h(px(18.0))
-                                .bg(rgb(0xcdd6f4))
+                                .bg(self.resolved_colors.text)
                                 .flex_shrink_0(),
                         )
                         .child(StyledText::new(if after.is_empty() {
@@ -937,7 +937,7 @@ impl Render for Editor {
             .size_full()
             .overflow_hidden()
             .track_focus(&self.focus_handle)
-            .text_color(rgb(0xcdd6f4))
+            .text_color(self.resolved_colors.text)
             .text_sm()
             .font_family("monospace")
             .p(px(8.0))

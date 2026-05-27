@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use gpui::{FontStyle, FontWeight, HighlightStyle, Hsla, UnderlineStyle, px, rgba};
-use zelkova_config::EditorColors;
+use zelkova_config::{EditorColors, UiColors};
 
 const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 
@@ -9,6 +9,14 @@ const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 /// then passed to highlight functions to avoid repeated string parsing.
 #[derive(Debug, Clone)]
 pub struct ResolvedColors {
+    // UI-level colors (from UiColors)
+    pub text: Hsla,
+    pub bg: Hsla,
+    pub border: Hsla,
+    pub border_dim: Hsla,
+    pub selection_bg: Hsla,
+    pub text_muted: Hsla,
+    // Editor-level colors (from EditorColors)
     pub heading_marker: Hsla,
     pub heading_fg: Hsla,
     pub list_marker: Hsla,
@@ -23,12 +31,19 @@ pub struct ResolvedColors {
     pub code_bg: Hsla,
     pub code_fg: Hsla,
     pub code_keyword: Hsla,
+    pub tag_fg: Hsla,
     code_syntax: [Hsla; 12],
 }
 
 impl ResolvedColors {
-    pub fn new(colors: &EditorColors) -> Self {
+    pub fn new(colors: &EditorColors, ui: &UiColors) -> Self {
         Self {
+            text: parse_hex(&ui.text),
+            bg: parse_hex(&ui.bg),
+            border: parse_hex(&ui.border),
+            border_dim: parse_hex(&ui.border_dim),
+            selection_bg: parse_hex(&ui.selection_bg),
+            text_muted: parse_hex(&ui.text_muted),
             heading_marker: parse_hex(&colors.heading_marker),
             heading_fg: parse_hex(&colors.heading_fg),
             list_marker: parse_hex(&colors.list_marker),
@@ -43,6 +58,7 @@ impl ResolvedColors {
             code_bg: parse_hex(&colors.code_bg),
             code_fg: parse_hex(&colors.code_fg),
             code_keyword: parse_hex(&colors.code_keyword),
+            tag_fg: parse_hex(&colors.tag_fg),
             code_syntax: [
                 parse_hex(&colors.code_attribute),
                 parse_hex(&colors.code_comment),
@@ -655,10 +671,10 @@ pub fn parse_hex(hex: &str) -> Hsla {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zelkova_config::EditorColors;
+    use zelkova_config::{EditorColors, UiColors};
 
     fn colors() -> ResolvedColors {
-        ResolvedColors::new(&EditorColors::default())
+        ResolvedColors::new(&EditorColors::default(), &UiColors::default())
     }
 
     #[test]
