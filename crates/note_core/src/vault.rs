@@ -146,7 +146,28 @@ fn parse_frontmatter(content: &str) -> Result<(Frontmatter, String)> {
     Ok((frontmatter, body))
 }
 
-fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
+/// Parse optional YAML frontmatter from raw note content.
+/// Returns `(frontmatter_or_None, body_text)`.
+/// Unlike `parse_frontmatter`, this tolerates notes without frontmatter.
+pub fn parse_note_content(raw: &str) -> (Option<Frontmatter>, String) {
+    let trimmed = raw.trim_start();
+    if !trimmed.starts_with("---") {
+        return (None, raw.to_string());
+    }
+    let rest = &trimmed[3..];
+    let Some(end_idx) = rest.find("---") else {
+        return (None, raw.to_string());
+    };
+    let yaml_str = &rest[..end_idx];
+    let body = rest[end_idx + 3..].trim_start().to_string();
+    let frontmatter: Frontmatter = match serde_yaml::from_str(yaml_str) {
+        Ok(fm) => fm,
+        Err(_) => return (None, raw.to_string()),
+    };
+    (Some(frontmatter), body)
+}
+
+pub fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
     let yaml = serde_yaml::to_string(frontmatter).unwrap_or_default();
     format!("---\n{yaml}---\n{body}")
 }

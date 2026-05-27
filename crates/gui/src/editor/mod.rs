@@ -18,7 +18,7 @@ use gpui::{
     UTF16Selection, Window, div, img, prelude::*, px, rgb,
 };
 use zelkova_config::EditorColors;
-use zelkova_note_core::Frontmatter;
+use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
 
 use crate::{
     Backspace, InsertNewline, MoveDown, MoveLeft, MoveRight, MoveUp, Redo, SaveNote, SelectAll,
@@ -81,9 +81,9 @@ impl Editor {
 
     pub fn load(path: PathBuf, cx: &mut App) -> anyhow::Result<Self> {
         let raw = std::fs::read_to_string(&path)?;
-        let (frontmatter, body) = match parse_frontmatter_gui(&raw) {
-            Some(result) => result,
-            None => (None, raw),
+        let (frontmatter, body) = match parse_note_content(&raw) {
+            (Some(fm), body) => (Some(fm), body),
+            (None, _) => (None, raw),
         };
         let cached_lines = split_lines(&body);
         let edit_zone = match &frontmatter {
@@ -1563,26 +1563,6 @@ impl Render for Editor {
                 }),
             )
     }
-}
-
-// --- Frontmatter helpers ---
-
-fn parse_frontmatter_gui(raw: &str) -> Option<(Option<Frontmatter>, String)> {
-    let trimmed = raw.trim_start();
-    if !trimmed.starts_with("---") {
-        return None;
-    }
-    let rest = &trimmed[3..];
-    let end_idx = rest.find("---")?;
-    let yaml_str = &rest[..end_idx];
-    let body = rest[end_idx + 3..].trim_start().to_string();
-    let frontmatter: Frontmatter = serde_yaml::from_str(yaml_str).ok()?;
-    Some((Some(frontmatter), body))
-}
-
-fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
-    let yaml = serde_yaml::to_string(frontmatter).unwrap_or_default();
-    format!("---\n{yaml}---\n{body}")
 }
 
 // --- Highlight builder (Tree-sitter for code blocks) ---
