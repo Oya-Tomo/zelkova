@@ -57,10 +57,10 @@ fn main() -> Result<()> {
     write_pid_file(&config)?;
 
     // Start file watcher
-    if config.daemon.index_on_start {
-        if let Err(e) = watcher::start_watcher(state.clone()) {
-            eprintln!("warning: file watcher failed to start: {e}");
-        }
+    if config.daemon.index_on_start
+        && let Err(e) = watcher::start_watcher(state.clone())
+    {
+        eprintln!("warning: file watcher failed to start: {e}");
     }
 
     loop {

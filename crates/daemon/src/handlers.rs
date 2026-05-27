@@ -406,10 +406,9 @@ fn handle_rename_note(
     if let Some(note) = notes
         .into_iter()
         .find(|n| n.frontmatter.id == params.note_id)
+        && let Err(e) = crate::indexer::reindex_note(&note.path, state)
     {
-        if let Err(e) = crate::indexer::reindex_note(&note.path, state) {
-            eprintln!("warning: failed to reindex renamed note: {e}");
-        }
+        eprintln!("warning: failed to reindex renamed note: {e}");
     }
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))

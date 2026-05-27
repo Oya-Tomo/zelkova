@@ -108,9 +108,10 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                 if lines[i].trim().is_empty() {
                     break;
                 }
-                if parse_list_marker(lines[i]).is_some() {
-                    i += 1;
-                } else if lines[i].starts_with(' ') || lines[i].starts_with('\t') {
+                if parse_list_marker(lines[i]).is_some()
+                    || lines[i].starts_with(' ')
+                    || lines[i].starts_with('\t')
+                {
                     i += 1;
                 } else {
                     break;
@@ -211,7 +212,7 @@ pub struct FenceInfo {
 fn parse_atx_heading(line: &str) -> Option<u8> {
     let trimmed = line.trim_start();
     let level = trimmed.bytes().take_while(|&b| b == b'#').count();
-    if level >= 1 && level <= 6 {
+    if (1..=6).contains(&level) {
         let rest = &trimmed[level..];
         if rest.is_empty() || rest.starts_with(' ') {
             return Some(level as u8);
