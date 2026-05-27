@@ -11,6 +11,8 @@ use zelkova_math_render::MathRenderer;
 
 /// GPUI `text_sm()` = 0.875rem = 14px at default 16px root.
 const PREVIEW_TEXT_SIZE: f32 = 14.0;
+/// Block math display multiplier — renders larger than body text for readability.
+const BLOCK_MATH_SCALE: f32 = 1.8;
 
 pub struct Preview {
     doc: MarkdownDoc,
@@ -257,7 +259,8 @@ fn render_block(
             let cached = math_renderer.get_block(content);
             match cached {
                 Some(math_img) => {
-                    let display_h = math_renderer.font_size() * math_img.em_height;
+                    let display_h =
+                        math_renderer.font_size() * BLOCK_MATH_SCALE * math_img.em_height;
                     div()
                         .mb(px(8.0))
                         .bg(rgb(0x313244))
