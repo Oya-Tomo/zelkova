@@ -45,7 +45,8 @@ impl RpcServer {
 
 impl Drop for RpcServer {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.socket_path);
+        // Socket file may not exist if server failed during startup.
+        let _result: std::io::Result<()> = std::fs::remove_file(&self.socket_path);
     }
 }
 
