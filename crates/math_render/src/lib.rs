@@ -138,10 +138,20 @@ fn write_png_to_temp(png_bytes: &[u8], key: &str) -> PathBuf {
     key.hash(&mut hasher);
     let hash = hasher.finish();
     let dir = std::env::temp_dir().join("zelkova-math");
-    let _ = std::fs::create_dir_all(&dir);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        eprintln!(
+            "warning: failed to create math temp dir {}: {e}",
+            dir.display()
+        );
+    }
     let path = dir.join(format!("{hash:016x}.png"));
     if !path.exists() {
-        let _ = std::fs::write(&path, png_bytes);
+        if let Err(e) = std::fs::write(&path, png_bytes) {
+            eprintln!(
+                "warning: failed to write math temp file {}: {e}",
+                path.display()
+            );
+        }
     }
     path
 }

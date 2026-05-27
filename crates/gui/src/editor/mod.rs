@@ -753,7 +753,9 @@ impl Editor {
                 return;
             }
             let client = zelkova_rpc::client::RpcClient::new(socket);
-            let _ = client.note_updated(path);
+            if let Err(e) = client.note_updated(path) {
+                eprintln!("warning: failed to notify daemon of note update: {e}");
+            }
         }
     }
 }

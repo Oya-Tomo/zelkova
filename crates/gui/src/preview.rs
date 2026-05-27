@@ -70,7 +70,9 @@ impl Preview {
         fn prerender_block(block: &Block, renderer: &mut MathRenderer) {
             match block {
                 Block::MathBlock { content } => {
-                    let _ = renderer.render_block(content);
+                    if renderer.render_block(content).is_none() {
+                        eprintln!("warning: failed to pre-render block math: {content}");
+                    }
                 }
                 Block::Paragraph(inlines)
                 | Block::Heading {
@@ -104,7 +106,9 @@ impl Preview {
             for inline in inlines {
                 match inline {
                     Inline::Math(content) => {
-                        let _ = renderer.render_inline(content);
+                        if renderer.render_inline(content).is_none() {
+                            eprintln!("warning: failed to pre-render inline math: {content}");
+                        }
                     }
                     Inline::Bold(children)
                     | Inline::Italic(children)
