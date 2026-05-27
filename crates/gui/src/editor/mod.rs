@@ -292,10 +292,6 @@ impl Editor {
                         .unwrap_or(1);
                     self.cursor_pos -= prev_len;
                     cx.notify();
-                } else if self.frontmatter.is_some() {
-                    self.edit_zone = EditZone::TagInput;
-                    self.populate_tag_input();
-                    cx.notify();
                 }
             }
         }
@@ -317,21 +313,12 @@ impl Editor {
                 if self.title_cursor < title_len {
                     self.title_cursor += 1;
                     cx.notify();
-                } else {
-                    self.edit_zone = EditZone::TagInput;
-                    self.populate_tag_input();
-                    self.tag_input_cursor = 0;
-                    cx.notify();
                 }
             }
             EditZone::TagInput => {
                 let len = self.tag_input.chars().count();
                 if self.tag_input_cursor < len {
                     self.tag_input_cursor += 1;
-                    cx.notify();
-                } else {
-                    self.edit_zone = EditZone::Content;
-                    self.cursor_pos = 0;
                     cx.notify();
                 }
             }
