@@ -21,6 +21,7 @@ zelkova-rpc = { path = "../rpc" }
 zelkova-rope = { path = "../rope" }
 zelkova-markdown = { path = "../markdown" }
 zelkova-highlight = { path = "../highlight" }
+zelkova-math-render = { path = "../math_render" }
 
 [lints]
 workspace = true

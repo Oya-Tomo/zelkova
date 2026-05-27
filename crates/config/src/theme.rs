@@ -125,7 +125,7 @@ fn default_quote_border() -> String {
     "#585b70".into()
 }
 fn default_math_fg() -> String {
-    "#cba6f7".into()
+    "#ffffff".into()
 }
 fn default_strikethrough_fg() -> String {
     "#7f849c".into()

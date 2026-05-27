@@ -7,42 +7,119 @@ use gpui::{
 use zelkova_config::EditorColors;
 use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
+use zelkova_math_render::MathRenderer;
+
+/// GPUI `text_sm()` = 0.875rem = 14px at default 16px root.
+const PREVIEW_TEXT_SIZE: f32 = 14.0;
+/// Block math display multiplier — renders larger than body text for readability.
+const BLOCK_MATH_SCALE: f32 = 1.8;
 
 pub struct Preview {
     doc: MarkdownDoc,
     theme: EditorColors,
     focus_handle: FocusHandle,
     file_path: Option<PathBuf>,
+    math_renderer: MathRenderer,
 }
 
 impl Preview {
     pub fn new(cx: &mut App) -> Self {
+        let theme = EditorColors::default();
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
         Self {
             doc: MarkdownDoc {
                 frontmatter: None,
                 blocks: Vec::new(),
             },
-            theme: EditorColors::default(),
+            theme,
             focus_handle: cx.focus_handle(),
             file_path: None,
+            math_renderer,
         }
     }
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
-        Self {
-            doc: parse(text),
-            theme: EditorColors::default(),
+        let theme = EditorColors::default();
+        let mut math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
+        let doc = parse(text);
+        let mut preview = Self {
+            doc,
+            theme,
             focus_handle: cx.focus_handle(),
             file_path,
-        }
+            math_renderer,
+        };
+        preview.prerender_math();
+        preview
     }
 
     pub fn set_theme(&mut self, theme: EditorColors) {
+        self.math_renderer.set_text_color(&theme.math_fg);
         self.theme = theme;
     }
 
     pub fn update_content(&mut self, text: &str) {
         self.doc = parse(text);
+        self.prerender_math();
+    }
+
+    /// Pre-render all math expressions in the document to populate the SVG cache.
+    fn prerender_math(&mut self) {
+        fn prerender_block(block: &Block, renderer: &mut MathRenderer) {
+            match block {
+                Block::MathBlock { content } => {
+                    let _ = renderer.render_block(content);
+                }
+                Block::Paragraph(inlines)
+                | Block::Heading {
+                    children: inlines, ..
+                } => {
+                    prerender_inlines(inlines, renderer);
+                }
+                Block::List { items } => {
+                    for item in items {
+                        prerender_inlines(&item.children, renderer);
+                        for sub in &item.sub_items {
+                            prerender_inlines(&sub.children, renderer);
+                        }
+                    }
+                }
+                Block::BlockQuote(blocks) => {
+                    for b in blocks {
+                        prerender_block(b, renderer);
+                    }
+                }
+                Block::FootnoteDefinition { content, .. } => {
+                    for b in content {
+                        prerender_block(b, renderer);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        fn prerender_inlines(inlines: &[Inline], renderer: &mut MathRenderer) {
+            for inline in inlines {
+                match inline {
+                    Inline::Math(content) => {
+                        let _ = renderer.render_inline(content);
+                    }
+                    Inline::Bold(children)
+                    | Inline::Italic(children)
+                    | Inline::Strikethrough(children) => {
+                        prerender_inlines(children, renderer);
+                    }
+                    Inline::Link { text, .. } => {
+                        prerender_inlines(text, renderer);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        for block in &self.doc.blocks {
+            prerender_block(block, &mut self.math_renderer);
+        }
     }
 }
 
@@ -55,11 +132,12 @@ impl Focusable for Preview {
 impl Render for Preview {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let file_path = self.file_path.clone();
+        let math_renderer = &self.math_renderer;
         let children: Vec<_> = self
             .doc
             .blocks
             .iter()
-            .map(|block| render_block(block, &self.theme, file_path.as_deref()))
+            .map(|block| render_block(block, &self.theme, file_path.as_deref(), math_renderer))
             .collect();
 
         div()
@@ -79,6 +157,7 @@ fn render_block(
     block: &Block,
     theme: &EditorColors,
     note_path: Option<&std::path::Path>,
+    math_renderer: &MathRenderer,
 ) -> gpui::AnyElement {
     match block {
         Block::Heading { level, children } => {
@@ -101,7 +180,7 @@ fn render_block(
                 .into_any_element()
         }
         Block::Paragraph(inlines) => {
-            let rendered = render_inlines(inlines, theme, note_path);
+            let rendered = render_inlines(inlines, theme, note_path, math_renderer);
             div()
                 .mb(px(8.0))
                 .flex()
@@ -140,7 +219,7 @@ fn render_block(
         Block::List { items } => {
             let children: Vec<_> = items
                 .iter()
-                .map(|item| render_list_item(item, 0, theme, note_path))
+                .map(|item| render_list_item(item, 0, theme, note_path, math_renderer))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -152,7 +231,7 @@ fn render_block(
         Block::BlockQuote(blocks) => {
             let children: Vec<_> = blocks
                 .iter()
-                .map(|b| render_block(b, theme, note_path))
+                .map(|b| render_block(b, theme, note_path, math_renderer))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -176,14 +255,36 @@ fn render_block(
             .h(px(1.0))
             .bg(rgb(0x313244))
             .into_any_element(),
-        Block::MathBlock { content } => div()
-            .mb(px(8.0))
-            .bg(rgb(0x313244))
-            .rounded(px(4.0))
-            .p(px(8.0))
-            .text_color(rgb(0xcba6f7))
-            .child(content.clone())
-            .into_any_element(),
+        Block::MathBlock { content } => {
+            let cached = math_renderer.get_block(content);
+            match cached {
+                Some(math_img) => {
+                    let display_h =
+                        math_renderer.font_size() * BLOCK_MATH_SCALE * math_img.em_height;
+                    div()
+                        .mb(px(8.0))
+                        .bg(rgb(0x313244))
+                        .rounded(px(4.0))
+                        .p(px(8.0))
+                        .flex()
+                        .justify_center()
+                        .child(
+                            img(math_img.path.clone())
+                                .object_fit(gpui::ObjectFit::Contain)
+                                .h(px(display_h)),
+                        )
+                        .into_any_element()
+                }
+                None => div()
+                    .mb(px(8.0))
+                    .bg(rgb(0x313244))
+                    .rounded(px(4.0))
+                    .p(px(8.0))
+                    .text_color(rgb(0xcba6f7))
+                    .child(content.clone())
+                    .into_any_element(),
+            }
+        }
         Block::HtmlBlock { content } => div()
             .mb(px(8.0))
             .text_color(rgb(0xa6adc8))
@@ -192,7 +293,7 @@ fn render_block(
         Block::FootnoteDefinition { label, content } => {
             let blocks: Vec<_> = content
                 .iter()
-                .map(|b| render_block(b, theme, note_path))
+                .map(|b| render_block(b, theme, note_path, math_renderer))
                 .collect();
             div()
                 .mb(px(4.0))
@@ -214,6 +315,7 @@ fn render_list_item(
     depth: usize,
     theme: &EditorColors,
     note_path: Option<&std::path::Path>,
+    math_renderer: &MathRenderer,
 ) -> gpui::AnyElement {
     let marker_text = match &item.marker {
         ListMarker::Dash => "- ".to_string(),
@@ -222,11 +324,11 @@ fn render_list_item(
         ListMarker::Number(n) => format!("{n}. "),
     };
 
-    let inline = render_inlines(&item.children, theme, note_path);
+    let inline = render_inlines(&item.children, theme, note_path, math_renderer);
     let sub_children: Vec<_> = item
         .sub_items
         .iter()
-        .map(|sub| render_list_item(sub, depth + 1, theme, note_path))
+        .map(|sub| render_list_item(sub, depth + 1, theme, note_path, math_renderer))
         .collect();
 
     div()
@@ -305,10 +407,11 @@ fn render_inlines(
     inlines: &[Inline],
     theme: &EditorColors,
     note_path: Option<&std::path::Path>,
+    math_renderer: &MathRenderer,
 ) -> Vec<gpui::AnyElement> {
     inlines
         .iter()
-        .map(|inline| render_inline(inline, theme, note_path))
+        .map(|inline| render_inline(inline, theme, note_path, math_renderer))
         .collect()
 }
 
@@ -316,21 +419,22 @@ fn render_inline(
     inline: &Inline,
     theme: &EditorColors,
     note_path: Option<&std::path::Path>,
+    math_renderer: &MathRenderer,
 ) -> gpui::AnyElement {
     match inline {
         Inline::Text(t) => div().child(t.clone()).into_any_element(),
         Inline::Bold(children) => div()
             .font_weight(gpui::FontWeight::BOLD)
-            .children(render_inlines(children, theme, note_path))
+            .children(render_inlines(children, theme, note_path, math_renderer))
             .into_any_element(),
         Inline::Italic(children) => div()
             .italic()
-            .children(render_inlines(children, theme, note_path))
+            .children(render_inlines(children, theme, note_path, math_renderer))
             .into_any_element(),
         Inline::Strikethrough(children) => div()
             .line_through()
             .text_color(rgb(0x7f849c))
-            .children(render_inlines(children, theme, note_path))
+            .children(render_inlines(children, theme, note_path, math_renderer))
             .into_any_element(),
         Inline::Code(code) => div()
             .bg(rgb(0x313244))
@@ -370,10 +474,22 @@ fn render_inline(
                     .into_any_element()
             }
         }
-        Inline::Math(content) => div()
-            .text_color(rgb(0xcba6f7))
-            .child(content.clone())
-            .into_any_element(),
+        Inline::Math(content) => {
+            let cached = math_renderer.get_inline(content);
+            match cached {
+                Some(math_img) => div()
+                    .child(
+                        img(math_img.path.clone())
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(20.0)),
+                    )
+                    .into_any_element(),
+                None => div()
+                    .text_color(rgb(0xcba6f7))
+                    .child(content.clone())
+                    .into_any_element(),
+            }
+        }
         Inline::FootnoteRef(label) => div()
             .text_color(rgb(0x89b4fa))
             .text_xs()

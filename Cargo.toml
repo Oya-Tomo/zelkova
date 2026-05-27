@@ -10,6 +10,7 @@ members = [
     "crates/config",
     "crates/rope",
     "crates/highlight",
+    "crates/math_render",
 ]
 resolver = "2"
 
