@@ -86,7 +86,7 @@ pub enum BlockContext {
 #[derive(Debug, Clone)]
 pub struct HighlightedLine {
     pub highlights: Vec<(Range<usize>, HighlightStyle)>,
-    pub image_url: Option<String>,
+    pub image_urls: Vec<String>,
     pub line_height: f32,
     pub heading_level: Option<u8>,
     pub line_bg: Option<Hsla>,
@@ -203,7 +203,7 @@ pub fn highlight_fence_line(line: &str, colors: &ResolvedColors) -> HighlightedL
 
     HighlightedLine {
         highlights,
-        image_url: None,
+        image_urls: Vec::new(),
         line_height: DEFAULT_LINE_HEIGHT,
         heading_level: None,
         line_bg: Some(colors.code_bg),
@@ -217,7 +217,7 @@ pub fn highlight_line(
     colors: &ResolvedColors,
 ) -> HighlightedLine {
     let mut highlights = Vec::new();
-    let mut image_url = None;
+    let mut image_urls = Vec::new();
     let mut line_height = DEFAULT_LINE_HEIGHT;
 
     match context {
@@ -248,11 +248,11 @@ pub fn highlight_line(
                     ));
                     let (ihl, imgs) = scan_inline(&line[rest_start..], rest_start, colors);
                     highlights.extend(ihl);
-                    image_url = imgs.into_iter().next();
+                    image_urls = imgs;
                 }
                 return HighlightedLine {
                     highlights,
-                    image_url,
+                    image_urls,
                     line_height,
                     heading_level: Some(*level),
                     line_bg: None,
@@ -294,7 +294,7 @@ pub fn highlight_line(
                         ..Default::default()
                     },
                 )],
-                image_url: None,
+                image_urls: Vec::new(),
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: Some(colors.code_bg),
@@ -309,7 +309,7 @@ pub fn highlight_line(
                         ..Default::default()
                     },
                 )],
-                image_url: None,
+                image_urls: Vec::new(),
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: None,
@@ -350,10 +350,10 @@ pub fn highlight_line(
             }
             let (ihl, imgs) = scan_inline(line, 0, colors);
             highlights.extend(ihl);
-            image_url = imgs.into_iter().next();
+            image_urls = imgs;
             return HighlightedLine {
                 highlights,
-                image_url,
+                image_urls,
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: None,
@@ -379,12 +379,12 @@ pub fn highlight_line(
     if skip < line.len() {
         let (ihl, imgs) = scan_inline(&line[skip..], skip, colors);
         highlights.extend(ihl);
-        image_url = imgs.into_iter().next();
+        image_urls = imgs;
     }
 
     HighlightedLine {
         highlights,
-        image_url,
+        image_urls,
         line_height,
         heading_level: None,
         line_bg: None,
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn highlight_inline_image() {
         let hl = highlight_line("![alt](image.png)", &BlockContext::Normal, &colors());
-        assert_eq!(hl.image_url, Some("image.png".to_string()));
+        assert_eq!(hl.image_urls, vec!["image.png".to_string()]);
     }
 
     #[test]
