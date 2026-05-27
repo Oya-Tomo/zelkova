@@ -954,10 +954,16 @@ impl Render for Editor {
         let header_count = header_children.len();
         self.scroll_to_cursor(header_count);
 
-        div()
-            .id("editor-scroll")
+        // Inner div takes natural height from children, allowing the outer
+        // scroll container to detect overflow and enable scrolling.
+        let content_div = div()
             .flex()
             .flex_col()
+            .children(header_children)
+            .children(children);
+
+        div()
+            .id("editor-scroll")
             .size_full()
             .when(self.wrap, |el| el.overflow_y_scroll())
             .when(!self.wrap, |el| el.overflow_scroll())
@@ -967,8 +973,7 @@ impl Render for Editor {
             .text_sm()
             .font_family("monospace")
             .p(px(8.0))
-            .children(header_children)
-            .children(children)
+            .child(content_div)
             .on_action(cx.listener(Editor::handle_move_left))
             .on_action(cx.listener(Editor::handle_move_right))
             .on_action(cx.listener(Editor::handle_move_up))
