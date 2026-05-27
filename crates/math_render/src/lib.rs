@@ -8,27 +8,32 @@ use ratex_render::{render_to_png, RenderOptions};
 use ratex_types::display_item::DisplayItem;
 use ratex_types::math_style::MathStyle;
 
-/// Text color for rendered math (Catppuccin Mocha Text: #cdd6f4).
-const MATH_TEXT_COLOR: ratex_types::color::Color =
-    ratex_types::color::Color::rgb(205.0 / 255.0, 214.0 / 255.0, 244.0 / 255.0);
-
 /// Renders LaTeX math expressions to PNG temp files with caching.
 pub struct MathRenderer {
     cache: HashMap<String, PathBuf>,
     render_opts: RenderOptions,
+    /// Hex color string used for cache key invalidation (e.g. "cba6f7").
+    color_hex: String,
 }
 
 impl MathRenderer {
-    pub fn new() -> Self {
+    /// Create a new renderer.
+    ///
+    /// * `font_size` — base font size in logical pixels (e.g. 14.0 for GPUI text_sm).
+    /// * `text_color` — hex color string for math glyphs, e.g. "#cba6f7" or "cba6f7".
+    pub fn new(font_size: f32, text_color: &str) -> Self {
+        let color = parse_hex_color(text_color);
+        let hex = text_color.trim_start_matches('#').to_string();
         Self {
             cache: HashMap::new(),
             render_opts: RenderOptions {
-                font_size: 14.0,
+                font_size,
                 padding: 4.0,
                 background_color: ratex_types::color::Color::new(0.0, 0.0, 0.0, 0.0),
                 font_dir: String::new(),
                 device_pixel_ratio: 2.0,
             },
+            color_hex: hex,
         }
     }
 
@@ -39,7 +44,7 @@ impl MathRenderer {
 
     /// Get cached PNG path for block math.
     pub fn get_block(&self, latex: &str) -> Option<&PathBuf> {
-        self.cache.get(&cache_key(latex, false))
+        self.cache.get(&self.cache_key(latex, false))
     }
 
     /// Render inline math to PNG file. Returns cached path or None on parse failure.
@@ -49,11 +54,22 @@ impl MathRenderer {
 
     /// Get cached PNG path for inline math.
     pub fn get_inline(&self, latex: &str) -> Option<&PathBuf> {
-        self.cache.get(&cache_key(latex, true))
+        self.cache.get(&self.cache_key(latex, true))
+    }
+
+    /// Update the text color. Invalidates cache for future renders.
+    pub fn set_text_color(&mut self, text_color: &str) {
+        self.color_hex = text_color.trim_start_matches('#').to_string();
+    }
+
+    fn cache_key(&self, latex: &str, inline: bool) -> String {
+        let prefix = if inline { "i" } else { "b" };
+        let fs = self.render_opts.font_size;
+        format!("{}:{}:{}:{:.0}", prefix, latex, self.color_hex, fs)
     }
 
     fn render(&mut self, latex: &str, inline: bool) -> Option<PathBuf> {
-        let key = cache_key(latex, inline);
+        let key = self.cache_key(latex, inline);
         if let Some(cached) = self.cache.get(&key) {
             return Some(cached.clone());
         }
@@ -66,7 +82,8 @@ impl MathRenderer {
         let ast = parse(latex).ok()?;
         let lbox = layout(&ast, &layout_opts);
         let mut display_list = to_display_list(&lbox);
-        override_colors(&mut display_list);
+        let color = parse_hex_color(&self.color_hex);
+        override_colors(&mut display_list, color);
         let png_bytes = render_to_png(&display_list, &self.render_opts).ok()?;
         let path = write_png_to_temp(&png_bytes, &key);
         self.cache.insert(key, path.clone());
@@ -74,27 +91,26 @@ impl MathRenderer {
     }
 }
 
-impl Default for MathRenderer {
-    fn default() -> Self {
-        Self::new()
-    }
+fn parse_hex_color(hex: &str) -> ratex_types::color::Color {
+    let hex = hex.trim_start_matches('#');
+    let r = u8::from_str_radix(&hex[0..2], 16).expect("valid hex r") as f32 / 255.0;
+    let g = u8::from_str_radix(&hex[2..4], 16).expect("valid hex g") as f32 / 255.0;
+    let b = u8::from_str_radix(&hex[4..6], 16).expect("valid hex b") as f32 / 255.0;
+    ratex_types::color::Color::rgb(r, g, b)
 }
 
-/// Build cache key including color suffix so cache invalidates on color change.
-fn cache_key(latex: &str, inline: bool) -> String {
-    let prefix = if inline { "i" } else { "b" };
-    format!("{}:{}:cdd6f4", prefix, latex)
-}
-
-/// Override glyph, line, and path colors to match the preview text color.
+/// Override glyph, line, and path colors to match the configured text color.
 /// Rect items are skipped as they represent background fills (e.g. \colorbox).
-fn override_colors(display_list: &mut ratex_types::display_item::DisplayList) {
+fn override_colors(
+    display_list: &mut ratex_types::display_item::DisplayList,
+    color: ratex_types::color::Color,
+) {
     for item in &mut display_list.items {
         match item {
-            DisplayItem::GlyphPath { color, .. }
-            | DisplayItem::Line { color, .. }
-            | DisplayItem::Path { color, .. } => {
-                *color = MATH_TEXT_COLOR;
+            DisplayItem::GlyphPath { color: c, .. }
+            | DisplayItem::Line { color: c, .. }
+            | DisplayItem::Path { color: c, .. } => {
+                *c = color;
             }
             DisplayItem::Rect { .. } => {}
         }
@@ -120,7 +136,7 @@ mod tests {
 
     #[test]
     fn render_simple_fraction() {
-        let mut renderer = MathRenderer::new();
+        let mut renderer = MathRenderer::new(14.0, "#cba6f7");
         let path = renderer.render_block(r"\frac{1}{2}");
         assert!(path.is_some());
         assert!(path.expect("path").exists());
@@ -128,14 +144,14 @@ mod tests {
 
     #[test]
     fn render_inline_x() {
-        let mut renderer = MathRenderer::new();
+        let mut renderer = MathRenderer::new(14.0, "#cba6f7");
         let path = renderer.render_inline("x^2 + y^2 = z^2");
         assert!(path.is_some());
     }
 
     #[test]
     fn cache_hit() {
-        let mut renderer = MathRenderer::new();
+        let mut renderer = MathRenderer::new(14.0, "#cba6f7");
         let _ = renderer.render_block("E = mc^2");
         let path2 = renderer.render_block("E = mc^2");
         assert!(path2.is_some());
@@ -144,8 +160,17 @@ mod tests {
 
     #[test]
     fn invalid_latex_returns_none() {
-        let mut renderer = MathRenderer::new();
+        let mut renderer = MathRenderer::new(14.0, "#cba6f7");
         let result = renderer.render_block(r"\frac{");
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn color_change_invalidates_cache() {
+        let mut renderer = MathRenderer::new(14.0, "#cba6f7");
+        let _ = renderer.render_block("E = mc^2");
+        renderer.set_text_color("#cdd6f4");
+        let _ = renderer.render_block("E = mc^2");
+        assert_eq!(renderer.cache.len(), 2);
     }
 }

@@ -9,6 +9,9 @@ use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
 use zelkova_math_render::MathRenderer;
 
+/// GPUI `text_sm()` = 0.875rem = 14px at default 16px root.
+const PREVIEW_TEXT_SIZE: f32 = 14.0;
+
 pub struct Preview {
     doc: MarkdownDoc,
     theme: EditorColors,
@@ -19,31 +22,37 @@ pub struct Preview {
 
 impl Preview {
     pub fn new(cx: &mut App) -> Self {
+        let theme = EditorColors::default();
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
         Self {
             doc: MarkdownDoc {
                 frontmatter: None,
                 blocks: Vec::new(),
             },
-            theme: EditorColors::default(),
+            theme,
             focus_handle: cx.focus_handle(),
             file_path: None,
-            math_renderer: MathRenderer::new(),
+            math_renderer,
         }
     }
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
+        let theme = EditorColors::default();
+        let mut math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
+        let doc = parse(text);
         let mut preview = Self {
-            doc: parse(text),
-            theme: EditorColors::default(),
+            doc,
+            theme,
             focus_handle: cx.focus_handle(),
             file_path,
-            math_renderer: MathRenderer::new(),
+            math_renderer,
         };
         preview.prerender_math();
         preview
     }
 
     pub fn set_theme(&mut self, theme: EditorColors) {
+        self.math_renderer.set_text_color(&theme.math_fg);
         self.theme = theme;
     }
 
