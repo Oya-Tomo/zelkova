@@ -80,6 +80,22 @@ struct MappingEntry {
 }
 
 impl ZelkovaApp {
+    fn rpc_client(&self) -> Option<zelkova_rpc::client::RpcClient> {
+        if self.config.daemon.socket_path.exists() {
+            Some(zelkova_rpc::client::RpcClient::new(
+                &self.config.daemon.socket_path,
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn find_note_by_title(&self, title: Option<&str>) -> Option<&NoteEntry> {
+        self.notes.iter().find(|n| {
+            title == Some(n.title.as_str()) || (n.title.is_empty() && title == Some("Untitled"))
+        })
+    }
+
     fn new(config: AppConfig, cx: &mut App) -> Self {
         let mut notes = Vec::new();
         let mut folders = Vec::new();
@@ -296,8 +312,7 @@ impl ZelkovaApp {
     }
 
     fn handle_create_note(&mut self, _: &CreateNote, _window: &mut Window, cx: &mut Context<Self>) {
-        if self.config.daemon.socket_path.exists() {
-            let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+        if let Some(client) = self.rpc_client() {
             if let Ok(result) = client.create_note(None, Vec::new()) {
                 let path = result.path.clone();
                 self.notes.push(NoteEntry {
@@ -321,9 +336,7 @@ impl ZelkovaApp {
         match label {
             "Create Note" => {
                 let title = args.first().and_then(|a| a.as_deref());
-                if self.config.daemon.socket_path.exists() {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                if let Some(client) = self.rpc_client() {
                     if let Ok(result) = client.create_note(title, Vec::new()) {
                         let path = result.path.clone();
                         self.notes.push(NoteEntry {
@@ -342,9 +355,7 @@ impl ZelkovaApp {
                     .unwrap_or("New Folder");
                 let parent_name = args.get(1).and_then(|a| a.as_deref());
                 let parent_id = resolve_folder_id(&self.folders, parent_name);
-                if self.config.daemon.socket_path.exists() {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                if let Some(client) = self.rpc_client() {
                     if let Ok(result) = client.create_folder(name, parent_id) {
                         self.expanded.insert(result.id);
                         self.refresh_folders();
@@ -355,16 +366,10 @@ impl ZelkovaApp {
                 let note_title = args.first().and_then(|a| a.as_deref());
                 let dest_name = args.get(1).and_then(|a| a.as_deref());
                 let dest_id = resolve_folder_id(&self.folders, dest_name);
-                let note = self.notes.iter().find(|n| {
-                    note_title == Some(n.title.as_str())
-                        || (n.title.is_empty() && note_title == Some("Untitled"))
-                });
-                if let Some(note) = note
+                if let Some(note) = self.find_note_by_title(note_title)
                     && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                    && self.config.daemon.socket_path.exists()
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.move_note(note_id, dest_id).is_ok() {
                         self.refresh_folders();
                     }
@@ -380,10 +385,8 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists()
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.move_folder(folder_id, dest_id).is_ok() {
                         self.refresh_folders();
                     }
@@ -406,10 +409,8 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists()
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.delete_folder(folder_id, cascade).is_ok() {
                         self.expanded.remove(&folder_id);
                         self.refresh_folders();
@@ -428,10 +429,8 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists()
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.rename_folder(folder_id, new_name).is_ok() {
                         self.refresh_folders();
                     }
@@ -440,14 +439,10 @@ impl ZelkovaApp {
             "Rename Note" => {
                 let note_title = args.first().and_then(|a| a.as_deref());
                 let new_title = args.get(1).and_then(|a| a.as_deref()).unwrap_or("");
-                if let Some(note) = self.notes.iter().find(|n| {
-                    note_title == Some(n.title.as_str())
-                        || (n.title.is_empty() && note_title == Some("Untitled"))
-                }) && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                    && self.config.daemon.socket_path.exists()
+                if let Some(note) = self.find_note_by_title(note_title)
+                    && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.rename_note(note_id, new_title).is_ok() {
                         self.refresh_notes();
                     }
@@ -459,14 +454,10 @@ impl ZelkovaApp {
                     return;
                 }
                 let note_title = args.first().and_then(|a| a.as_deref());
-                if let Some(note) = self.notes.iter().find(|n| {
-                    note_title == Some(n.title.as_str())
-                        || (n.title.is_empty() && note_title == Some("Untitled"))
-                }) && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                    && self.config.daemon.socket_path.exists()
+                if let Some(note) = self.find_note_by_title(note_title)
+                    && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
+                    && let Some(client) = self.rpc_client()
                 {
-                    let client =
-                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
                     if client.delete_note(note_id).is_ok() {
                         self.refresh_notes();
                         self.refresh_folders();
@@ -492,8 +483,7 @@ impl ZelkovaApp {
     }
 
     fn refresh_folders(&mut self) {
-        if self.config.daemon.socket_path.exists() {
-            let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+        if let Some(client) = self.rpc_client() {
             if let Ok(result) = client.list_tree() {
                 self.folders = result
                     .folders
@@ -517,8 +507,7 @@ impl ZelkovaApp {
     }
 
     fn refresh_notes(&mut self) {
-        if self.config.daemon.socket_path.exists() {
-            let client = zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+        if let Some(client) = self.rpc_client() {
             if let Ok(result) = client.list_notes(None) {
                 self.notes = result
                     .notes
