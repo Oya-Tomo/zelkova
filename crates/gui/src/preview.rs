@@ -257,7 +257,7 @@ fn render_block(
                     .child(
                         img(path.clone())
                             .object_fit(gpui::ObjectFit::Contain)
-                            .max_h(px(200.0)),
+                            .max_h(px(120.0)),
                     )
                     .into_any_element(),
                 None => div()
@@ -466,7 +466,7 @@ fn render_inline(
                     .child(
                         img(path.clone())
                             .object_fit(gpui::ObjectFit::Contain)
-                            .max_h(px(20.0)),
+                            .max_h(px(36.0)),
                     )
                     .into_any_element(),
                 None => div()

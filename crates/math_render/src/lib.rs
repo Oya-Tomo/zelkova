@@ -23,7 +23,7 @@ impl MathRenderer {
         Self {
             cache: HashMap::new(),
             render_opts: RenderOptions {
-                font_size: 24.0,
+                font_size: 14.0,
                 padding: 4.0,
                 background_color: ratex_types::color::Color::new(0.0, 0.0, 0.0, 0.0),
                 font_dir: String::new(),
