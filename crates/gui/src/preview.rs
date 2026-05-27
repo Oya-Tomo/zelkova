@@ -204,7 +204,11 @@ impl Render for Preview {
 
         // Inner div takes natural height from children, allowing the outer
         // scroll container to detect overflow and enable scrolling.
-        let content_div = div().flex().flex_col().children(children);
+        let content_div = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .children(children);
 
         div()
             .id("preview-scroll")

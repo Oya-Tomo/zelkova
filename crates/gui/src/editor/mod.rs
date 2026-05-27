@@ -959,6 +959,7 @@ impl Render for Editor {
         let content_div = div()
             .flex()
             .flex_col()
+            .flex_shrink_0()
             .children(header_children)
             .children(children);
 
