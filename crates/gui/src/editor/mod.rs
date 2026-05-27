@@ -28,6 +28,7 @@ use crate::{
 #[derive(Clone, Copy, PartialEq)]
 enum EditZone {
     Title,
+    TagInput,
     Content,
 }
 
@@ -45,7 +46,7 @@ pub struct Editor {
     dirty: bool,
     frontmatter: Option<Frontmatter>,
     tag_input: String,
-    tag_input_visible: bool,
+    tag_input_cursor: usize,
     edit_zone: EditZone,
     title_cursor: usize,
     cached_highlights: Vec<HighlightedLine>,
@@ -69,7 +70,7 @@ impl Editor {
             dirty: false,
             frontmatter: None,
             tag_input: String::new(),
-            tag_input_visible: false,
+            tag_input_cursor: 0,
             edit_zone: EditZone::Content,
             title_cursor: 0,
             cached_highlights: Vec::new(),
@@ -103,7 +104,7 @@ impl Editor {
             dirty: false,
             frontmatter,
             tag_input: String::new(),
-            tag_input_visible: false,
+            tag_input_cursor: 0,
             edit_zone,
             title_cursor: 0,
             cached_highlights: Vec::new(),
@@ -159,6 +160,42 @@ impl Editor {
             fm.tags.remove(tag);
             self.dirty = true;
         }
+    }
+
+    /// Populate tag_input with existing frontmatter tags as "#xxx #yyy ".
+    fn populate_tag_input(&mut self) {
+        if let Some(fm) = &self.frontmatter {
+            if fm.tags.is_empty() {
+                self.tag_input.clear();
+            } else {
+                let mut s = String::new();
+                for tag in &fm.tags {
+                    s.push('#');
+                    s.push_str(tag);
+                    s.push(' ');
+                }
+                self.tag_input = s;
+            }
+            self.tag_input_cursor = self.tag_input.chars().count();
+        }
+    }
+
+    /// Parse #xxx tokens from tag input, normalize full-width spaces,
+    /// update frontmatter tags, and clear the input field.
+    /// Returns the cursor position before clearing.
+    fn commit_tag_input(&mut self) -> usize {
+        let saved_cursor = self.tag_input_cursor;
+        if !self.tag_input.is_empty() {
+            let normalized = self.tag_input.replace('\u{3000}', " ");
+            let parsed = parse_tags_from_input(&normalized);
+            if let Some(fm) = &mut self.frontmatter {
+                fm.tags = parsed;
+                self.dirty = true;
+            }
+        }
+        self.tag_input.clear();
+        self.tag_input_cursor = 0;
+        saved_cursor
     }
 
     // --- Line helpers using cached_lines ---
@@ -240,6 +277,12 @@ impl Editor {
                     cx.notify();
                 }
             }
+            EditZone::TagInput => {
+                if self.tag_input_cursor > 0 {
+                    self.tag_input_cursor -= 1;
+                    cx.notify();
+                }
+            }
             EditZone::Content => {
                 if self.cursor_pos > 0 {
                     let prev_len = self.cached_text[..self.cursor_pos]
@@ -248,14 +291,6 @@ impl Editor {
                         .map(|c| c.len_utf8())
                         .unwrap_or(1);
                     self.cursor_pos -= prev_len;
-                    cx.notify();
-                } else if self.frontmatter.is_some() {
-                    self.edit_zone = EditZone::Title;
-                    self.title_cursor = self
-                        .frontmatter
-                        .as_ref()
-                        .map(|f| f.title.chars().count())
-                        .unwrap_or(0);
                     cx.notify();
                 }
             }
@@ -278,9 +313,12 @@ impl Editor {
                 if self.title_cursor < title_len {
                     self.title_cursor += 1;
                     cx.notify();
-                } else {
-                    self.edit_zone = EditZone::Content;
-                    self.cursor_pos = 0;
+                }
+            }
+            EditZone::TagInput => {
+                let len = self.tag_input.chars().count();
+                if self.tag_input_cursor < len {
+                    self.tag_input_cursor += 1;
                     cx.notify();
                 }
             }
@@ -399,6 +437,7 @@ impl Editor {
                 .as_ref()
                 .map(|fm| fm.title.clone())
                 .unwrap_or_default(),
+            EditZone::TagInput => self.tag_input.clone(),
             EditZone::Content => {
                 if let Some(ref sel) = self.selection {
                     let start = sel.start.min(self.cached_text.len());
@@ -431,6 +470,12 @@ impl Editor {
                     self.dirty = true;
                     cx.notify();
                 }
+            }
+            EditZone::TagInput => {
+                let byte_pos = char_idx_to_byte(&self.tag_input, self.tag_input_cursor);
+                self.tag_input.insert_str(byte_pos, &text);
+                self.tag_input_cursor += text.chars().count();
+                cx.notify();
             }
             EditZone::Content => {
                 if let Some(sel) = self.selection.take() {
@@ -468,6 +513,21 @@ impl Editor {
                     cx.notify();
                 }
             }
+            EditZone::TagInput => {
+                if self.tag_input_cursor > 0 {
+                    let byte_pos = char_idx_to_byte(&self.tag_input, self.tag_input_cursor);
+                    let prev_len = self.tag_input[..byte_pos]
+                        .chars()
+                        .last()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(0);
+                    if prev_len > 0 {
+                        self.tag_input.drain((byte_pos - prev_len)..byte_pos);
+                        self.tag_input_cursor -= 1;
+                    }
+                    cx.notify();
+                }
+            }
             EditZone::Content => {
                 if let Some(sel) = self.selection.take() {
                     self.buffer.delete(sel.start, sel.end);
@@ -496,16 +556,23 @@ impl Editor {
         self.selection = None;
         match self.edit_zone {
             EditZone::Title => {}
+            EditZone::TagInput => {
+                let saved_cursor = self.commit_tag_input();
+                self.edit_zone = EditZone::Title;
+                let title_len = self
+                    .frontmatter
+                    .as_ref()
+                    .map(|f| f.title.chars().count())
+                    .unwrap_or(0);
+                self.title_cursor = saved_cursor.min(title_len);
+                cx.notify();
+            }
             EditZone::Content => {
                 let (line, col) = self.byte_to_line_col(self.cursor_pos);
                 if line == 0 && self.frontmatter.is_some() {
-                    self.edit_zone = EditZone::Title;
-                    let title_len = self
-                        .frontmatter
-                        .as_ref()
-                        .map(|f| f.title.chars().count())
-                        .unwrap_or(0);
-                    self.title_cursor = col.min(title_len);
+                    self.edit_zone = EditZone::TagInput;
+                    self.populate_tag_input();
+                    self.tag_input_cursor = col.min(self.tag_input.chars().count());
                     cx.notify();
                 } else if line > 0 {
                     self.cursor_pos = self.line_col_to_byte(line - 1, col);
@@ -520,8 +587,15 @@ impl Editor {
         let total_lines = self.line_count();
         match self.edit_zone {
             EditZone::Title => {
+                self.edit_zone = EditZone::TagInput;
+                self.populate_tag_input();
+                self.tag_input_cursor = self.title_cursor.min(self.tag_input.chars().count());
+                cx.notify();
+            }
+            EditZone::TagInput => {
+                let saved_cursor = self.commit_tag_input();
                 self.edit_zone = EditZone::Content;
-                self.cursor_pos = self.line_col_to_byte(0, self.title_cursor);
+                self.cursor_pos = self.line_col_to_byte(0, saved_cursor);
                 cx.notify();
             }
             EditZone::Content => {
@@ -550,6 +624,21 @@ impl Editor {
                             self.title_cursor -= 1;
                             self.dirty = true;
                         }
+                    }
+                    cx.notify();
+                }
+            }
+            EditZone::TagInput => {
+                if self.tag_input_cursor > 0 {
+                    let byte_pos = char_idx_to_byte(&self.tag_input, self.tag_input_cursor);
+                    let prev_len = self.tag_input[..byte_pos]
+                        .chars()
+                        .last()
+                        .map(|c| c.len_utf8())
+                        .unwrap_or(0);
+                    if prev_len > 0 {
+                        self.tag_input.drain((byte_pos - prev_len)..byte_pos);
+                        self.tag_input_cursor -= 1;
                     }
                     cx.notify();
                 }
@@ -588,6 +677,12 @@ impl Editor {
                 self.cursor_pos = 0;
                 cx.notify();
             }
+            EditZone::TagInput => {
+                let saved_cursor = self.commit_tag_input();
+                self.edit_zone = EditZone::Content;
+                self.cursor_pos = self.line_col_to_byte(0, saved_cursor);
+                cx.notify();
+            }
             EditZone::Content => {
                 // Delete selection if present
                 if let Some(sel) = self.selection.take() {
@@ -605,6 +700,9 @@ impl Editor {
     }
 
     fn handle_save(&mut self, _: &SaveNote, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.edit_zone == EditZone::TagInput {
+            self.commit_tag_input();
+        }
         self.save_to_disk();
         cx.notify();
     }
@@ -783,50 +881,16 @@ impl Editor {
                     .into_any_element(),
             );
         }
-        tag_elements.push(
-            div()
-                .px(px(6.0))
-                .py(px(2.0))
-                .rounded_md()
-                .bg(rgb(0x313244))
-                .text_color(rgb(0x6c7086))
-                .text_xs()
-                .cursor(gpui::CursorStyle::PointingHand)
-                .child("+ tag")
-                .on_mouse_down(
-                    gpui::MouseButton::Left,
-                    cx.listener(|this, _ev, _window, cx| {
-                        this.tag_input_visible = !this.tag_input_visible;
-                        if !this.tag_input_visible {
-                            let tag = this.tag_input.trim().to_string();
-                            if !tag.is_empty() {
-                                this.add_tag(tag);
-                            }
-                            this.tag_input.clear();
-                        }
-                        cx.notify();
-                    }),
-                )
-                .into_any_element(),
-        );
-        children.push(
-            div()
-                .w_full()
-                .py(px(4.0))
-                .flex()
-                .flex_row()
-                .flex_wrap()
-                .gap(px(4.0))
-                .children(tag_elements)
-                .into_any_element(),
-        );
 
-        if self.tag_input_visible {
+        let is_tag_zone = self.edit_zone == EditZone::TagInput;
+        if is_tag_zone {
             let input_text = self.tag_input.clone();
+            let tc = self.tag_input_cursor;
+            let (before, after) = split_at_char_col(&input_text, tc);
             children.push(
                 div()
                     .w_full()
-                    .py(px(2.0))
+                    .py(px(4.0))
                     .child(
                         div()
                             .px(px(6.0))
@@ -835,41 +899,53 @@ impl Editor {
                             .border_1()
                             .border_color(rgb(0x585b70))
                             .bg(rgb(0x1e1e2e))
-                            .text_color(rgb(0xcdd6f4))
                             .text_xs()
-                            .child(if input_text.is_empty() {
-                                "Type tag name...".to_string()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .child(div().text_color(rgb(0xcdd6f4)).child(if before.is_empty() {
+                                SharedString::from("")
                             } else {
-                                input_text
-                            })
-                            .on_key_down(cx.listener(
-                                |this, ev: &gpui::KeyDownEvent, _window, cx| {
-                                    match ev.keystroke.key.as_str() {
-                                        "enter" => {
-                                            let tag = this.tag_input.trim().to_string();
-                                            if !tag.is_empty() {
-                                                this.add_tag(tag);
-                                            }
-                                            this.tag_input.clear();
-                                            this.tag_input_visible = false;
-                                        }
-                                        "backspace" => {
-                                            this.tag_input.pop();
-                                        }
-                                        "escape" => {
-                                            this.tag_input.clear();
-                                            this.tag_input_visible = false;
-                                        }
-                                        _ => {
-                                            if !ev.keystroke.key.is_empty() {
-                                                this.tag_input.push_str(&ev.keystroke.key);
-                                            }
-                                        }
-                                    }
-                                    cx.notify();
-                                },
-                            )),
+                                SharedString::from(before.clone())
+                            }))
+                            .child(
+                                div()
+                                    .w(px(2.0))
+                                    .h(px(14.0))
+                                    .bg(rgb(0xcdd6f4))
+                                    .flex_shrink_0(),
+                            )
+                            .child(div().text_color(rgb(0xcdd6f4)).child(if after.is_empty() {
+                                if before.is_empty() {
+                                    SharedString::from("Type #tag ...")
+                                } else {
+                                    SharedString::from("")
+                                }
+                            } else {
+                                SharedString::from(after)
+                            })),
                     )
+                    .into_any_element(),
+            );
+        } else {
+            children.push(
+                div()
+                    .w_full()
+                    .py(px(4.0))
+                    .flex()
+                    .flex_row()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .cursor(gpui::CursorStyle::IBeam)
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(|this, _ev, _window, cx| {
+                            this.edit_zone = EditZone::TagInput;
+                            this.populate_tag_input();
+                            cx.notify();
+                        }),
+                    )
+                    .children(tag_elements)
                     .into_any_element(),
             );
         }
@@ -1061,6 +1137,8 @@ impl EntityInputHandler for Editor {
                 .as_ref()
                 .map(|f| f.title.as_str())
                 .unwrap_or("")
+        } else if self.edit_zone == EditZone::TagInput {
+            &self.tag_input
         } else {
             &self.cached_text
         };
@@ -1086,6 +1164,15 @@ impl EntityInputHandler for Editor {
                 .map(|f| f.title.as_str())
                 .unwrap_or("");
             let byte_pos = char_idx_to_byte(text, self.title_cursor);
+            let utf16_pos = byte_to_utf16(text, byte_pos);
+            return Some(UTF16Selection {
+                range: utf16_pos..utf16_pos,
+                reversed: false,
+            });
+        }
+        if self.edit_zone == EditZone::TagInput {
+            let text = &self.tag_input;
+            let byte_pos = char_idx_to_byte(text, self.tag_input_cursor);
             let utf16_pos = byte_to_utf16(text, byte_pos);
             return Some(UTF16Selection {
                 range: utf16_pos..utf16_pos,
@@ -1138,6 +1225,13 @@ impl EntityInputHandler for Editor {
             cx.notify();
             return;
         }
+        if self.edit_zone == EditZone::TagInput {
+            let byte_pos = char_idx_to_byte(&self.tag_input, self.tag_input_cursor);
+            self.tag_input.insert_str(byte_pos, new_text);
+            self.tag_input_cursor += new_text.chars().count();
+            cx.notify();
+            return;
+        }
         // Determine byte range to replace
         let byte_range = match range {
             Some(r) => {
@@ -1173,6 +1267,13 @@ impl EntityInputHandler for Editor {
                 self.title_cursor += new_text.chars().count();
                 self.dirty = true;
             }
+            cx.notify();
+            return;
+        }
+        if self.edit_zone == EditZone::TagInput {
+            let byte_pos = char_idx_to_byte(&self.tag_input, self.tag_input_cursor);
+            self.tag_input.insert_str(byte_pos, new_text);
+            self.tag_input_cursor += new_text.chars().count();
             cx.notify();
             return;
         }
@@ -1714,4 +1815,76 @@ fn char_idx_to_byte(s: &str, char_idx: usize) -> usize {
         .nth(char_idx)
         .map(|(i, _)| i)
         .unwrap_or(s.len())
+}
+
+/// Parse `#xxx` tokens from tag input text.
+/// A valid tag is `#` followed by one or more non-whitespace characters.
+fn parse_tags_from_input(input: &str) -> std::collections::HashSet<String> {
+    let mut tags = std::collections::HashSet::new();
+    for token in input.split_whitespace() {
+        if let Some(tag) = token.strip_prefix('#') {
+            if !tag.is_empty() {
+                tags.insert(tag.to_string());
+            }
+        }
+    }
+    tags
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+
+    #[test]
+    fn parse_single_tag() {
+        let tags = parse_tags_from_input("#work");
+        assert!(tags.contains("work"));
+        assert_eq!(tags.len(), 1);
+    }
+
+    #[test]
+    fn parse_multiple_tags() {
+        let tags = parse_tags_from_input("#work #meeting #project");
+        assert_eq!(tags.len(), 3);
+        assert!(tags.contains("work"));
+        assert!(tags.contains("meeting"));
+        assert!(tags.contains("project"));
+    }
+
+    #[test]
+    fn discard_invalid_tokens() {
+        let tags = parse_tags_from_input("#work garbage #meeting");
+        assert_eq!(tags.len(), 2);
+        assert!(tags.contains("work"));
+        assert!(tags.contains("meeting"));
+    }
+
+    #[test]
+    fn empty_hash_discarded() {
+        let tags = parse_tags_from_input("# #valid");
+        assert_eq!(tags.len(), 1);
+        assert!(tags.contains("valid"));
+    }
+
+    #[test]
+    fn empty_input() {
+        let tags = parse_tags_from_input("");
+        assert!(tags.is_empty());
+    }
+
+    #[test]
+    fn full_width_space_normalization() {
+        let input = "#work\u{3000}#meeting\u{3000}garbage";
+        let normalized = input.replace('\u{3000}', " ");
+        let tags = parse_tags_from_input(&normalized);
+        assert_eq!(tags.len(), 2);
+        assert!(tags.contains("work"));
+        assert!(tags.contains("meeting"));
+    }
+
+    #[test]
+    fn duplicate_tags_deduped() {
+        let tags = parse_tags_from_input("#work #work #meeting");
+        assert_eq!(tags.len(), 2);
+    }
 }
