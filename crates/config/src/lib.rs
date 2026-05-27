@@ -8,6 +8,7 @@ pub use keymap::{BindingConfig, KeymapConfig};
 pub use theme::{EditorColors, ThemeConfig, UiColors};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub note: NoteConfig,
@@ -57,15 +58,6 @@ fn default_true() -> bool {
     true
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            note: NoteConfig::default(),
-            daemon: DaemonConfig::default(),
-            mcp: McpConfig::default(),
-        }
-    }
-}
 
 impl Default for NoteConfig {
     fn default() -> Self {

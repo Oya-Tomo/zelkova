@@ -173,11 +173,10 @@ impl CommandPalette {
                 }
             }
             Phase::InputArg { .. } => {
-                if matches!(self.current_arg_type(), Some(ArgType::Select { .. })) {
-                    if self.arg_selected > 0 {
+                if matches!(self.current_arg_type(), Some(ArgType::Select { .. }))
+                    && self.arg_selected > 0 {
                         self.arg_selected -= 1;
                     }
-                }
             }
         }
     }
@@ -364,7 +363,7 @@ impl Render for CommandPalette {
             );
         }
 
-        let dim_color: gpui::Hsla = gpui::rgba(0xa6adc8_ff).into();
+        let dim_color: gpui::Hsla = gpui::rgba(0xa6ad_c8ff).into();
 
         let cursor_bg = rgb(0xcdd6f4);
 
@@ -439,7 +438,7 @@ impl Render for CommandPalette {
                     )
                     .children(items)
             }
-            Phase::InputArg { index, values, .. } => {
+            Phase::InputArg { index, values: _, .. } => {
                 let cmd_idx = self.filtered.get(self.selected).copied().unwrap_or(0);
                 let cmd = &self.commands[cmd_idx];
                 let spec = &cmd.args[*index];
@@ -589,7 +588,7 @@ impl gpui::EntityInputHandler for CommandPalette {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<gpui::UTF16Selection> {
-        let (len, cursor) = match self.phase {
+        let (_len, cursor) = match self.phase {
             Phase::SelectCommand => (self.query.len(), self.query_cursor),
             Phase::InputArg { .. } => (self.arg_input.len(), self.arg_cursor),
         };

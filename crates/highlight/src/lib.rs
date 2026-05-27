@@ -11,23 +11,23 @@ static CONFIGS: Lazy<std::collections::HashMap<&'static str, HighlightConfigurat
         let mut map = std::collections::HashMap::new();
 
         if let Ok(mut cfg) = rust_config() {
-            let _ = cfg.configure(theme::HIGHLIGHT_NAMES);
+            cfg.configure(theme::HIGHLIGHT_NAMES);
             map.insert("rust", cfg);
         }
         if let Ok(mut cfg) = javascript_config() {
-            let _ = cfg.configure(theme::HIGHLIGHT_NAMES);
+            cfg.configure(theme::HIGHLIGHT_NAMES);
             map.insert("javascript", cfg);
         }
         if let Ok(mut cfg) = python_config() {
-            let _ = cfg.configure(theme::HIGHLIGHT_NAMES);
+            cfg.configure(theme::HIGHLIGHT_NAMES);
             map.insert("python", cfg);
         }
         if let Ok(mut cfg) = go_config() {
-            let _ = cfg.configure(theme::HIGHLIGHT_NAMES);
+            cfg.configure(theme::HIGHLIGHT_NAMES);
             map.insert("go", cfg);
         }
         if let Ok(mut cfg) = c_config() {
-            let _ = cfg.configure(theme::HIGHLIGHT_NAMES);
+            cfg.configure(theme::HIGHLIGHT_NAMES);
             map.insert("c", cfg);
         }
 
@@ -134,14 +134,13 @@ pub fn highlight_code(code: &str, language: &str) -> Vec<StyledRange> {
                 stack.pop();
             }
             HighlightEvent::Source { start, end } => {
-                if start < end {
-                    if let Some(&hi) = stack.last() {
+                if start < end
+                    && let Some(&hi) = stack.last() {
                         ranges.push(StyledRange {
                             range: start..end,
                             highlight_index: hi,
                         });
                     }
-                }
             }
         }
     }

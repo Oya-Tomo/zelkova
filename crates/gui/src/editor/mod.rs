@@ -2,7 +2,7 @@ pub mod highlight;
 pub mod ime;
 
 pub use highlight::{
-    BlockContext, HighlightedLine, ResolvedColors, detect_line_context, highlight_fence_line,
+    HighlightedLine, ResolvedColors, detect_line_context, highlight_fence_line,
     highlight_line, parse_hex,
 };
 pub use ime::ImeState;
@@ -1403,7 +1403,7 @@ impl Render for Editor {
                         let click_line = line_idx;
                         let line_text = this.line_text(click_line);
                         let click_col =
-                            pixel_to_col(&line_text, event.position.x, ascii_char_width);
+                            pixel_to_col(line_text, event.position.x, ascii_char_width);
                         this.cursor_pos = this.line_col_to_byte(click_line, click_col);
                         this.selection = None;
                         cx.notify();
@@ -1416,7 +1416,7 @@ impl Render for Editor {
                         }
                         let move_line = line_idx;
                         let line_text = this.line_text(move_line);
-                        let move_col = pixel_to_col(&line_text, event.position.x, ascii_char_width);
+                        let move_col = pixel_to_col(line_text, event.position.x, ascii_char_width);
                         let new_pos = this.line_col_to_byte(move_line, move_col);
                         this.extend_selection(new_pos);
                         cx.notify();
@@ -1779,13 +1779,13 @@ fn overlay_selection(
 
         // Part before selection
         if range.start < sel.start {
-            result.push((range.start..sel.start, style.clone()));
+            result.push((range.start..sel.start, style));
         }
 
         // Overlap — override background with selection
         let o_start = range.start.max(sel.start);
         let o_end = range.end.min(sel.end);
-        let mut merged = style.clone();
+        let mut merged = style;
         merged.background_color = Some(sel_bg);
         result.push((o_start..o_end, merged));
         pos = o_end;
@@ -1848,7 +1848,7 @@ fn adjust_highlight_offsets(
             }
             let new_start = range.start.max(offset_start) - offset_start;
             let new_end = range.end.min(offset_end) - offset_start;
-            Some((new_start..new_end, style.clone()))
+            Some((new_start..new_end, *style))
         })
         .collect()
 }
@@ -1904,11 +1904,10 @@ fn char_idx_to_byte(s: &str, char_idx: usize) -> usize {
 fn parse_tags_from_input(input: &str) -> std::collections::HashSet<String> {
     let mut tags = std::collections::HashSet::new();
     for token in input.split_whitespace() {
-        if let Some(tag) = token.strip_prefix('#') {
-            if !tag.is_empty() {
+        if let Some(tag) = token.strip_prefix('#')
+            && !tag.is_empty() {
                 tags.insert(tag.to_string());
             }
-        }
     }
     tags
 }

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,7 +34,7 @@ pub struct FolderTree {
 }
 
 impl DirectoryStructure {
-    pub fn load(vault_path: &PathBuf) -> Result<Self> {
+    pub fn load(vault_path: &Path) -> Result<Self> {
         let structure_path = vault_path.join(".zelkova").join("structure.toml");
         if !structure_path.exists() {
             return Ok(Self::default());
@@ -45,7 +45,7 @@ impl DirectoryStructure {
             .with_context(|| format!("failed to parse {}", structure_path.display()))
     }
 
-    pub fn save(&self, vault_path: &PathBuf) -> Result<()> {
+    pub fn save(&self, vault_path: &Path) -> Result<()> {
         let zelkova_dir = vault_path.join(".zelkova");
         fs::create_dir_all(&zelkova_dir)
             .with_context(|| format!("failed to create {}", zelkova_dir.display()))?;

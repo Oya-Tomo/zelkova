@@ -52,7 +52,7 @@ fn build_block(lines: &[&str], slice: &block::BlockSlice) -> Block {
         }
 
         BlockKind::CodeBlock { language } => {
-            let first_line = lines[slice.start];
+            let _first_line = lines[slice.start];
             // skip first (opening fence) and last (closing fence) lines
             let code_start = slice.start + 1;
             let code_end = if slice.end > slice.start {
@@ -166,8 +166,8 @@ fn parse_list_items(lines: &[&str], start: usize, end: usize) -> Vec<ListItem> {
             let mut j = i + 1;
             while j < item_end {
                 let next = lines[j];
-                if next.starts_with("  ") || next.starts_with("\t") {
-                    if block::parse_list_marker(next.trim_start()).is_some() {
+                if (next.starts_with("  ") || next.starts_with("\t"))
+                    && block::parse_list_marker(next.trim_start()).is_some() {
                         // found sub-list, collect it
                         let sub_start = j;
                         while j < item_end {
@@ -184,7 +184,6 @@ fn parse_list_items(lines: &[&str], start: usize, end: usize) -> Vec<ListItem> {
                         sub_items.extend(sub);
                         continue;
                     }
-                }
                 j += 1;
             }
 

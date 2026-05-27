@@ -130,8 +130,8 @@ pub fn all_command_specs(
         opts.extend(folder_names.iter().cloned());
         opts
     };
-    let folder_only_options: Vec<String> = folder_names.iter().cloned().collect();
-    let note_options: Vec<String> = note_titles.iter().cloned().collect();
+    let folder_only_options: Vec<String> = folder_names.to_vec();
+    let note_options: Vec<String> = note_titles.to_vec();
 
     vec![
         CommandSpec::no_arg("Open Command Palette"),

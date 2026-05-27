@@ -126,13 +126,12 @@ pub fn detect_line_context(line: &str, in_code_block: bool) -> BlockContext {
         return BlockContext::ListItem { marker_len: 2 };
     }
 
-    if let Some(dot_pos) = line.find(". ") {
-        if dot_pos > 0 && line[..dot_pos].chars().all(|c| c.is_ascii_digit()) {
+    if let Some(dot_pos) = line.find(". ")
+        && dot_pos > 0 && line[..dot_pos].chars().all(|c| c.is_ascii_digit()) {
             return BlockContext::ListItem {
                 marker_len: dot_pos + 2,
             };
         }
-    }
 
     if line.starts_with('>') {
         return BlockContext::BlockQuote;
@@ -324,7 +323,7 @@ pub fn highlight_line(
             let bytes = line.as_bytes();
             while i < bytes.len() {
                 if bytes[i] == b'|' {
-                    highlights.push((i..i + 1, dim_pipe.clone()));
+                    highlights.push((i..i + 1, dim_pipe));
                     i += 1;
                 } else {
                     let start = i;
@@ -417,7 +416,7 @@ fn scan_inline(
             let marker = bytes[i];
             if let Some(end) = find_closing_double(bytes, i + 2, marker) {
                 let ms = marker_style(colors.bold_fg);
-                highlights.push((offset + i..offset + i + 2, ms.clone()));
+                highlights.push((offset + i..offset + i + 2, ms));
                 highlights.push((
                     offset + i + 2..offset + end,
                     HighlightStyle {
@@ -432,10 +431,10 @@ fn scan_inline(
         }
 
         // Strikethrough ~~text~~
-        if bytes[i] == b'~' && i + 1 < bytes.len() && bytes[i + 1] == b'~' {
-            if let Some(end) = find_closing_double(bytes, i + 2, b'~') {
+        if bytes[i] == b'~' && i + 1 < bytes.len() && bytes[i + 1] == b'~'
+            && let Some(end) = find_closing_double(bytes, i + 2, b'~') {
                 let ms = marker_style(colors.strikethrough_fg);
-                highlights.push((offset + i..offset + i + 2, ms.clone()));
+                highlights.push((offset + i..offset + i + 2, ms));
                 highlights.push((
                     offset + i + 2..offset + end,
                     HighlightStyle {
@@ -451,7 +450,6 @@ fn scan_inline(
                 i = end + 2;
                 continue;
             }
-        }
 
         // Italic *text* or _text_
         if bytes[i] == b'*' || bytes[i] == b'_' {
@@ -462,7 +460,7 @@ fn scan_inline(
             }
             if let Some(end) = find_closing_single(bytes, i + 1, marker) {
                 let ms = marker_style(colors.italic_fg);
-                highlights.push((offset + i..offset + i + 1, ms.clone()));
+                highlights.push((offset + i..offset + i + 1, ms));
                 highlights.push((
                     offset + i + 1..offset + end,
                     HighlightStyle {
@@ -491,7 +489,7 @@ fn scan_inline(
                     background_color: Some(colors.code_bg),
                     ..Default::default()
                 };
-                highlights.push((offset + i..offset + i + count, ms.clone()));
+                highlights.push((offset + i..offset + i + count, ms));
                 highlights.push((offset + i + count..offset + end, code_style));
                 highlights.push((offset + end..offset + end + count, ms));
                 i = end + count;
@@ -500,8 +498,8 @@ fn scan_inline(
         }
 
         // Image ![alt](url)
-        if bytes[i] == b'!' && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-            if let Some((url, end)) = parse_image(bytes, i + 2) {
+        if bytes[i] == b'!' && i + 1 < bytes.len() && bytes[i + 1] == b'['
+            && let Some((url, end)) = parse_image(bytes, i + 2) {
                 highlights.push((
                     offset + i..offset + end,
                     HighlightStyle {
@@ -513,11 +511,10 @@ fn scan_inline(
                 i = end;
                 continue;
             }
-        }
 
         // Link [text](url)
-        if bytes[i] == b'[' {
-            if let Some(end) = parse_link(bytes, i + 1) {
+        if bytes[i] == b'['
+            && let Some(end) = parse_link(bytes, i + 1) {
                 highlights.push((
                     offset + i..offset + end,
                     HighlightStyle {
@@ -533,13 +530,12 @@ fn scan_inline(
                 i = end;
                 continue;
             }
-        }
 
         // Math $...$
-        if bytes[i] == b'$' {
-            if let Some(end) = find_closing_single(bytes, i + 1, b'$') {
+        if bytes[i] == b'$'
+            && let Some(end) = find_closing_single(bytes, i + 1, b'$') {
                 let ms = marker_style(colors.math_fg);
-                highlights.push((offset + i..offset + i + 1, ms.clone()));
+                highlights.push((offset + i..offset + i + 1, ms));
                 highlights.push((
                     offset + i + 1..offset + end,
                     HighlightStyle {
@@ -552,7 +548,6 @@ fn scan_inline(
                 i = end + 1;
                 continue;
             }
-        }
 
         i += 1;
     }

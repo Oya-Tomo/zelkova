@@ -40,7 +40,7 @@ impl Preview {
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
         let theme = EditorColors::default();
-        let mut math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
         let doc = parse(text);
         let mut preview = Self {
             doc,
@@ -350,7 +350,7 @@ fn render_table(
     headers: &[Vec<Inline>],
     _aligns: &[Option<TableAlign>],
     rows: &[Vec<Vec<Inline>>],
-    theme: &EditorColors,
+    _theme: &EditorColors,
 ) -> gpui::AnyElement {
     let col_count = headers.len().max(1);
 
@@ -443,7 +443,7 @@ fn render_inline(
             .text_color(rgb(0xa6e3a1))
             .child(code.clone())
             .into_any_element(),
-        Inline::Link { text, url, .. } => div()
+        Inline::Link { text, url: _, .. } => div()
             .text_color(rgb(0x89b4fa))
             .underline()
             .cursor(gpui::CursorStyle::PointingHand)
@@ -452,7 +452,7 @@ fn render_inline(
         Inline::Image { alt, url, .. } => {
             let resolved = resolve_preview_image_path(note_path, url);
             if resolved.exists() {
-                let alt_text = alt.clone();
+                let _alt_text = alt.clone();
                 div()
                     .flex()
                     .flex_col()
