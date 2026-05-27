@@ -23,6 +23,7 @@ pub struct Preview {
 }
 
 impl Preview {
+    #[allow(dead_code)]
     pub fn new(cx: &mut App) -> Self {
         let theme = EditorColors::default();
         let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
@@ -53,6 +54,7 @@ impl Preview {
         preview
     }
 
+    #[allow(dead_code)]
     pub fn set_theme(&mut self, theme: EditorColors) {
         self.math_renderer.set_text_color(&theme.math_fg);
         self.theme = theme;

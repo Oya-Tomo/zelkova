@@ -111,6 +111,7 @@ impl PaneManager {
         cx.notify();
     }
 
+    #[allow(dead_code)]
     pub fn close_active_tab(&mut self) {
         if self.tabs.is_empty() {
             return;
@@ -121,10 +122,12 @@ impl PaneManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn active_editor(&self) -> Option<&Entity<Editor>> {
         self.tabs.get(self.active_tab).map(|t| &t.editor)
     }
 
+    #[allow(dead_code)]
     pub fn active_tab_info(&self) -> (Option<PathBuf>, Option<String>) {
         self.tabs
             .get(self.active_tab)

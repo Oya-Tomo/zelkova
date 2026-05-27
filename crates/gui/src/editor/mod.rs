@@ -117,6 +117,7 @@ impl Editor {
         self.socket_path = Some(path);
     }
 
+    #[allow(dead_code)]
     pub fn set_theme(&mut self, theme: EditorColors) {
         self.resolved_colors = ResolvedColors::new(&theme);
         self.highlights_dirty = true;
@@ -126,10 +127,12 @@ impl Editor {
         &self.cached_text
     }
 
+    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
 
+    #[allow(dead_code)]
     pub fn file_path(&self) -> Option<&PathBuf> {
         self.file_path.as_ref()
     }
@@ -141,6 +144,7 @@ impl Editor {
             .unwrap_or("Untitled")
     }
 
+    #[allow(dead_code)]
     pub fn tags(&self) -> Vec<&str> {
         self.frontmatter
             .as_ref()
@@ -148,6 +152,7 @@ impl Editor {
             .unwrap_or_default()
     }
 
+    #[allow(dead_code)]
     pub fn add_tag(&mut self, tag: String) {
         if let Some(fm) = &mut self.frontmatter {
             fm.tags.insert(tag);
