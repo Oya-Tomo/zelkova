@@ -31,7 +31,7 @@ impl MathRenderer {
                 padding: 4.0,
                 background_color: ratex_types::color::Color::new(0.0, 0.0, 0.0, 0.0),
                 font_dir: String::new(),
-                device_pixel_ratio: 2.0,
+                device_pixel_ratio: 1.0,
             },
             color_hex: hex,
         }
