@@ -1005,7 +1005,6 @@ impl Editor {
                 line_bg: None,
             });
         let lh = highlighted.line_height;
-        let image_urls = highlighted.image_urls.clone();
 
         // Table header bold
         if line_text.starts_with('|')
@@ -1110,32 +1109,50 @@ impl Editor {
             );
         }
 
-        for url in &image_urls {
+        line_div
+    }
+
+    /// Render images for a group of consecutive lines with image URLs.
+    /// Images are displayed horizontally in a flex row.
+    fn render_image_row(&self, urls: &[String]) -> gpui::AnyElement {
+        let mut img_elements = Vec::new();
+        for url in urls {
             let resolved = resolve_image_path(self.file_path.as_deref(), url);
             if resolved.exists() {
-                line_div = line_div.child(
-                    div().ml(px(16.0)).py(px(4.0)).child(
-                        img(resolved)
-                            .object_fit(gpui::ObjectFit::Contain)
-                            .max_h(px(200.0)),
-                    ),
+                img_elements.push(
+                    div()
+                        .px(px(4.0))
+                        .child(
+                            img(resolved)
+                                .object_fit(gpui::ObjectFit::Contain)
+                                .max_h(px(200.0)),
+                        )
+                        .into_any_element(),
                 );
             } else {
-                line_div = line_div.child(
+                img_elements.push(
                     div()
-                        .ml(px(16.0))
+                        .px(px(4.0))
                         .py(px(4.0))
                         .px(px(8.0))
                         .rounded_md()
                         .bg(rgb(0x313244))
                         .text_xs()
                         .text_color(rgb(0x6c7086))
-                        .child(format!("[image not found: {url}]")),
+                        .child(format!("[image not found: {url}]"))
+                        .into_any_element(),
                 );
             }
         }
-
-        line_div
+        div()
+            .ml(px(16.0))
+            .py(px(4.0))
+            .flex()
+            .flex_row()
+            .flex_wrap()
+            .gap(px(4.0))
+            .children(img_elements)
+            .into_any_element()
     }
 }
 
@@ -1439,6 +1456,56 @@ impl Render for Editor {
             }
 
             children.push(line_div.into_any_element());
+        }
+
+        // Insert image rows below lines that contain images.
+        // Group consecutive lines with images so their images display side-by-side.
+        {
+            let line_count = lines.len();
+            // Build a list of (insert_after_idx, image_urls) for consecutive groups
+            let mut groups: Vec<(usize, Vec<String>)> = Vec::new();
+            let mut i = 0;
+            while i < line_count {
+                let urls: Vec<String> = if has_highlights {
+                    self.cached_highlights
+                        .get(i)
+                        .map(|h| h.image_urls.clone())
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                if urls.is_empty() {
+                    i += 1;
+                    continue;
+                }
+                // Found start of a consecutive image group
+                let mut group_urls = Vec::new();
+                let group_start = i;
+                while i < line_count {
+                    let line_urls: Vec<String> = if has_highlights {
+                        self.cached_highlights
+                            .get(i)
+                            .map(|h| h.image_urls.clone())
+                            .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    if line_urls.is_empty() {
+                        break;
+                    }
+                    group_urls.extend(line_urls);
+                    i += 1;
+                }
+                // Insert after the last line of this group (index in children = group_start + offset)
+                groups.push((group_start + (i - group_start), group_urls));
+            }
+
+            // Insert image rows in reverse order so indices stay valid
+            for (insert_after, urls) in groups.into_iter().rev() {
+                if insert_after <= children.len() {
+                    children.insert(insert_after, self.render_image_row(&urls));
+                }
+            }
         }
 
         // Schedule highlight build for next frame if not yet done

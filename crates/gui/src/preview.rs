@@ -357,7 +357,6 @@ fn render_inline(
                             .object_fit(gpui::ObjectFit::Contain)
                             .max_h(px(300.0)),
                     )
-                    .child(div().text_xs().text_color(rgb(0xa6adc8)).child(alt_text))
                     .into_any_element()
             } else {
                 div()
