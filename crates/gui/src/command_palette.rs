@@ -1,7 +1,8 @@
 use gpui::{
     App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
-    div, prelude::*, px, rgb,
+    div, prelude::*, px,
 };
+use zelkova_config::UiColors;
 
 // ---------------------------------------------------------------------------
 // Arg type system
@@ -71,6 +72,7 @@ enum Phase {
 pub struct CommandPalette {
     phase: Phase,
     commands: Vec<CommandSpec>,
+    ui: UiColors,
 
     // SelectCommand state
     query: String,
@@ -93,6 +95,7 @@ impl CommandPalette {
         Self {
             phase: Phase::SelectCommand,
             commands,
+            ui: UiColors::default(),
             query: String::new(),
             query_cursor: 0,
             filtered,
@@ -369,11 +372,13 @@ impl Render for CommandPalette {
             );
         }
 
-        let dim_color: gpui::Hsla = gpui::rgba(0xa6ad_c8ff).into();
+        let dim_color = crate::editor::parse_hex(&self.ui.text_dim);
+        let text_color = crate::editor::parse_hex(&self.ui.text);
+        let bg_color = crate::editor::parse_hex(&self.ui.border);
+        let selection_bg = crate::editor::parse_hex(&self.ui.selection_bg);
+        let separator_color = crate::editor::parse_hex(&self.ui.border_dim);
 
-        let cursor_bg = rgb(0xcdd6f4);
-
-        let make_cursor = || div().w(px(1.0)).h(px(14.0)).bg(cursor_bg).flex_shrink_0();
+        let make_cursor = || div().w(px(1.0)).h(px(14.0)).bg(text_color).flex_shrink_0();
 
         let content = match &self.phase {
             Phase::SelectCommand => {
@@ -421,12 +426,12 @@ impl Render for CommandPalette {
                     .take(10)
                     .map(|(i, &idx)| {
                         let is_sel = i == self.selected;
-                        let bg = if is_sel { rgb(0x45475a) } else { rgb(0x313244) };
+                        let bg = if is_sel { selection_bg } else { bg_color };
                         div()
                             .px_3()
                             .py_1()
                             .bg(bg)
-                            .text_color(rgb(0xcdd6f4))
+                            .text_color(text_color)
                             .text_sm()
                             .child(self.commands[idx].label.clone())
                     })
@@ -438,7 +443,7 @@ impl Render for CommandPalette {
                             .px_3()
                             .py_2()
                             .border_b_1()
-                            .border_color(rgb(0x585b70))
+                            .border_color(separator_color)
                             .child(input_row)
                             .children(placeholder),
                     )
@@ -497,7 +502,7 @@ impl Render for CommandPalette {
                                 .px_3()
                                 .py_1()
                                 .text_xs()
-                                .text_color(rgb(0xa6adc8))
+                                .text_color(dim_color)
                                 .child(step),
                         )
                         .child(
@@ -505,7 +510,7 @@ impl Render for CommandPalette {
                                 .px_3()
                                 .py_2()
                                 .border_b_1()
-                                .border_color(rgb(0x585b70))
+                                .border_color(separator_color)
                                 .child(input_row),
                         ),
                     ArgType::Select { .. } => {
@@ -516,12 +521,12 @@ impl Render for CommandPalette {
                             .take(10)
                             .map(|(i, opt)| {
                                 let is_sel = i == self.arg_selected;
-                                let bg = if is_sel { rgb(0x45475a) } else { rgb(0x313244) };
+                                let bg = if is_sel { selection_bg } else { bg_color };
                                 div()
                                     .px_3()
                                     .py_1()
                                     .bg(bg)
-                                    .text_color(rgb(0xcdd6f4))
+                                    .text_color(text_color)
                                     .text_sm()
                                     .child(opt.clone())
                             })
@@ -533,7 +538,7 @@ impl Render for CommandPalette {
                                     .px_3()
                                     .py_1()
                                     .text_xs()
-                                    .text_color(rgb(0xa6adc8))
+                                    .text_color(dim_color)
                                     .child(step),
                             )
                             .child(
@@ -541,7 +546,7 @@ impl Render for CommandPalette {
                                     .px_3()
                                     .py_2()
                                     .border_b_1()
-                                    .border_color(rgb(0x585b70))
+                                    .border_color(separator_color)
                                     .child(input_row),
                             )
                             .children(items)
@@ -556,14 +561,14 @@ impl Render for CommandPalette {
             .left(px(250.0))
             .w(palette_width)
             .max_h(palette_max_height)
-            .bg(rgb(0x313244))
+            .bg(bg_color)
             .rounded_lg()
             .border_1()
-            .border_color(rgb(0x585b70))
+            .border_color(separator_color)
             .shadow_lg()
             .flex()
             .flex_col()
-            .text_color(rgb(0xcdd6f4))
+            .text_color(text_color)
             .track_focus(&self.focus_handle)
             .child(content)
     }
