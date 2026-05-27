@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ThemeConfig {
     #[serde(default)]
     pub ui: UiColors,
@@ -176,7 +175,6 @@ fn default_code_punctuation() -> String {
 fn default_code_attribute() -> String {
     "#f9e2af".into()
 }
-
 
 impl Default for UiColors {
     fn default() -> Self {

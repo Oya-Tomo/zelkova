@@ -253,9 +253,10 @@ impl ZelkovaApp {
     fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             if let Some(item) = cx.read_from_clipboard()
-                && let Some(text) = item.text() {
-                    palette.update(cx, |p, _| p.paste_text(text.to_string()));
-                }
+                && let Some(text) = item.text()
+            {
+                palette.update(cx, |p, _| p.paste_text(text.to_string()));
+            }
             cx.notify();
         }
     }
@@ -287,11 +288,12 @@ impl ZelkovaApp {
         }
         // Sidebar note selection
         if let Some(sel) = self.selected
-            && let Some(note) = self.notes.get(sel) {
-                let path = note.path.clone();
-                self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
-                cx.notify();
-            }
+            && let Some(note) = self.notes.get(sel)
+        {
+            let path = note.path.clone();
+            self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+            cx.notify();
+        }
     }
 
     fn handle_create_note(&mut self, _: &CreateNote, _window: &mut Window, cx: &mut Context<Self>) {
@@ -360,14 +362,14 @@ impl ZelkovaApp {
                 });
                 if let Some(note) = note
                     && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                        && self.config.daemon.socket_path.exists() {
-                            let client = zelkova_rpc::client::RpcClient::new(
-                                &self.config.daemon.socket_path,
-                            );
-                            if client.move_note(note_id, dest_id).is_ok() {
-                                self.refresh_folders();
-                            }
-                        }
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.move_note(note_id, dest_id).is_ok() {
+                        self.refresh_folders();
+                    }
+                }
             }
             "Move Folder to Folder" => {
                 let folder_name = args.first().and_then(|a| a.as_deref());
@@ -379,13 +381,14 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists() {
-                        let client =
-                            zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                        if client.move_folder(folder_id, dest_id).is_ok() {
-                            self.refresh_folders();
-                        }
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.move_folder(folder_id, dest_id).is_ok() {
+                        self.refresh_folders();
                     }
+                }
             }
             "Delete Folder" => {
                 let folder_name = args.first().and_then(|a| a.as_deref());
@@ -404,17 +407,18 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists() {
-                        let client =
-                            zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                        if client.delete_folder(folder_id, cascade).is_ok() {
-                            self.expanded.remove(&folder_id);
-                            self.refresh_folders();
-                            if cascade {
-                                self.refresh_notes();
-                            }
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.delete_folder(folder_id, cascade).is_ok() {
+                        self.expanded.remove(&folder_id);
+                        self.refresh_folders();
+                        if cascade {
+                            self.refresh_notes();
                         }
                     }
+                }
             }
             "Rename Folder" => {
                 let folder_name = args.first().and_then(|a| a.as_deref());
@@ -425,13 +429,14 @@ impl ZelkovaApp {
                     .find(|f| Some(f.name.as_str()) == folder_name)
                     .map(|f| f.id);
                 if let Some(folder_id) = folder_id
-                    && self.config.daemon.socket_path.exists() {
-                        let client =
-                            zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
-                        if client.rename_folder(folder_id, new_name).is_ok() {
-                            self.refresh_folders();
-                        }
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.rename_folder(folder_id, new_name).is_ok() {
+                        self.refresh_folders();
                     }
+                }
             }
             "Rename Note" => {
                 let note_title = args.first().and_then(|a| a.as_deref());
@@ -439,16 +444,15 @@ impl ZelkovaApp {
                 if let Some(note) = self.notes.iter().find(|n| {
                     note_title == Some(n.title.as_str())
                         || (n.title.is_empty() && note_title == Some("Untitled"))
-                })
-                    && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                        && self.config.daemon.socket_path.exists() {
-                            let client = zelkova_rpc::client::RpcClient::new(
-                                &self.config.daemon.socket_path,
-                            );
-                            if client.rename_note(note_id, new_title).is_ok() {
-                                self.refresh_notes();
-                            }
-                        }
+                }) && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.rename_note(note_id, new_title).is_ok() {
+                        self.refresh_notes();
+                    }
+                }
             }
             "Delete Note" => {
                 let confirmation = args.get(1).and_then(|a| a.as_deref()).unwrap_or("Cancel");
@@ -459,17 +463,16 @@ impl ZelkovaApp {
                 if let Some(note) = self.notes.iter().find(|n| {
                     note_title == Some(n.title.as_str())
                         || (n.title.is_empty() && note_title == Some("Untitled"))
-                })
-                    && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
-                        && self.config.daemon.socket_path.exists() {
-                            let client = zelkova_rpc::client::RpcClient::new(
-                                &self.config.daemon.socket_path,
-                            );
-                            if client.delete_note(note_id).is_ok() {
-                                self.refresh_notes();
-                                self.refresh_folders();
-                            }
-                        }
+                }) && let Ok(note_id) = uuid::Uuid::parse_str(&note.id)
+                    && self.config.daemon.socket_path.exists()
+                {
+                    let client =
+                        zelkova_rpc::client::RpcClient::new(&self.config.daemon.socket_path);
+                    if client.delete_note(note_id).is_ok() {
+                        self.refresh_notes();
+                        self.refresh_folders();
+                    }
+                }
             }
             "Toggle Sidebar" => {
                 self.sidebar_visible = !self.sidebar_visible;

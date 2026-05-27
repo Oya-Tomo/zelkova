@@ -174,9 +174,10 @@ impl CommandPalette {
             }
             Phase::InputArg { .. } => {
                 if matches!(self.current_arg_type(), Some(ArgType::Select { .. }))
-                    && self.arg_selected > 0 {
-                        self.arg_selected -= 1;
-                    }
+                    && self.arg_selected > 0
+                {
+                    self.arg_selected -= 1;
+                }
             }
         }
     }
@@ -438,7 +439,9 @@ impl Render for CommandPalette {
                     )
                     .children(items)
             }
-            Phase::InputArg { index, values: _, .. } => {
+            Phase::InputArg {
+                index, values: _, ..
+            } => {
                 let cmd_idx = self.filtered.get(self.selected).copied().unwrap_or(0);
                 let cmd = &self.commands[cmd_idx];
                 let spec = &cmd.args[*index];

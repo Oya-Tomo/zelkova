@@ -14,10 +14,7 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
             i += 2;
             continue;
         }
-        if chars[i] == ' '
-            && i + 1 < chars.len()
-            && text[i..].starts_with("  \n")
-        {
+        if chars[i] == ' ' && i + 1 < chars.len() && text[i..].starts_with("  \n") {
             result.push(Inline::HardBreak);
             i += 3;
             continue;
@@ -45,14 +42,17 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
         }
 
         // Strikethrough (~~)
-        if i + 1 < chars.len() && chars[i] == '~' && chars[i + 1] == '~'
-            && let Some(end) = find_closing_double(&chars, i + 2, '~') {
-                let inner: String = chars[i + 2..end].iter().collect();
-                let children = parse_inline(&inner);
-                result.push(Inline::Strikethrough(children));
-                i = end + 2;
-                continue;
-            }
+        if i + 1 < chars.len()
+            && chars[i] == '~'
+            && chars[i + 1] == '~'
+            && let Some(end) = find_closing_double(&chars, i + 2, '~')
+        {
+            let inner: String = chars[i + 2..end].iter().collect();
+            let children = parse_inline(&inner);
+            result.push(Inline::Strikethrough(children));
+            i = end + 2;
+            continue;
+        }
 
         // Italic (* or _)
         if chars[i] == '*' || chars[i] == '_' {
@@ -78,56 +78,65 @@ pub fn parse_inline(text: &str) -> Vec<Inline> {
         }
 
         // Image (![alt](url))
-        if chars[i] == '!' && i + 1 < chars.len() && chars[i + 1] == '['
-            && let Some((alt, url, end)) = parse_link_or_image(&chars, i + 2, true) {
-                result.push(Inline::Image {
-                    alt,
-                    url,
-                    title: None,
-                });
-                i = end;
-                continue;
-            }
+        if chars[i] == '!'
+            && i + 1 < chars.len()
+            && chars[i + 1] == '['
+            && let Some((alt, url, end)) = parse_link_or_image(&chars, i + 2, true)
+        {
+            result.push(Inline::Image {
+                alt,
+                url,
+                title: None,
+            });
+            i = end;
+            continue;
+        }
 
         // Link ([text](url))
         if chars[i] == '['
-            && let Some((text, url, end)) = parse_link_or_image(&chars, i + 1, false) {
-                let children = parse_inline(&text);
-                result.push(Inline::Link {
-                    text: children,
-                    url,
-                    title: None,
-                });
-                i = end;
-                continue;
-            }
+            && let Some((text, url, end)) = parse_link_or_image(&chars, i + 1, false)
+        {
+            let children = parse_inline(&text);
+            result.push(Inline::Link {
+                text: children,
+                url,
+                title: None,
+            });
+            i = end;
+            continue;
+        }
 
         // Math ($...$)
         if chars[i] == '$'
-            && let Some(end) = find_closing_single(&chars, i + 1, '$') {
-                let math: String = chars[i + 1..end].iter().collect();
-                result.push(Inline::Math(math));
-                i = end + 1;
-                continue;
-            }
+            && let Some(end) = find_closing_single(&chars, i + 1, '$')
+        {
+            let math: String = chars[i + 1..end].iter().collect();
+            result.push(Inline::Math(math));
+            i = end + 1;
+            continue;
+        }
 
         // Footnote ref ([^label])
-        if chars[i] == '[' && i + 1 < chars.len() && chars[i + 1] == '^'
-            && let Some(end) = find_closing_bracket(&chars, i + 2) {
-                let label: String = chars[i + 2..end].iter().collect();
-                result.push(Inline::FootnoteRef(label));
-                i = end + 1;
-                continue;
-            }
+        if chars[i] == '['
+            && i + 1 < chars.len()
+            && chars[i + 1] == '^'
+            && let Some(end) = find_closing_bracket(&chars, i + 2)
+        {
+            let label: String = chars[i + 2..end].iter().collect();
+            result.push(Inline::FootnoteRef(label));
+            i = end + 1;
+            continue;
+        }
 
         // HTML tag
         if chars[i] == '<'
-            && let Some(end) = find_tag_end(&chars, i) {
-                let tag: String = chars[i..end].iter().collect();
-                result.push(Inline::HtmlTag(tag));
-                i = end;
-                continue;
-            }
+            && let Some(end) = find_tag_end(&chars, i)
+        {
+            let tag: String = chars[i..end].iter().collect();
+            result.push(Inline::HtmlTag(tag));
+            i = end;
+            continue;
+        }
 
         // Plain text — collect until next special char
         let start = i;
@@ -173,7 +182,10 @@ fn find_closing_double(chars: &[char], start: usize, marker: char) -> Option<usi
 }
 
 fn find_closing_single(chars: &[char], start: usize, marker: char) -> Option<usize> {
-    chars[start..].iter().position(|&c| c == marker).map(|p| start + p)
+    chars[start..]
+        .iter()
+        .position(|&c| c == marker)
+        .map(|p| start + p)
 }
 
 fn count_backticks(chars: &[char], start: usize) -> usize {
@@ -229,11 +241,17 @@ fn parse_link_or_image(
 }
 
 fn find_closing_bracket(chars: &[char], start: usize) -> Option<usize> {
-    chars[start..].iter().position(|&c| c == ']').map(|p| start + p)
+    chars[start..]
+        .iter()
+        .position(|&c| c == ']')
+        .map(|p| start + p)
 }
 
 fn find_tag_end(chars: &[char], start: usize) -> Option<usize> {
-    chars[start..].iter().position(|&c| c == '>').map(|p| start + p + 1)
+    chars[start..]
+        .iter()
+        .position(|&c| c == '>')
+        .map(|p| start + p + 1)
 }
 
 #[cfg(test)]

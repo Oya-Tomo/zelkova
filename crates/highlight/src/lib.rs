@@ -135,12 +135,13 @@ pub fn highlight_code(code: &str, language: &str) -> Vec<StyledRange> {
             }
             HighlightEvent::Source { start, end } => {
                 if start < end
-                    && let Some(&hi) = stack.last() {
-                        ranges.push(StyledRange {
-                            range: start..end,
-                            highlight_index: hi,
-                        });
-                    }
+                    && let Some(&hi) = stack.last()
+                {
+                    ranges.push(StyledRange {
+                        range: start..end,
+                        highlight_index: hi,
+                    });
+                }
             }
         }
     }

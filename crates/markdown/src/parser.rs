@@ -167,23 +167,24 @@ fn parse_list_items(lines: &[&str], start: usize, end: usize) -> Vec<ListItem> {
             while j < item_end {
                 let next = lines[j];
                 if (next.starts_with("  ") || next.starts_with("\t"))
-                    && block::parse_list_marker(next.trim_start()).is_some() {
-                        // found sub-list, collect it
-                        let sub_start = j;
-                        while j < item_end {
-                            if block::parse_list_marker(lines[j].trim_start()).is_some()
-                                || lines[j].starts_with("  ")
-                                || lines[j].starts_with("\t")
-                            {
-                                j += 1;
-                            } else {
-                                break;
-                            }
+                    && block::parse_list_marker(next.trim_start()).is_some()
+                {
+                    // found sub-list, collect it
+                    let sub_start = j;
+                    while j < item_end {
+                        if block::parse_list_marker(lines[j].trim_start()).is_some()
+                            || lines[j].starts_with("  ")
+                            || lines[j].starts_with("\t")
+                        {
+                            j += 1;
+                        } else {
+                            break;
                         }
-                        let sub = parse_list_items(lines, sub_start, j - 1);
-                        sub_items.extend(sub);
-                        continue;
                     }
+                    let sub = parse_list_items(lines, sub_start, j - 1);
+                    sub_items.extend(sub);
+                    continue;
+                }
                 j += 1;
             }
 

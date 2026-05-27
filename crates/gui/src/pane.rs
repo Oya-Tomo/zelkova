@@ -95,15 +95,16 @@ impl PaneManager {
         let sub = cx.observe(&editor, |this, editor, cx| {
             let active = this.active_tab;
             if let Some(tab) = this.tabs.get_mut(active)
-                && tab.editor == editor {
-                    let new_title = editor.read(cx).title().to_string();
-                    if tab.title != new_title {
-                        tab.title = new_title;
-                    }
-                    let text = editor.read(cx).text().to_string();
-                    tab.preview.update(cx, |p, _| p.update_content(&text));
-                    cx.notify();
+                && tab.editor == editor
+            {
+                let new_title = editor.read(cx).title().to_string();
+                if tab.title != new_title {
+                    tab.title = new_title;
                 }
+                let text = editor.read(cx).text().to_string();
+                tab.preview.update(cx, |p, _| p.update_content(&text));
+                cx.notify();
+            }
         });
         self._editor_subscriptions.push(sub);
 

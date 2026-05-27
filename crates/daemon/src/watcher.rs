@@ -56,15 +56,17 @@ fn scan_files(dir: &Path) -> std::collections::HashMap<std::path::PathBuf, std::
             if path.is_dir() {
                 // Skip hidden directories
                 if let Some(name) = path.file_name()
-                    && name.to_string_lossy().starts_with('.') {
-                        continue;
-                    }
+                    && name.to_string_lossy().starts_with('.')
+                {
+                    continue;
+                }
                 result.extend(scan_files(&path));
             } else if path.extension().is_some_and(|ext| ext == "md")
                 && let Ok(meta) = path.metadata()
-                    && let Ok(modified) = meta.modified() {
-                        result.insert(path, modified);
-                    }
+                && let Ok(modified) = meta.modified()
+            {
+                result.insert(path, modified);
+            }
         }
     }
     result

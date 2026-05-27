@@ -7,8 +7,7 @@ pub mod theme;
 pub use keymap::{BindingConfig, KeymapConfig};
 pub use theme::{EditorColors, ThemeConfig, UiColors};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub note: NoteConfig,
@@ -57,7 +56,6 @@ fn default_socket_path() -> PathBuf {
 fn default_true() -> bool {
     true
 }
-
 
 impl Default for NoteConfig {
     fn default() -> Self {

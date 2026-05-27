@@ -58,9 +58,10 @@ fn main() -> Result<()> {
 
     // Start file watcher
     if config.daemon.index_on_start
-        && let Err(e) = watcher::start_watcher(state.clone()) {
-            eprintln!("warning: file watcher failed to start: {e}");
-        }
+        && let Err(e) = watcher::start_watcher(state.clone())
+    {
+        eprintln!("warning: file watcher failed to start: {e}");
+    }
 
     loop {
         let state = state.clone();

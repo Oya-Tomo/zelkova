@@ -2,8 +2,8 @@ pub mod highlight;
 pub mod ime;
 
 pub use highlight::{
-    HighlightedLine, ResolvedColors, detect_line_context, highlight_fence_line,
-    highlight_line, parse_hex,
+    HighlightedLine, ResolvedColors, detect_line_context, highlight_fence_line, highlight_line,
+    parse_hex,
 };
 pub use ime::ImeState;
 pub use zelkova_rope::Buffer;
@@ -1402,8 +1402,7 @@ impl Render for Editor {
                         this.dragging = true;
                         let click_line = line_idx;
                         let line_text = this.line_text(click_line);
-                        let click_col =
-                            pixel_to_col(line_text, event.position.x, ascii_char_width);
+                        let click_col = pixel_to_col(line_text, event.position.x, ascii_char_width);
                         this.cursor_pos = this.line_col_to_byte(click_line, click_col);
                         this.selection = None;
                         cx.notify();
@@ -1905,9 +1904,10 @@ fn parse_tags_from_input(input: &str) -> std::collections::HashSet<String> {
     let mut tags = std::collections::HashSet::new();
     for token in input.split_whitespace() {
         if let Some(tag) = token.strip_prefix('#')
-            && !tag.is_empty() {
-                tags.insert(tag.to_string());
-            }
+            && !tag.is_empty()
+        {
+            tags.insert(tag.to_string());
+        }
     }
     tags
 }

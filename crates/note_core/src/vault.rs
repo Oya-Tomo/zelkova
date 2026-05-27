@@ -98,9 +98,10 @@ impl Vault {
             if path.is_dir() {
                 // skip hidden directories like .zelkova
                 if let Some(name) = path.file_name()
-                    && name.to_string_lossy().starts_with('.') {
-                        continue;
-                    }
+                    && name.to_string_lossy().starts_with('.')
+                {
+                    continue;
+                }
                 self.collect_notes(&path, notes)?;
             } else if path.extension().is_some_and(|e| e == "md") {
                 match self.parse_note_file(&path) {
