@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use gpui::{
     App, Context, FocusHandle, Focusable, HighlightStyle, IntoElement, Render, SharedString,
     StyledText, Window, div, img, prelude::*, px, rgb,
@@ -10,6 +12,7 @@ pub struct Preview {
     doc: MarkdownDoc,
     theme: EditorColors,
     focus_handle: FocusHandle,
+    file_path: Option<PathBuf>,
 }
 
 impl Preview {
@@ -21,14 +24,16 @@ impl Preview {
             },
             theme: EditorColors::default(),
             focus_handle: cx.focus_handle(),
+            file_path: None,
         }
     }
 
-    pub fn from_markdown(text: &str, cx: &mut App) -> Self {
+    pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
         Self {
             doc: parse(text),
             theme: EditorColors::default(),
             focus_handle: cx.focus_handle(),
+            file_path,
         }
     }
 
@@ -49,11 +54,12 @@ impl Focusable for Preview {
 
 impl Render for Preview {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let file_path = self.file_path.clone();
         let children: Vec<_> = self
             .doc
             .blocks
             .iter()
-            .map(|block| render_block(block, &self.theme))
+            .map(|block| render_block(block, &self.theme, file_path.as_deref()))
             .collect();
 
         div()
@@ -69,7 +75,11 @@ impl Render for Preview {
     }
 }
 
-fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
+fn render_block(
+    block: &Block,
+    theme: &EditorColors,
+    note_path: Option<&std::path::Path>,
+) -> gpui::AnyElement {
     match block {
         Block::Heading { level, children } => {
             let font_size = match level {
@@ -91,7 +101,7 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
                 .into_any_element()
         }
         Block::Paragraph(inlines) => {
-            let rendered = render_inlines(inlines, theme);
+            let rendered = render_inlines(inlines, theme, note_path);
             div()
                 .mb(px(8.0))
                 .flex()
@@ -130,7 +140,7 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
         Block::List { items } => {
             let children: Vec<_> = items
                 .iter()
-                .map(|item| render_list_item(item, 0, theme))
+                .map(|item| render_list_item(item, 0, theme, note_path))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -140,7 +150,10 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
                 .into_any_element()
         }
         Block::BlockQuote(blocks) => {
-            let children: Vec<_> = blocks.iter().map(|b| render_block(b, theme)).collect();
+            let children: Vec<_> = blocks
+                .iter()
+                .map(|b| render_block(b, theme, note_path))
+                .collect();
             div()
                 .mb(px(8.0))
                 .pl(px(12.0))
@@ -177,7 +190,10 @@ fn render_block(block: &Block, theme: &EditorColors) -> gpui::AnyElement {
             .child(content.clone())
             .into_any_element(),
         Block::FootnoteDefinition { label, content } => {
-            let blocks: Vec<_> = content.iter().map(|b| render_block(b, theme)).collect();
+            let blocks: Vec<_> = content
+                .iter()
+                .map(|b| render_block(b, theme, note_path))
+                .collect();
             div()
                 .mb(px(4.0))
                 .flex()
@@ -197,6 +213,7 @@ fn render_list_item(
     item: &zelkova_markdown::ListItem,
     depth: usize,
     theme: &EditorColors,
+    note_path: Option<&std::path::Path>,
 ) -> gpui::AnyElement {
     let marker_text = match &item.marker {
         ListMarker::Dash => "- ".to_string(),
@@ -205,11 +222,11 @@ fn render_list_item(
         ListMarker::Number(n) => format!("{n}. "),
     };
 
-    let inline = render_inlines(&item.children, theme);
+    let inline = render_inlines(&item.children, theme, note_path);
     let sub_children: Vec<_> = item
         .sub_items
         .iter()
-        .map(|sub| render_list_item(sub, depth + 1, theme))
+        .map(|sub| render_list_item(sub, depth + 1, theme, note_path))
         .collect();
 
     div()
@@ -284,28 +301,36 @@ fn render_table(
     table_div.into_any_element()
 }
 
-fn render_inlines(inlines: &[Inline], theme: &EditorColors) -> Vec<gpui::AnyElement> {
+fn render_inlines(
+    inlines: &[Inline],
+    theme: &EditorColors,
+    note_path: Option<&std::path::Path>,
+) -> Vec<gpui::AnyElement> {
     inlines
         .iter()
-        .map(|inline| render_inline(inline, theme))
+        .map(|inline| render_inline(inline, theme, note_path))
         .collect()
 }
 
-fn render_inline(inline: &Inline, theme: &EditorColors) -> gpui::AnyElement {
+fn render_inline(
+    inline: &Inline,
+    theme: &EditorColors,
+    note_path: Option<&std::path::Path>,
+) -> gpui::AnyElement {
     match inline {
         Inline::Text(t) => div().child(t.clone()).into_any_element(),
         Inline::Bold(children) => div()
             .font_weight(gpui::FontWeight::BOLD)
-            .children(render_inlines(children, theme))
+            .children(render_inlines(children, theme, note_path))
             .into_any_element(),
         Inline::Italic(children) => div()
             .italic()
-            .children(render_inlines(children, theme))
+            .children(render_inlines(children, theme, note_path))
             .into_any_element(),
         Inline::Strikethrough(children) => div()
             .line_through()
             .text_color(rgb(0x7f849c))
-            .children(render_inlines(children, theme))
+            .children(render_inlines(children, theme, note_path))
             .into_any_element(),
         Inline::Code(code) => div()
             .bg(rgb(0x313244))
@@ -321,18 +346,31 @@ fn render_inline(inline: &Inline, theme: &EditorColors) -> gpui::AnyElement {
             .child(inline_to_string(text))
             .into_any_element(),
         Inline::Image { alt, url, .. } => {
-            let img_url = SharedString::from(url.to_string());
-            let alt_text = alt.clone();
-            div()
-                .flex()
-                .flex_col()
-                .child(
-                    img(img_url)
-                        .object_fit(gpui::ObjectFit::Contain)
-                        .max_h(px(300.0)),
-                )
-                .child(div().text_xs().text_color(rgb(0xa6adc8)).child(alt_text))
-                .into_any_element()
+            let resolved = resolve_preview_image_path(note_path, url);
+            if resolved.exists() {
+                let img_url = SharedString::from(resolved.to_string_lossy().to_string());
+                let alt_text = alt.clone();
+                div()
+                    .flex()
+                    .flex_col()
+                    .child(
+                        img(img_url)
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(300.0)),
+                    )
+                    .child(div().text_xs().text_color(rgb(0xa6adc8)).child(alt_text))
+                    .into_any_element()
+            } else {
+                div()
+                    .py(px(4.0))
+                    .px(px(8.0))
+                    .rounded_md()
+                    .bg(rgb(0x313244))
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("[image not found: {url}]"))
+                    .into_any_element()
+            }
         }
         Inline::Math(content) => div()
             .text_color(rgb(0xcba6f7))
@@ -396,4 +434,25 @@ fn build_code_highlights(
             })
         })
         .collect()
+}
+
+/// Resolve an image URL to an absolute path for preview rendering.
+fn resolve_preview_image_path(
+    note_path: Option<&std::path::Path>,
+    url: &str,
+) -> std::path::PathBuf {
+    let url = url.trim();
+    if url.starts_with('/') {
+        return std::path::PathBuf::from(url);
+    }
+    if let Some(rest) = url.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return std::path::PathBuf::from(home).join(rest);
+        }
+        return std::path::PathBuf::from(format!("/{rest}"));
+    }
+    if let Some(dir) = note_path.and_then(|p| p.parent()) {
+        return dir.join(url);
+    }
+    std::path::PathBuf::from(url)
 }

@@ -80,7 +80,7 @@ impl PaneManager {
             editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
         }
         let text = editor.read(cx).text().to_string();
-        let preview = cx.new(|cx| Preview::from_markdown(&text, cx));
+        let preview = cx.new(|cx| Preview::from_markdown(&text, Some(path.clone()), cx));
 
         self.tabs.push(Tab {
             title,

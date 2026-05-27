@@ -999,13 +999,13 @@ impl Editor {
             .cloned()
             .unwrap_or_else(|| HighlightedLine {
                 highlights: vec![],
-                image_url: None,
+                image_urls: Vec::new(),
                 line_height: 22.0,
                 heading_level: None,
                 line_bg: None,
             });
         let lh = highlighted.line_height;
-        let image_url = highlighted.image_url.take();
+        let image_urls = highlighted.image_urls.clone();
 
         // Table header bold
         if line_text.starts_with('|')
@@ -1110,14 +1110,29 @@ impl Editor {
             );
         }
 
-        if let Some(url) = image_url {
-            line_div = line_div.child(
-                div().ml(px(16.0)).py(px(4.0)).child(
-                    img(SharedString::from(url))
-                        .object_fit(gpui::ObjectFit::Contain)
-                        .max_h(px(200.0)),
-                ),
-            );
+        for url in &image_urls {
+            let resolved = resolve_image_path(self.file_path.as_deref(), url);
+            if resolved.exists() {
+                line_div = line_div.child(
+                    div().ml(px(16.0)).py(px(4.0)).child(
+                        img(SharedString::from(resolved.to_string_lossy().to_string()))
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(200.0)),
+                    ),
+                );
+            } else {
+                line_div = line_div.child(
+                    div()
+                        .ml(px(16.0))
+                        .py(px(4.0))
+                        .px(px(8.0))
+                        .rounded_md()
+                        .bg(rgb(0x313244))
+                        .text_xs()
+                        .text_color(rgb(0x6c7086))
+                        .child(format!("[image not found: {url}]")),
+                );
+            }
         }
 
         line_div
@@ -1524,7 +1539,7 @@ fn math_delim_line(line: &str, math_fg: gpui::Hsla) -> HighlightedLine {
     }
     HighlightedLine {
         highlights,
-        image_url: None,
+        image_urls: Vec::new(),
         line_height: 22.0,
         heading_level: None,
         line_bg: None,
@@ -1578,7 +1593,7 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
 
                     result.push(HighlightedLine {
                         highlights: syntax_hl,
-                        image_url: None,
+                        image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
                         line_bg: Some(colors.code_bg),
@@ -1595,7 +1610,7 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                                 ..Default::default()
                             },
                         )],
-                        image_url: None,
+                        image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
                         line_bg: Some(colors.code_bg),
@@ -1623,7 +1638,7 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                                 ..Default::default()
                             },
                         )],
-                        image_url: None,
+                        image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
                         line_bg: None,
@@ -1643,7 +1658,7 @@ fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec<Highlighte
                                 ..Default::default()
                             },
                         )],
-                        image_url: None,
+                        image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
                         line_bg: None,
@@ -1887,4 +1902,25 @@ mod tag_tests {
         let tags = parse_tags_from_input("#work #work #meeting");
         assert_eq!(tags.len(), 2);
     }
+}
+
+/// Resolve an image URL to an absolute path.
+/// - Absolute paths are kept as-is.
+/// - `~/` is expanded to the home directory.
+/// - Relative paths are resolved against the note file's directory.
+fn resolve_image_path(note_path: Option<&std::path::Path>, url: &str) -> std::path::PathBuf {
+    let url = url.trim();
+    if url.starts_with('/') {
+        return std::path::PathBuf::from(url);
+    }
+    if let Some(rest) = url.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return std::path::PathBuf::from(home).join(rest);
+        }
+        return std::path::PathBuf::from(format!("/{rest}"));
+    }
+    if let Some(dir) = note_path.and_then(|p| p.parent()) {
+        return dir.join(url);
+    }
+    std::path::PathBuf::from(url)
 }
