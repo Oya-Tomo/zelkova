@@ -121,12 +121,11 @@ impl ZelkovaApp {
 
         let theme = zelkova_config::ThemeConfig::load().unwrap_or_default();
         let ui_colors = theme.ui.clone();
-        let editor_colors = theme.editor.clone();
 
         let pane_manager = cx.new(|cx| {
             let mut pm = pane::PaneManager::new(cx);
             pm.set_socket_path(config.daemon.socket_path.clone());
-            pm.set_theme(editor_colors);
+            pm.set_theme(ui_colors.clone());
             pm
         });
 
@@ -723,7 +722,7 @@ impl Render for ZelkovaApp {
         let border = editor::parse_hex(&ui.border);
         let text = editor::parse_hex(&ui.text);
         let text_dim = editor::parse_hex(&ui.text_dim);
-        let selection_bg = editor::parse_hex("#45475a");
+        let selection_bg = editor::parse_hex(&ui.selection_bg);
 
         let sidebar = div()
             .flex()

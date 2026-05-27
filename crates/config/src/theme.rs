@@ -22,6 +22,10 @@ pub struct UiColors {
     pub text: String,
     #[serde(default = "default_text_dim")]
     pub text_dim: String,
+    #[serde(default = "default_selection_bg")]
+    pub selection_bg: String,
+    #[serde(default = "default_border_dim")]
+    pub border_dim: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +100,12 @@ fn default_text() -> String {
 }
 fn default_text_dim() -> String {
     "#a6adc8".into()
+}
+fn default_selection_bg() -> String {
+    "#45475a".into()
+}
+fn default_border_dim() -> String {
+    "#585b70".into()
 }
 fn default_heading_fg() -> String {
     "#89b4fa".into()
@@ -184,6 +194,8 @@ impl Default for UiColors {
             border: default_border(),
             text: default_text(),
             text_dim: default_text_dim(),
+            selection_bg: default_selection_bg(),
+            border_dim: default_border_dim(),
         }
     }
 }

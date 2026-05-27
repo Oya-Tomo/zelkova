@@ -4,7 +4,7 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window, div,
     prelude::*, px,
 };
-use zelkova_config::EditorColors;
+use zelkova_config::UiColors;
 
 use crate::editor::Editor;
 use crate::editor::parse_hex;
@@ -30,7 +30,7 @@ pub struct PaneManager {
     tabs: Vec<Tab>,
     active_tab: usize,
     focus_handle: FocusHandle,
-    theme: EditorColors,
+    ui: UiColors,
     socket_path: Option<PathBuf>,
     _editor_subscriptions: Vec<Subscription>,
 }
@@ -41,7 +41,7 @@ impl PaneManager {
             tabs: Vec::new(),
             active_tab: 0,
             focus_handle: cx.focus_handle(),
-            theme: EditorColors::default(),
+            ui: UiColors::default(),
             socket_path: None,
             _editor_subscriptions: Vec::new(),
         }
@@ -51,8 +51,8 @@ impl PaneManager {
         self.socket_path = Some(path);
     }
 
-    pub fn set_theme(&mut self, theme: EditorColors) {
-        self.theme = theme;
+    pub fn set_theme(&mut self, ui: UiColors) {
+        self.ui = ui;
     }
 
     pub fn open_tab(&mut self, path: PathBuf, cx: &mut Context<Self>) {
@@ -199,11 +199,11 @@ impl Focusable for PaneManager {
 
 impl Render for PaneManager {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let bg = parse_hex("#1e1e2e");
-        let border = parse_hex("#313244");
-        let text = parse_hex("#cdd6f4");
-        let text_dim = parse_hex("#a6adc8");
-        let tab_bar_bg = parse_hex("#181825");
+        let bg = parse_hex(&self.ui.bg);
+        let border = parse_hex(&self.ui.border);
+        let text = parse_hex(&self.ui.text);
+        let text_dim = parse_hex(&self.ui.text_dim);
+        let tab_bar_bg = parse_hex(&self.ui.sidebar_bg);
 
         // Tab bar
         let tab_bar = div()
