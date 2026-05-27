@@ -2,7 +2,6 @@
 /// Leaf nodes hold up to CHUNK_SIZE bytes.
 /// Internal nodes hold 2 children + left subtree metrics.
 const CHUNK_SIZE: usize = 512;
-const MIN_SPLIT: usize = CHUNK_SIZE / 4;
 
 #[derive(Debug, Clone)]
 pub enum Node {
@@ -398,7 +397,9 @@ enum Edit {
         text: String,
     },
     Delete {
+        #[allow(dead_code)]
         start: usize,
+        #[allow(dead_code)]
         end: usize,
         text: String,
     },

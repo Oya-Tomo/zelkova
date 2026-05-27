@@ -9,8 +9,13 @@ use gpui::{
 
 #[derive(Debug, Clone)]
 pub enum ArgType {
-    FreeText { default: Option<String> },
-    Select { options: Vec<String> },
+    FreeText {
+        #[allow(dead_code)]
+        default: Option<String>,
+    },
+    Select {
+        options: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone)]

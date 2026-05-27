@@ -14,6 +14,7 @@ impl ImeState {
         Self { marked_range: None }
     }
 
+    #[allow(dead_code)]
     pub fn is_composing(&self) -> bool {
         self.marked_range.is_some()
     }
@@ -29,6 +30,7 @@ impl ImeState {
     }
 
     /// Take the current marked range, clearing it.
+    #[allow(dead_code)]
     pub fn take_marked(&mut self) -> Option<Range<usize>> {
         self.marked_range.take()
     }

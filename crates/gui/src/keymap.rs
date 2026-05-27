@@ -94,28 +94,6 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
     }
 }
 
-/// All action names with their display labels, for the command palette.
-pub fn all_action_entries() -> Vec<(String, String)> {
-    vec![
-        ("OpenCommandPalette".into(), "Open Command Palette".into()),
-        ("SearchNotes".into(), "Search Notes".into()),
-        ("CreateNote".into(), "Create Note".into()),
-        ("CreateFolder".into(), "Create Folder".into()),
-        ("MoveNoteToFolder".into(), "Move Note to Folder".into()),
-        ("MoveFolderToFolder".into(), "Move Folder to Folder".into()),
-        ("DeleteFolder".into(), "Delete Folder".into()),
-        ("RenameFolder".into(), "Rename Folder".into()),
-        ("DeleteNote".into(), "Delete Note".into()),
-        ("RenameNote".into(), "Rename Note".into()),
-        ("ListNotes".into(), "List Notes".into()),
-        ("ShowTags".into(), "Show Tags".into()),
-        ("ToggleSidebar".into(), "Toggle Sidebar".into()),
-        ("ToggleViewMode".into(), "Toggle View Mode".into()),
-        ("SaveNote".into(), "Save Note".into()),
-        ("Quit".into(), "Quit".into()),
-    ]
-}
-
 /// Command specs with argument definitions for the command palette.
 /// `folder_names` and `note_titles` are populated from daemon data to
 /// fill Select-style argument options dynamically.
