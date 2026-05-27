@@ -502,7 +502,7 @@ fn render_inline(
             .child(inline_to_string(text))
             .into_any_element(),
         Inline::Image { alt, url, .. } => {
-            let resolved = resolve_preview_image_path(note_path, url);
+            let resolved = crate::editor::util::resolve_image_path(note_path, url);
             if resolved.exists() {
                 let _alt_text = alt.clone();
                 div()
@@ -600,25 +600,4 @@ fn build_code_highlights(
             })
         })
         .collect()
-}
-
-/// Resolve an image URL to an absolute path for preview rendering.
-fn resolve_preview_image_path(
-    note_path: Option<&std::path::Path>,
-    url: &str,
-) -> std::path::PathBuf {
-    let url = url.trim();
-    if url.starts_with('/') {
-        return std::path::PathBuf::from(url);
-    }
-    if let Some(rest) = url.strip_prefix("~/") {
-        if let Ok(home) = std::env::var("HOME") {
-            return std::path::PathBuf::from(home).join(rest);
-        }
-        return std::path::PathBuf::from(format!("/{rest}"));
-    }
-    if let Some(dir) = note_path.and_then(|p| p.parent()) {
-        return dir.join(url);
-    }
-    std::path::PathBuf::from(url)
 }
