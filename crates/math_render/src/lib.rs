@@ -39,7 +39,7 @@ impl MathRenderer {
 
     /// Get cached PNG path for block math.
     pub fn get_block(&self, latex: &str) -> Option<&PathBuf> {
-        self.cache.get(&format!("b:{}", latex))
+        self.cache.get(&cache_key(latex, false))
     }
 
     /// Render inline math to PNG file. Returns cached path or None on parse failure.
@@ -49,15 +49,11 @@ impl MathRenderer {
 
     /// Get cached PNG path for inline math.
     pub fn get_inline(&self, latex: &str) -> Option<&PathBuf> {
-        self.cache.get(&format!("i:{}", latex))
+        self.cache.get(&cache_key(latex, true))
     }
 
     fn render(&mut self, latex: &str, inline: bool) -> Option<PathBuf> {
-        let key = if inline {
-            format!("i:{}", latex)
-        } else {
-            format!("b:{}", latex)
-        };
+        let key = cache_key(latex, inline);
         if let Some(cached) = self.cache.get(&key) {
             return Some(cached.clone());
         }
@@ -82,6 +78,12 @@ impl Default for MathRenderer {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Build cache key including color suffix so cache invalidates on color change.
+fn cache_key(latex: &str, inline: bool) -> String {
+    let prefix = if inline { "i" } else { "b" };
+    format!("{}:{}:cdd6f4", prefix, latex)
 }
 
 /// Override glyph, line, and path colors to match the preview text color.
