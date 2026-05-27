@@ -477,16 +477,13 @@ fn render_inline(
         Inline::Math(content) => {
             let cached = math_renderer.get_inline(content);
             match cached {
-                Some(math_img) => {
-                    let display_h = math_renderer.font_size() * math_img.em_height;
-                    div()
-                        .child(
-                            img(math_img.path.clone())
-                                .object_fit(gpui::ObjectFit::Contain)
-                                .h(px(display_h)),
-                        )
-                        .into_any_element()
-                }
+                Some(math_img) => div()
+                    .child(
+                        img(math_img.path.clone())
+                            .object_fit(gpui::ObjectFit::Contain)
+                            .max_h(px(20.0)),
+                    )
+                    .into_any_element(),
                 None => div()
                     .text_color(rgb(0xcba6f7))
                     .child(content.clone())
