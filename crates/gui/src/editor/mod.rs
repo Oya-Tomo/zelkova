@@ -1060,19 +1060,17 @@ impl Render for Editor {
         // the container when content overflows horizontally. Absolute elements
         // are taken out of the normal flow, so their content never affects
         // the parent's layout size.
-        let scroll_container = div()
-            .flex_1()
-            .relative()
-            .overflow_hidden()
-            .child(
-                div()
-                    .id("editor-scroll")
-                    .absolute()
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.scroll_handle)
-                    .child(content_element),
-            );
+        let scroll_container = div().flex_1().relative().overflow_hidden().child(
+            div()
+                .id("editor-scroll")
+                .absolute()
+                .size_full()
+                .overflow_y_scroll()
+                .track_scroll(&self.scroll_handle)
+                .child(content_element),
+        );
+
+        self.scroll_to_cursor();
 
         div()
             .size_full()
