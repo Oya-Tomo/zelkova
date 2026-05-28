@@ -2,6 +2,7 @@ pub mod highlight;
 pub mod ime;
 pub mod input;
 pub mod render;
+pub mod scroll_element;
 pub mod util;
 
 pub use highlight::{
@@ -16,8 +17,8 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use gpui::{
-    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, ScrollHandle,
-    SharedString, StyledText, Window, div, prelude::*, px,
+    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Point, Render,
+    ScrollHandle, SharedString, StyledText, Window, canvas, div, prelude::*, px,
 };
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
@@ -57,6 +58,7 @@ pub struct Editor {
     pub(super) dragging: bool,
     pub(super) scroll_handle: ScrollHandle,
     wrap: bool,
+    scroll_x: f32,
 }
 
 impl Editor {
@@ -83,6 +85,7 @@ impl Editor {
             dragging: false,
             scroll_handle: ScrollHandle::new(),
             wrap: true,
+            scroll_x: 0.0,
         }
     }
 
@@ -119,6 +122,7 @@ impl Editor {
             dragging: false,
             scroll_handle: ScrollHandle::new(),
             wrap: true,
+            scroll_x: 0.0,
         })
     }
 
@@ -136,13 +140,44 @@ impl Editor {
         self.wrap = wrap;
     }
 
-    pub(super) fn scroll_to_cursor(&self, header_count: usize) {
+    pub(super) fn scroll_to_cursor(&mut self) {
         if self.edit_zone != EditZone::Content {
             return;
         }
-        let (cursor_line, _) = self.byte_to_line_col(self.cursor_pos);
-        self.scroll_handle
-            .scroll_to_item(cursor_line + header_count);
+        let (cursor_line, cursor_col) = self.byte_to_line_col(self.cursor_pos);
+        let line_height = 22.0_f32;
+        let cursor_y = cursor_line as f32 * line_height;
+        let viewport = self.scroll_handle.bounds();
+        let offset = self.scroll_handle.offset();
+
+        // Vertical scroll
+        let visible_top = -f32::from(offset.y);
+        let visible_bottom = visible_top + f32::from(viewport.size.height);
+
+        if cursor_y < visible_top {
+            self.scroll_handle
+                .set_offset(Point::new(offset.x, px(-cursor_y)));
+        } else if cursor_y + line_height > visible_bottom {
+            self.scroll_handle.set_offset(Point::new(
+                offset.x,
+                px(-(cursor_y + line_height - f32::from(viewport.size.height))),
+            ));
+        }
+
+        // Horizontal scroll (only when wrap=false)
+        if !self.wrap {
+            let ascii_char_width = 7.2_f32;
+            let cursor_x = cursor_col as f32 * ascii_char_width;
+            let viewport_width = f32::from(viewport.size.width);
+            let visible_left = self.scroll_x;
+            let visible_right = self.scroll_x + viewport_width;
+
+            if cursor_x < visible_left {
+                self.scroll_x = (cursor_x - 20.0).max(0.0);
+            } else if cursor_x > visible_right {
+                self.scroll_x = cursor_x - viewport_width + 20.0;
+            }
+        }
     }
 
     pub fn text(&self) -> &str {
@@ -294,6 +329,7 @@ impl Editor {
     fn handle_move_left(&mut self, _: &MoveLeft, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(sel) = self.selection.take() {
             self.cursor_pos = sel.start;
+            self.scroll_to_cursor();
             cx.notify();
             return;
         }
@@ -318,6 +354,7 @@ impl Editor {
                         .map(|c| c.len_utf8())
                         .unwrap_or(1);
                     self.cursor_pos -= prev_len;
+                    self.scroll_to_cursor();
                     cx.notify();
                 }
             }
@@ -327,6 +364,7 @@ impl Editor {
     fn handle_move_right(&mut self, _: &MoveRight, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(sel) = self.selection.take() {
             self.cursor_pos = sel.end;
+            self.scroll_to_cursor();
             cx.notify();
             return;
         }
@@ -357,6 +395,7 @@ impl Editor {
                         .map(|c| c.len_utf8())
                         .unwrap_or(1);
                     self.cursor_pos += next_len;
+                    self.scroll_to_cursor();
                     cx.notify();
                 }
             }
@@ -603,6 +642,7 @@ impl Editor {
                     cx.notify();
                 } else if line > 0 {
                     self.cursor_pos = self.line_col_to_byte(line - 1, col);
+                    self.scroll_to_cursor();
                     cx.notify();
                 }
             }
@@ -623,12 +663,14 @@ impl Editor {
                 let saved_cursor = self.commit_tag_input();
                 self.edit_zone = EditZone::Content;
                 self.cursor_pos = self.line_col_to_byte(0, saved_cursor);
+                self.scroll_to_cursor();
                 cx.notify();
             }
             EditZone::Content => {
                 let (line, col) = self.byte_to_line_col(self.cursor_pos);
                 if line + 1 < total_lines {
                     self.cursor_pos = self.line_col_to_byte(line + 1, col);
+                    self.scroll_to_cursor();
                     cx.notify();
                 }
             }
@@ -677,6 +719,7 @@ impl Editor {
                     self.cache_edit(sel.start, sel.end, "");
                     self.cursor_pos = sel.start;
                     self.dirty = true;
+                    self.scroll_to_cursor();
                     cx.notify();
                     return;
                 }
@@ -691,6 +734,7 @@ impl Editor {
                     self.cache_edit(start, self.cursor_pos, "");
                     self.cursor_pos = start;
                     self.dirty = true;
+                    self.scroll_to_cursor();
                     cx.notify();
                 }
             }
@@ -721,6 +765,7 @@ impl Editor {
                 self.cache_edit(self.cursor_pos, self.cursor_pos, "\n");
                 self.cursor_pos += 1;
                 self.dirty = true;
+                self.scroll_to_cursor();
                 cx.notify();
             }
         }
@@ -789,7 +834,7 @@ impl Focusable for Editor {
 }
 
 impl Render for Editor {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let lines = &self.cached_lines;
         let (cursor_line, cursor_col) = self.byte_to_line_col(self.cursor_pos);
         let ascii_char_width = 7.2_f32;
@@ -798,16 +843,20 @@ impl Render for Editor {
         let header_children = self.render_frontmatter_header(cx);
 
         // --- Content lines ---
-        let mut children = Vec::new();
-
-        // Lazy highlight: rebuild only when dirty. First render shows plain text,
-        // then highlights are built and displayed on next frame.
+        // Lazy highlight: rebuild only when dirty.
         if self.highlights_dirty {
             self.cached_highlights = render::build_highlights(lines, &self.resolved_colors);
             self.highlights_dirty = false;
         }
 
         let has_highlights = !self.cached_highlights.is_empty();
+
+        let focus_handle = self.focus_handle.clone();
+        let entity = cx.entity();
+
+        let mut children: Vec<gpui::AnyElement> = Vec::new();
+
+        let scroll_x = self.scroll_x;
 
         for (line_idx, line_text) in lines.iter().enumerate() {
             let display_text = if line_text.is_empty() {
@@ -817,7 +866,8 @@ impl Render for Editor {
             };
 
             let mut line_div = div()
-                .w_full()
+                .when(self.wrap, |el| el.w_full())
+                .when(!self.wrap, |el| el.whitespace_nowrap().flex_shrink_0())
                 .when(!self.wrap, |el| el.h(px(22.0)))
                 .when(self.wrap, |el| el.min_h(px(22.0)).whitespace_normal())
                 .flex()
@@ -831,7 +881,12 @@ impl Render for Editor {
                         this.dragging = true;
                         let click_line = line_idx;
                         let line_text = this.line_text(click_line);
-                        let click_col = pixel_to_col(line_text, event.position.x, ascii_char_width);
+                        let adjusted_x = if this.wrap {
+                            event.position.x
+                        } else {
+                            px(f32::from(event.position.x) + this.scroll_x)
+                        };
+                        let click_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
                         this.cursor_pos = this.line_col_to_byte(click_line, click_col);
                         this.selection = None;
                         cx.notify();
@@ -844,7 +899,12 @@ impl Render for Editor {
                         }
                         let move_line = line_idx;
                         let line_text = this.line_text(move_line);
-                        let move_col = pixel_to_col(line_text, event.position.x, ascii_char_width);
+                        let adjusted_x = if this.wrap {
+                            event.position.x
+                        } else {
+                            px(f32::from(event.position.x) + this.scroll_x)
+                        };
+                        let move_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
                         let new_pos = this.line_col_to_byte(move_line, move_col);
                         this.extend_selection(new_pos);
                         cx.notify();
@@ -890,7 +950,6 @@ impl Render for Editor {
         // Group consecutive lines with images so their images display side-by-side.
         {
             let line_count = lines.len();
-            // Build a list of (insert_after_idx, image_urls) for consecutive groups
             let mut groups: Vec<(usize, Vec<String>)> = Vec::new();
             let mut i = 0;
             while i < line_count {
@@ -906,7 +965,6 @@ impl Render for Editor {
                     i += 1;
                     continue;
                 }
-                // Found start of a consecutive image group
                 let mut group_urls = Vec::new();
                 let group_start = i;
                 while i < line_count {
@@ -924,11 +982,9 @@ impl Render for Editor {
                     group_urls.extend(line_urls);
                     i += 1;
                 }
-                // Insert after the last line of this group (index in children = group_start + offset)
                 groups.push((group_start + (i - group_start), group_urls));
             }
 
-            // Insert image rows in reverse order so indices stay valid
             for (insert_after, urls) in groups.into_iter().rev() {
                 if insert_after <= children.len() {
                     children.insert(insert_after, self.render_image_row(&urls));
@@ -942,39 +998,44 @@ impl Render for Editor {
             cx.notify();
         }
 
-        // Register input handler when focused
-        if self.focus_handle.is_focused(window) {
-            window.handle_input(
-                &self.focus_handle,
-                ElementInputHandler::new(gpui::Bounds::default(), cx.entity()),
-                cx,
-            );
-        }
+        let content_element = if self.wrap {
+            div()
+                .flex()
+                .flex_col()
+                .flex_shrink_0()
+                .children(children)
+                .into_any_element()
+        } else {
+            let content_div = div().flex().flex_col().flex_shrink_0().children(children);
+            scroll_element::EditorContentElement::new(
+                content_div.into_any_element(),
+                scroll_x,
+                entity.clone(),
+            )
+            .into_any_element()
+        };
 
-        let header_count = header_children.len();
-        self.scroll_to_cursor(header_count);
-
-        // Inner div takes natural height from children, allowing the outer
-        // scroll container to detect overflow and enable scrolling.
-        let content_div = div()
-            .flex()
-            .flex_col()
-            .flex_shrink_0()
-            .children(header_children)
-            .children(children);
+        let scroll_div = div()
+            .id("editor-scroll")
+            .flex_1()
+            .w_full()
+            .max_w_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll_handle)
+            .child(content_element);
 
         div()
-            .id("editor-scroll")
             .size_full()
-            .when(self.wrap, |el| el.overflow_y_scroll())
-            .when(!self.wrap, |el| el.overflow_scroll())
-            .track_scroll(&self.scroll_handle)
+            .flex()
+            .flex_col()
+            .overflow_hidden()
             .track_focus(&self.focus_handle)
             .text_color(self.resolved_colors.text)
             .text_sm()
             .font_family("monospace")
             .p(px(8.0))
-            .child(content_div)
+            .children(header_children)
+            .child(scroll_div)
             .on_action(cx.listener(Editor::handle_move_left))
             .on_action(cx.listener(Editor::handle_move_right))
             .on_action(cx.listener(Editor::handle_move_up))
@@ -997,6 +1058,25 @@ impl Render for Editor {
                 cx.listener(|this, _event, _window, _cx| {
                     this.dragging = false;
                 }),
+            )
+            .child(
+                canvas(
+                    move |_bounds, _window, _cx| {},
+                    move |_bounds, _state, window, cx| {
+                        if focus_handle.is_focused(window) {
+                            window.handle_input(
+                                &focus_handle,
+                                ElementInputHandler::new(gpui::Bounds::default(), entity.clone()),
+                                cx,
+                            );
+                        }
+                    },
+                )
+                .absolute()
+                .left(px(0.))
+                .top(px(0.))
+                .w(px(0.))
+                .h(px(0.)),
             )
     }
 }
