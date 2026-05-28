@@ -1070,8 +1070,6 @@ impl Render for Editor {
                 .child(content_element),
         );
 
-        self.scroll_to_cursor();
-
         div()
             .size_full()
             .flex()
