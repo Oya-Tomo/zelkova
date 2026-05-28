@@ -59,6 +59,9 @@ pub struct Editor {
     pub(super) scroll_handle: ScrollHandle,
     wrap: bool,
     scroll_x: f32,
+    /// Cumulative Y offset for each line, accounting for image row heights.
+    /// Computed during render, used by scroll_to_cursor.
+    line_y_offsets: Vec<f32>,
 }
 
 impl Editor {
@@ -86,6 +89,7 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             scroll_x: 0.0,
+            line_y_offsets: Vec::new(),
         }
     }
 
@@ -123,6 +127,7 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             scroll_x: 0.0,
+            line_y_offsets: Vec::new(),
         })
     }
 
@@ -146,7 +151,11 @@ impl Editor {
         }
         let (cursor_line, cursor_col) = self.byte_to_line_col(self.cursor_pos);
         let line_height = 22.0_f32;
-        let cursor_y = cursor_line as f32 * line_height;
+        let cursor_y = self
+            .line_y_offsets
+            .get(cursor_line)
+            .copied()
+            .unwrap_or(cursor_line as f32 * line_height);
         let viewport = self.scroll_handle.bounds();
         let offset = self.scroll_handle.offset();
 
@@ -994,6 +1003,27 @@ impl Render for Editor {
                 }
                 groups.push((group_start + (i - group_start), group_urls));
             }
+
+            // Compute cumulative Y offsets for each line, including image row heights.
+            // insert_after = line index AFTER the last line in the group; the image row
+            // is inserted there. Estimated height: max_h(200) + py(8) = 208px.
+            let image_row_height = 208.0_f32;
+            let mut offsets = Vec::with_capacity(lines.len());
+            let mut y = 0.0;
+            let mut img_positions: Vec<usize> = groups.iter().map(|(pos, _)| *pos).collect();
+            img_positions.sort_unstable();
+            let mut next_img = img_positions.first().copied();
+            let mut img_idx = 0;
+            for line_idx in 0..lines.len() {
+                offsets.push(y);
+                y += 22.0;
+                if Some(line_idx + 1) == next_img {
+                    y += image_row_height;
+                    img_idx += 1;
+                    next_img = img_positions.get(img_idx).copied();
+                }
+            }
+            self.line_y_offsets = offsets;
 
             for (insert_after, urls) in groups.into_iter().rev() {
                 if insert_after <= children.len() {
