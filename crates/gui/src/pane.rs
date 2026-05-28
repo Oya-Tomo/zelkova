@@ -251,11 +251,13 @@ impl Render for PaneManager {
             match tab.view_mode {
                 ViewMode::Editor => div()
                     .flex_1()
+                    .min_w(px(0.0))
                     .overflow_hidden()
                     .child(tab.editor.clone())
                     .into_any_element(),
                 ViewMode::Preview => div()
                     .flex_1()
+                    .min_w(px(0.0))
                     .overflow_hidden()
                     .child(tab.preview.clone())
                     .into_any_element(),
@@ -263,9 +265,21 @@ impl Render for PaneManager {
                     .flex()
                     .flex_row()
                     .flex_1()
-                    .child(div().flex_1().overflow_hidden().child(tab.editor.clone()))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .overflow_hidden()
+                            .child(tab.editor.clone()),
+                    )
                     .child(div().w(px(1.0)).bg(border))
-                    .child(div().flex_1().overflow_hidden().child(tab.preview.clone()))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .overflow_hidden()
+                            .child(tab.preview.clone()),
+                    )
                     .into_any_element(),
             }
         } else {

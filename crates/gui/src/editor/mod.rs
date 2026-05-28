@@ -177,6 +177,16 @@ impl Editor {
             } else if cursor_x > visible_right {
                 self.scroll_x = cursor_x - viewport_width + 20.0;
             }
+
+            // Clamp to content: when lines shrink (e.g. backspace), scroll_x
+            // must not exceed the new max_scroll_x.
+            let max_width = self
+                .cached_lines
+                .iter()
+                .map(|l| l.chars().count() as f32 * ascii_char_width)
+                .fold(0.0_f32, f32::max);
+            let max_scroll_x = (max_width - viewport_width).max(0.0);
+            self.scroll_x = self.scroll_x.min(max_scroll_x);
         }
     }
 
@@ -1015,14 +1025,24 @@ impl Render for Editor {
             .into_any_element()
         };
 
-        let scroll_div = div()
-            .id("editor-scroll")
+        // Absolute-positioned scroll_div inside a relative container.
+        // This prevents Taffy 0.9.0's min-content propagation from expanding
+        // the container when content overflows horizontally. Absolute elements
+        // are taken out of the normal flow, so their content never affects
+        // the parent's layout size.
+        let scroll_container = div()
             .flex_1()
-            .w_full()
-            .max_w_full()
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll_handle)
-            .child(content_element);
+            .relative()
+            .overflow_hidden()
+            .child(
+                div()
+                    .id("editor-scroll")
+                    .absolute()
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll_handle)
+                    .child(content_element),
+            );
 
         div()
             .size_full()
@@ -1035,7 +1055,7 @@ impl Render for Editor {
             .font_family("monospace")
             .p(px(8.0))
             .children(header_children)
-            .child(scroll_div)
+            .child(scroll_container)
             .on_action(cx.listener(Editor::handle_move_left))
             .on_action(cx.listener(Editor::handle_move_right))
             .on_action(cx.listener(Editor::handle_move_up))

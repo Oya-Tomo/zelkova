@@ -1,22 +1,20 @@
 use gpui::{
     AnyElement, App, Bounds, ContentMask, DispatchPhase, Element, ElementId, Entity,
-    GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Pixels, Point, ScrollDelta,
-    ScrollWheelEvent, Style, Window, px, relative,
+    GlobalElementId, Hitbox, InspectorElementId, IntoElement, LayoutId, Overflow, Pixels, Point,
+    ScrollDelta, ScrollWheelEvent, Style, Window, px, relative,
 };
 
 use super::Editor;
 
-/// Custom element that prevents horizontal container expansion while allowing
-/// vertical scroll via the parent's `overflow_y_scroll`.
+/// Custom element for horizontal scroll when `wrap=false`.
 ///
-/// When `wrap=false`, the content can be wider than the viewport. Standard GPUI divs
-/// expand to fit their children, which makes `content_size == bounds.size` and prevents
-/// horizontal scrolling. This element uses `relative(1.)` width in `request_layout()` to
-/// fix the element's width to the parent's width, breaking the expansion chain.
+/// Lives inside an absolutely positioned scroll_div, so content expansion
+/// never propagates to the outer layout. Uses `relative(1.)` width and
+/// `Overflow::Hidden` to stay within the scroll viewport.
 ///
 /// Horizontal scrolling is managed manually:
-/// - `scroll_x` offset is applied during prepaint via `window.with_element_offset()`
-/// - Content is clipped to viewport bounds via `window.with_content_mask()` during paint
+/// - `scroll_x` offset applied during prepaint via `window.with_element_offset()`
+/// - Content clipped to viewport bounds via `window.with_content_mask()` during paint
 /// - Scroll wheel handler registered via `window.on_mouse_event()` on the hitbox
 pub struct EditorContentElement {
     child: AnyElement,
@@ -65,6 +63,7 @@ impl Element for EditorContentElement {
 
         let mut style = Style::default();
         style.size.width = relative(1.).into();
+        style.overflow.x = Overflow::Hidden;
 
         let layout_id = window.request_layout(style, [child_layout_id], cx);
         let child = std::mem::replace(&mut self.child, gpui::Empty.into_any_element());
