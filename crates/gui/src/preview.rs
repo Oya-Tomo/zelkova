@@ -202,10 +202,12 @@ impl Render for Preview {
             .map(|block| render_block(block, &colors, file_path.as_deref(), math_renderer))
             .collect();
 
+        // Inner div takes natural height from children, allowing the outer
+        // scroll container to detect overflow and enable scrolling.
+        let content_div = div().flex().flex_col().flex_shrink_0().children(children);
+
         div()
             .id("preview-scroll")
-            .flex()
-            .flex_col()
             .size_full()
             .when(self.wrap, |el| el.overflow_y_scroll())
             .when(!self.wrap, |el| el.overflow_scroll())
@@ -214,7 +216,7 @@ impl Render for Preview {
             .text_color(text)
             .text_sm()
             .track_focus(&self.focus_handle)
-            .children(children)
+            .child(content_div)
     }
 }
 
