@@ -13,7 +13,8 @@ use crate::preview::Preview;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ViewMode {
     Editor,
-    Split,
+    SplitHorizontal,
+    SplitVertical,
     Preview,
 }
 
@@ -34,6 +35,7 @@ pub struct PaneLeaf {
     pub editor: Entity<Editor>,
     pub preview: Entity<Preview>,
     pub view_mode: ViewMode,
+    pub resize_state: Entity<ResizableState>,
 }
 
 #[derive(Clone)]
@@ -173,6 +175,7 @@ pub fn create_empty_leaf(
         editor,
         preview,
         view_mode: ViewMode::Editor,
+        resize_state: cx.new(|_| ResizableState::default()),
     }
 }
 
@@ -234,24 +237,46 @@ pub fn render_pane_node(
                         .overflow_hidden()
                         .child(leaf.preview.clone())
                         .into_any_element(),
-                    ViewMode::Split => div()
-                        .flex()
-                        .flex_row()
-                        .flex_1()
+                    ViewMode::SplitHorizontal => h_resizable(("editor-preview-split", leaf_id.0))
+                        .with_state(&leaf.resize_state)
                         .child(
-                            div()
-                                .flex_1()
-                                .min_w(px(0.0))
-                                .overflow_hidden()
-                                .child(leaf.editor.clone()),
+                            resizable_panel().child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.editor.clone()),
+                            ),
                         )
-                        .child(div().w(px(1.0)).bg(border))
                         .child(
-                            div()
-                                .flex_1()
-                                .min_w(px(0.0))
-                                .overflow_hidden()
-                                .child(leaf.preview.clone()),
+                            resizable_panel().child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.preview.clone()),
+                            ),
+                        )
+                        .into_any_element(),
+                    ViewMode::SplitVertical => v_resizable(("editor-preview-split", leaf_id.0))
+                        .with_state(&leaf.resize_state)
+                        .child(
+                            resizable_panel().child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.editor.clone()),
+                            ),
+                        )
+                        .child(
+                            resizable_panel().child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.preview.clone()),
+                            ),
                         )
                         .into_any_element(),
                 }
@@ -316,11 +341,12 @@ mod tests {
         let mode = ViewMode::Editor;
         assert_eq!(
             match mode {
-                ViewMode::Editor => ViewMode::Split,
-                ViewMode::Split => ViewMode::Preview,
+                ViewMode::Editor => ViewMode::SplitHorizontal,
+                ViewMode::SplitHorizontal => ViewMode::SplitVertical,
+                ViewMode::SplitVertical => ViewMode::Preview,
                 ViewMode::Preview => ViewMode::Editor,
             },
-            ViewMode::Split
+            ViewMode::SplitHorizontal
         );
     }
 }

@@ -6,7 +6,7 @@ use gpui::{
     Window, div, prelude::*, px,
 };
 use gpui_component::Selectable;
-use gpui_component::resizable::ResizableState;
+use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel, v_resizable};
 use gpui_component::tab::{Tab, TabBar};
 use zelkova_config::UiColors;
 
@@ -79,6 +79,7 @@ impl TabManager {
             editor,
             preview,
             view_mode: ViewMode::Editor,
+            resize_state: cx.new(|_| ResizableState::default()),
         };
 
         Self {
@@ -270,6 +271,7 @@ impl TabManager {
                     editor: old_leaf.editor.clone(),
                     preview: old_leaf.preview.clone(),
                     view_mode: old_leaf.view_mode,
+                    resize_state: old_leaf.resize_state.clone(),
                 };
                 tab.root = PaneNode::Split {
                     id: split_id,
@@ -313,6 +315,7 @@ impl TabManager {
                     editor: leaf.editor.clone(),
                     preview: leaf.preview.clone(),
                     view_mode: leaf.view_mode,
+                    resize_state: leaf.resize_state.clone(),
                 };
                 *node = PaneNode::Split {
                     id: split_id,
@@ -367,6 +370,7 @@ impl TabManager {
                     leaf.editor = cx.new(|cx| Editor::new(cx));
                     leaf.preview = cx.new(|cx| Preview::from_markdown("", None, cx));
                     leaf.view_mode = ViewMode::Editor;
+                    leaf.resize_state = cx.new(|_| ResizableState::default());
                 }
                 cx.notify();
                 return;
@@ -429,8 +433,9 @@ impl TabManager {
         let tab = self.active_tab_mut();
         if let Some(leaf) = tab.root.find_leaf_mut(tab.focused) {
             leaf.view_mode = match leaf.view_mode {
-                ViewMode::Editor => ViewMode::Split,
-                ViewMode::Split => ViewMode::Preview,
+                ViewMode::Editor => ViewMode::SplitHorizontal,
+                ViewMode::SplitHorizontal => ViewMode::SplitVertical,
+                ViewMode::SplitVertical => ViewMode::Preview,
                 ViewMode::Preview => ViewMode::Editor,
             };
             let text = leaf.editor.read(cx).text().to_string();
@@ -555,7 +560,9 @@ impl Render for TabManager {
             match leaf.view_mode {
                 ViewMode::Editor => leaf.editor.focus_handle(cx).focus(window),
                 ViewMode::Preview => leaf.preview.focus_handle(cx).focus(window),
-                ViewMode::Split => leaf.editor.focus_handle(cx).focus(window),
+                ViewMode::SplitHorizontal | ViewMode::SplitVertical => {
+                    leaf.editor.focus_handle(cx).focus(window)
+                }
             }
         } else {
             self.focus_handle.focus(window);
@@ -617,24 +624,48 @@ impl Render for TabManager {
                             .overflow_hidden()
                             .child(leaf.preview.clone())
                             .into_any_element(),
-                        ViewMode::Split => div()
-                            .flex()
-                            .flex_row()
-                            .flex_1()
+                        ViewMode::SplitHorizontal => {
+                            h_resizable(("editor-preview-split", leaf.id.0))
+                                .with_state(&leaf.resize_state)
+                                .child(
+                                    resizable_panel().child(
+                                        div()
+                                            .flex_1()
+                                            .min_w(px(0.0))
+                                            .overflow_hidden()
+                                            .child(leaf.editor.clone()),
+                                    ),
+                                )
+                                .child(
+                                    resizable_panel().child(
+                                        div()
+                                            .flex_1()
+                                            .min_w(px(0.0))
+                                            .overflow_hidden()
+                                            .child(leaf.preview.clone()),
+                                    ),
+                                )
+                                .into_any_element()
+                        }
+                        ViewMode::SplitVertical => v_resizable(("editor-preview-split", leaf.id.0))
+                            .with_state(&leaf.resize_state)
                             .child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.editor.clone()),
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.editor.clone()),
+                                ),
                             )
-                            .child(div().w(px(1.0)).bg(border))
                             .child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.preview.clone()),
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.preview.clone()),
+                                ),
                             )
                             .into_any_element(),
                     }
