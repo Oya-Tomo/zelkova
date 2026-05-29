@@ -4,6 +4,7 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window, div,
     prelude::*, px,
 };
+use gpui_component::tab::{Tab, TabBar};
 use zelkova_config::UiColors;
 
 use crate::editor::Editor;
@@ -18,7 +19,7 @@ pub enum ViewMode {
     Preview,
 }
 
-pub struct Tab {
+pub struct EditorTab {
     pub title: String,
     pub file_path: Option<PathBuf>,
     pub editor: Entity<Editor>,
@@ -27,7 +28,7 @@ pub struct Tab {
 }
 
 pub struct PaneManager {
-    tabs: Vec<Tab>,
+    tabs: Vec<EditorTab>,
     active_tab: usize,
     focus_handle: FocusHandle,
     ui: UiColors,
@@ -97,7 +98,7 @@ impl PaneManager {
         let preview = cx.new(|cx| Preview::from_markdown(&text, Some(path.clone()), cx));
         preview.update(cx, |p, _| p.set_wrap(self.preview_wrap));
 
-        self.tabs.push(Tab {
+        self.tabs.push(EditorTab {
             title,
             file_path: Some(path),
             editor: editor.clone(),
@@ -126,15 +127,19 @@ impl PaneManager {
         cx.notify();
     }
 
-    #[allow(dead_code)]
-    pub fn close_active_tab(&mut self) {
-        if self.tabs.is_empty() {
+    pub fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() {
             return;
         }
-        self.tabs.remove(self.active_tab);
-        if self.active_tab >= self.tabs.len() && !self.tabs.is_empty() {
+        self.tabs.remove(index);
+        if self.tabs.is_empty() {
+            self.active_tab = 0;
+        } else if index < self.active_tab {
+            self.active_tab -= 1;
+        } else if index == self.active_tab && self.active_tab >= self.tabs.len() {
             self.active_tab = self.tabs.len() - 1;
         }
+        cx.notify();
     }
 
     #[allow(dead_code)]
@@ -216,34 +221,29 @@ impl Render for PaneManager {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let bg = parse_hex(&self.ui.bg);
         let border = parse_hex(&self.ui.border);
-        let text = parse_hex(&self.ui.text);
         let text_dim = parse_hex(&self.ui.text_dim);
-        let tab_bar_bg = parse_hex(&self.ui.sidebar_bg);
 
         // Tab bar
-        let tab_bar = div()
-            .flex()
-            .flex_row()
-            .w_full()
-            .h(px(32.0))
-            .bg(tab_bar_bg)
-            .border_b_1()
-            .border_color(border)
+        let tab_bar = TabBar::new("tab-bar")
             .children(self.tabs.iter().enumerate().map(|(i, tab)| {
-                let is_active = i == self.active_tab;
-                let tab_bg = if is_active { bg } else { tab_bar_bg };
-                let tab_text = if is_active { text } else { text_dim };
-                div()
-                    .px(px(12.0))
-                    .flex()
-                    .items_center()
-                    .h(px(32.0))
-                    .bg(tab_bg)
-                    .border_r_1()
-                    .border_color(border)
-                    .text_color(tab_text)
-                    .text_xs()
-                    .child(tab.title.clone())
+                let close_index = i;
+                Tab::from(tab.title.clone()).suffix(
+                    div()
+                        .text_xs()
+                        .cursor(gpui::CursorStyle::PointingHand)
+                        .child("×")
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _event, _window, cx| {
+                                this.close_tab(close_index, cx);
+                            }),
+                        ),
+                )
+            }))
+            .selected_index(self.active_tab)
+            .on_click(cx.listener(|this, index, _window, cx| {
+                this.active_tab = *index;
+                cx.notify();
             }));
 
         // Content area
