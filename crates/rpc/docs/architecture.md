@@ -2,32 +2,32 @@
 
 ## Role
 
-JSON-RPC 2.0 over Unix domain socketsによるプロセス間通信 (CLI/CLI ↔ デーモン) を提供するcrate。
+A crate providing inter-process communication (CLI/GUI ↔ daemon) via JSON-RPC 2.0 over Unix domain sockets.
 
 ## Module Layout
 
 ```
 src/
-├── lib.rs      モジュール宣言, typesのre-export
-├── types.rs    JSON-RPC型, メソッド定数, パラメータ/結果構造体
-├── server.rs   RpcServer — ソケットのbind, accept, 接続処理
-└── client.rs   RpcClient — 高レベルAPI (各RPCメソッドのラッパー)
+├── lib.rs      Module declarations, re-exports of types
+├── types.rs    JSON-RPC types, method constants, parameter/result structs
+├── server.rs   RpcServer — socket bind, accept, connection handling
+└── client.rs   RpcClient — high-level API (wrapper for each RPC method)
 ```
 
 ## Dependencies
 
-- `serde` / `serde_json` — JSON-RPCメッセージのシリアライズ
+- `serde` / `serde_json` — JSON-RPC message serialization
 - `uuid` — Note ID
-- `anyhow` — エラーハンドリング
+- `anyhow` — Error handling
 
 ## Key Types / APIs
 
-### JSON-RPC基本型 (types.rs)
+### JSON-RPC Base Types (types.rs)
 
 ```rust
 struct JsonRpcRequest {
-    jsonrpc: String,              // 常に "2.0"
-    id: Option<Value>,            // リクエストID (通知の場合はNone)
+    jsonrpc: String,              // Always "2.0"
+    id: Option<Value>,            // Request ID (None for notifications)
     method: String,
     params: Option<Value>,
 }
@@ -46,41 +46,41 @@ struct JsonRpcError {
 }
 ```
 
-**JsonRpcErrorヘルパー:**
+**JsonRpcError helpers:**
 
-| メソッド | コード | 用途 |
+| Method | Code | Purpose |
 |---|---|---|
-| `not_found(msg)` | `-32001` | リソース未検出 |
-| `invalid_params(msg)` | `-32602` | パラメータ不正 |
-| `internal(msg)` | `-32603` | 内部エラー |
+| `not_found(msg)` | `-32001` | Resource not found |
+| `invalid_params(msg)` | `-32602` | Invalid parameters |
+| `internal(msg)` | `-32603` | Internal error |
 
-**JsonRpcRequestヘルパー:**
-- `new(id, method, params)` — 通常リクエスト (ID付き)
-- `notification(method, params)` — 通知 (IDなし)
+**JsonRpcRequest helpers:**
+- `new(id, method, params)` — Regular request (with ID)
+- `notification(method, params)` — Notification (without ID)
 
-**JsonRpcResponseヘルパー:**
-- `success(id, result)` — 成功レスポンス
-- `error(id, error)` — エラーレスポンス
+**JsonRpcResponse helpers:**
+- `success(id, result)` — Success response
+- `error(id, error)` — Error response
 
-### メソッド定数
+### Method Constants
 
-| 定数 | 値 | パラメータ | レスポンス |
+| Constant | Value | Parameters | Response |
 |---|---|---|---|
 | `METHOD_SEARCH` | `"search"` | `SearchParams` | `SearchResults` |
 | `METHOD_LIST_NOTES` | `"list_notes"` | `ListNotesParams` | `ListNotesResult` |
 | `METHOD_GET_NOTE` | `"get_note"` | `GetNoteParams` | `GetNoteResult` |
 | `METHOD_CREATE_NOTE` | `"create_note"` | `CreateNoteParams` | `CreateNoteResult` |
-| `METHOD_TAGS` | `"tags"` | なし | `TagsResult` |
-| `METHOD_REBUILD_INDEX` | `"rebuild_index"` | なし | `RebuildIndexResult` |
+| `METHOD_TAGS` | `"tags"` | None | `TagsResult` |
+| `METHOD_REBUILD_INDEX` | `"rebuild_index"` | None | `RebuildIndexResult` |
 | `METHOD_NOTE_UPDATED` | `"note_updated"` | `NoteUpdatedParams` | `{status: "ok"}` |
 
-### パラメータ/結果型
+### Parameter/Result Types
 
 ```rust
 struct SearchParams {
     query: String,
-    tags: Vec<String>,          // デフォルト空
-    limit: Option<usize>,       // デフォルトNone
+    tags: Vec<String>,          // Default: empty
+    limit: Option<usize>,       // Default: None
 }
 
 struct SearchResults {
@@ -151,7 +151,7 @@ struct NoteUpdatedParams {
 
 ### RpcServer (server.rs)
 
-デーモン側のサーバー。
+Server for the daemon side.
 
 ```rust
 struct RpcServer {
@@ -160,19 +160,19 @@ struct RpcServer {
 }
 ```
 
-| メソッド | 説明 |
+| Method | Description |
 |---|---|
-| `bind(socket_path)` | ソケットを作成してバインド (既存ファイルは削除) |
-| `accept_one(handler)` | 1接続を受け付け、handlerで処理 |
-| `socket_path()` | ソケットパスへの参照 |
+| `bind(socket_path)` | Create and bind socket (deletes existing file) |
+| `accept_one(handler)` | Accept one connection and process with handler |
+| `socket_path()` | Reference to socket path |
 
-**Drop実装:** ソケットファイルを自動削除。
+**Drop implementation:** Automatically deletes the socket file.
 
-**プロトコル:** 1行 = 1JSON-RPCメッセージ。リクエスト→レスポンスの1往復で接続を閉じる。
+**Protocol:** One line = one JSON-RPC message. Connection closes after a single request-response round trip.
 
 ### RpcClient (client.rs)
 
-CLI側のクライアント。
+Client for the CLI side.
 
 ```rust
 struct RpcClient {
@@ -180,23 +180,23 @@ struct RpcClient {
 }
 ```
 
-| メソッド | 対応RPC | 説明 |
+| Method | Corresponding RPC | Description |
 |---|---|---|
-| `new(socket_path)` | — | クライアントを初期化 |
-| `send_request(request)` | — | 低レベル送信 (接続→書き込み→読み取り→切断) |
-| `search(query, tags, limit)` | search | ノート検索 |
-| `list_notes(tag)` | list_notes | ノート一覧 (タグフィルタ付き) |
-| `get_note(id)` | get_note | ノート詳細取得 |
-| `create_note(title, dir, tags)` | create_note | ノート作成 |
-| `tags()` | tags | 全タグ一覧 |
-| `note_updated(path)` | note_updated | ファイル更新通知 |
+| `new(socket_path)` | — | Initialize client |
+| `send_request(request)` | — | Low-level send (connect → write → read → disconnect) |
+| `search(query, tags, limit)` | search | Search notes |
+| `list_notes(tag)` | list_notes | List notes (with tag filter) |
+| `get_note(id)` | get_note | Get note details |
+| `create_note(title, dir, tags)` | create_note | Create a note |
+| `tags()` | tags | List all tags |
+| `note_updated(path)` | note_updated | Notify file update |
 
-**ID生成:** `AtomicU64`のインクリメンタルカウンター (Relaxed順序)。
+**ID generation:** Incremental counter via `AtomicU64` (Relaxed ordering).
 
 ## Data Flow
 
 ```
-CLI                              デーモン
+CLI                              Daemon
   │                                 │
   │  ── UnixStream::connect() ──>  │
   │                                 │
@@ -207,5 +207,5 @@ CLI                              デーモン
   │                                 │
   │  <── JSON response + "\n" ──  │
   │                                 │
-  │  (接続終了)                      │
+  │  (Connection closed)            │
 ```
