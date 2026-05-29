@@ -203,7 +203,6 @@ impl Editor {
         &self.cached_text
     }
 
-    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
@@ -818,7 +817,7 @@ impl Editor {
         }
     }
 
-    fn save_to_disk(&mut self) {
+    pub fn save_to_disk(&mut self) {
         if let Some(path) = &self.file_path {
             let content = if let Some(fm) = &mut self.frontmatter {
                 fm.updated = Utc::now();
