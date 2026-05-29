@@ -2,7 +2,6 @@ pub mod highlight;
 pub mod ime;
 pub mod input;
 pub mod render;
-pub mod scroll_element;
 pub mod util;
 
 pub use highlight::{
@@ -17,9 +16,10 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use gpui::{
-    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Point, Render,
-    ScrollHandle, SharedString, StyledText, Window, canvas, div, prelude::*, px,
+    App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, ScrollHandle,
+    SharedString, StyledText, Window, canvas, div, prelude::*, px,
 };
+use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
 
@@ -58,7 +58,6 @@ pub struct Editor {
     pub(super) dragging: bool,
     pub(super) scroll_handle: ScrollHandle,
     wrap: bool,
-    scroll_x: f32,
     /// Cumulative Y offset for each line, accounting for image row heights.
     /// Computed during render, used by scroll_to_cursor.
     line_y_offsets: Vec<f32>,
@@ -88,7 +87,6 @@ impl Editor {
             dragging: false,
             scroll_handle: ScrollHandle::new(),
             wrap: true,
-            scroll_x: 0.0,
             line_y_offsets: Vec::new(),
         }
     }
@@ -126,7 +124,6 @@ impl Editor {
             dragging: false,
             scroll_handle: ScrollHandle::new(),
             wrap: true,
-            scroll_x: 0.0,
             line_y_offsets: Vec::new(),
         })
     }
@@ -157,20 +154,16 @@ impl Editor {
             .copied()
             .unwrap_or(cursor_line as f32 * line_height);
         let viewport = self.scroll_handle.bounds();
-        let offset = self.scroll_handle.offset();
+        let mut offset = self.scroll_handle.offset();
 
         // Vertical scroll
         let visible_top = -f32::from(offset.y);
         let visible_bottom = visible_top + f32::from(viewport.size.height);
 
         if cursor_y < visible_top {
-            self.scroll_handle
-                .set_offset(Point::new(offset.x, px(-cursor_y)));
+            offset.y = px(-cursor_y);
         } else if cursor_y + line_height > visible_bottom {
-            self.scroll_handle.set_offset(Point::new(
-                offset.x,
-                px(-(cursor_y + line_height - f32::from(viewport.size.height))),
-            ));
+            offset.y = px(-(cursor_y + line_height - f32::from(viewport.size.height)));
         }
 
         // Horizontal scroll (only when wrap=false)
@@ -178,16 +171,16 @@ impl Editor {
             let ascii_char_width = 7.2_f32;
             let cursor_x = cursor_col as f32 * ascii_char_width;
             let viewport_width = f32::from(viewport.size.width);
-            let visible_left = self.scroll_x;
-            let visible_right = self.scroll_x + viewport_width;
+            let visible_left = -f32::from(offset.x);
+            let visible_right = visible_left + viewport_width;
 
             if cursor_x < visible_left {
-                self.scroll_x = (cursor_x - 20.0).max(0.0);
+                offset.x = px(-(cursor_x - 20.0).max(0.0));
             } else if cursor_x > visible_right {
-                self.scroll_x = cursor_x - viewport_width + 20.0;
+                offset.x = px(-(cursor_x - viewport_width + 20.0));
             }
 
-            // Clamp to content: when lines shrink (e.g. backspace), scroll_x
+            // Clamp to content: when lines shrink (e.g. backspace), scroll offset
             // must not exceed the new max_scroll_x.
             let max_width = self
                 .cached_lines
@@ -195,8 +188,13 @@ impl Editor {
                 .map(|l| l.chars().count() as f32 * ascii_char_width)
                 .fold(0.0_f32, f32::max);
             let max_scroll_x = (max_width - viewport_width).max(0.0);
-            self.scroll_x = self.scroll_x.min(max_scroll_x);
+            let current_scroll_x = -f32::from(offset.x);
+            if current_scroll_x > max_scroll_x {
+                offset.x = px(-max_scroll_x);
+            }
         }
+
+        self.scroll_handle.set_offset(offset);
     }
 
     pub fn text(&self) -> &str {
@@ -874,8 +872,6 @@ impl Render for Editor {
 
         let mut children: Vec<gpui::AnyElement> = Vec::new();
 
-        let scroll_x = self.scroll_x;
-
         for (line_idx, line_text) in lines.iter().enumerate() {
             let display_text = if line_text.is_empty() {
                 " ".to_string()
@@ -902,7 +898,8 @@ impl Render for Editor {
                         let adjusted_x = if this.wrap {
                             event.position.x
                         } else {
-                            px(f32::from(event.position.x) + this.scroll_x)
+                            px(f32::from(event.position.x)
+                                - f32::from(this.scroll_handle.offset().x))
                         };
                         let click_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
                         this.cursor_pos = this.line_col_to_byte(click_line, click_col);
@@ -920,7 +917,8 @@ impl Render for Editor {
                         let adjusted_x = if this.wrap {
                             event.position.x
                         } else {
-                            px(f32::from(event.position.x) + this.scroll_x)
+                            px(f32::from(event.position.x)
+                                - f32::from(this.scroll_handle.offset().x))
                         };
                         let move_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
                         let new_pos = this.line_col_to_byte(move_line, move_col);
@@ -1037,36 +1035,68 @@ impl Render for Editor {
             cx.notify();
         }
 
-        let content_element = if self.wrap {
-            div()
-                .flex()
-                .flex_col()
-                .flex_shrink_0()
-                .children(children)
-                .into_any_element()
+        let max_line_width = if !self.wrap {
+            lines
+                .iter()
+                .map(|l| l.chars().count() as f32 * ascii_char_width)
+                .fold(0.0_f32, f32::max)
         } else {
-            let content_div = div().flex().flex_col().flex_shrink_0().children(children);
-            scroll_element::EditorContentElement::new(
-                content_div.into_any_element(),
-                scroll_x,
-                entity.clone(),
-            )
-            .into_any_element()
+            0.0
         };
 
-        // Absolute-positioned scroll_div inside a relative container.
+        let content_element = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .when(!self.wrap, |el| {
+                el.items_start().min_w(px(max_line_width)).pb(px(16.0))
+            })
+            .children(children);
+
+        let scrollbar_axis = if self.wrap {
+            ScrollbarAxis::Vertical
+        } else {
+            ScrollbarAxis::Both
+        };
+
+        // Absolute-positioned wrapper inside a relative container.
         // This prevents Taffy 0.9.0's min-content propagation from expanding
         // the container when content overflows horizontally. Absolute elements
         // are taken out of the normal flow, so their content never affects
         // the parent's layout size.
+        //
+        // Structure (matches gpui-component Scrollable):
+        //   div.absolute.size_full          — wrapper (prevents Taffy expansion)
+        //     div#editor-scroll             — scroll area (overflow_scroll)
+        //       content_element
+        //     div.absolute.top_0.left_0…    — scrollbar overlay (sibling, not inside scroll)
+        //       Scrollbar
         let scroll_container = div().flex_1().relative().overflow_hidden().child(
             div()
-                .id("editor-scroll")
                 .absolute()
                 .size_full()
-                .overflow_y_scroll()
-                .track_scroll(&self.scroll_handle)
-                .child(content_element),
+                .child(
+                    div()
+                        .id("editor-scroll")
+                        .size_full()
+                        .when(self.wrap, |el| el.overflow_y_scroll())
+                        .when(!self.wrap, |el| el.overflow_scroll())
+                        .track_scroll(&self.scroll_handle)
+                        .child(content_element),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .child(
+                            Scrollbar::new(&self.scroll_handle)
+                                .id("editor-scrollbar")
+                                .axis(scrollbar_axis),
+                        ),
+                ),
         );
 
         div()

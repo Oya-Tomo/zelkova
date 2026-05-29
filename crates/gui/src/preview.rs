@@ -4,6 +4,7 @@ use gpui::{
     App, Context, FocusHandle, Focusable, HighlightStyle, Hsla, IntoElement, Render, ScrollHandle,
     SharedString, StyledText, Window, div, img, prelude::*, px,
 };
+use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
@@ -206,17 +207,42 @@ impl Render for Preview {
         // scroll container to detect overflow and enable scrolling.
         let content_div = div().flex().flex_col().flex_shrink_0().children(children);
 
+        let scrollbar_axis = if self.wrap {
+            ScrollbarAxis::Vertical
+        } else {
+            ScrollbarAxis::Both
+        };
+
         div()
             .id("preview-scroll")
             .size_full()
-            .when(self.wrap, |el| el.overflow_y_scroll())
-            .when(!self.wrap, |el| el.overflow_scroll())
-            .track_scroll(&self.scroll_handle)
-            .p(px(16.0))
+            .relative()
+            .track_focus(&self.focus_handle)
+            .child(
+                div()
+                    .id("preview-scroll-area")
+                    .size_full()
+                    .when(self.wrap, |el| el.overflow_y_scroll())
+                    .when(!self.wrap, |el| el.overflow_scroll())
+                    .track_scroll(&self.scroll_handle)
+                    .p(px(16.0))
+                    .child(content_div),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .bottom_0()
+                    .child(
+                        Scrollbar::new(&self.scroll_handle)
+                            .id("preview-scrollbar")
+                            .axis(scrollbar_axis),
+                    ),
+            )
             .text_color(text)
             .text_sm()
-            .track_focus(&self.focus_handle)
-            .child(content_div)
     }
 }
 
