@@ -4,6 +4,7 @@ use gpui::{
     App, Context, FocusHandle, Focusable, HighlightStyle, Hsla, IntoElement, Render, ScrollHandle,
     SharedString, StyledText, Window, div, img, prelude::*, px,
 };
+use gpui_component::scroll::{ScrollableElement, ScrollbarAxis};
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
@@ -209,9 +210,14 @@ impl Render for Preview {
         div()
             .id("preview-scroll")
             .size_full()
+            .relative()
             .when(self.wrap, |el| el.overflow_y_scroll())
             .when(!self.wrap, |el| el.overflow_scroll())
             .track_scroll(&self.scroll_handle)
+            .when(self.wrap, |el| el.vertical_scrollbar(&self.scroll_handle))
+            .when(!self.wrap, |el| {
+                el.scrollbar(&self.scroll_handle, ScrollbarAxis::Both)
+            })
             .p(px(16.0))
             .text_color(text)
             .text_sm()
