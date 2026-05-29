@@ -525,10 +525,14 @@ fn render_pane_node(
     focused: PaneId,
     border: gpui::Hsla,
     text_dim: gpui::Hsla,
+    pm: Entity<PaneManager>,
 ) -> gpui::AnyElement {
     match node {
         PaneNode::Leaf(leaf) => {
             let is_focused = leaf.id == focused;
+            let leaf_id = leaf.id;
+            let pm_focus = pm.clone();
+
             let header = div()
                 .flex()
                 .flex_row()
@@ -602,6 +606,12 @@ fn render_pane_node(
                 .flex_col()
                 .flex_1()
                 .when(is_focused, |el| el.border_1().border_color(border))
+                .on_mouse_down(gpui::MouseButton::Left, move |_event, _window, cx| {
+                    pm_focus.update(cx, |pm, cx| {
+                        pm.focused = leaf_id;
+                        cx.notify();
+                    });
+                })
                 .child(header)
                 .child(content)
                 .into_any_element()
@@ -612,8 +622,8 @@ fn render_pane_node(
             children,
             resize_state,
         } => {
-            let left = render_pane_node(&children.0, focused, border, text_dim);
-            let right = render_pane_node(&children.1, focused, border, text_dim);
+            let left = render_pane_node(&children.0, focused, border, text_dim, pm.clone());
+            let right = render_pane_node(&children.1, focused, border, text_dim, pm.clone());
 
             let group_id = ("pane-split", id.0);
 
@@ -722,7 +732,8 @@ impl Render for PaneManager {
                 main = main.child(content);
             }
             PaneNode::Split { .. } => {
-                let tree = render_pane_node(&self.root, focused, border, text_dim);
+                let pm = cx.entity().clone();
+                let tree = render_pane_node(&self.root, focused, border, text_dim, pm);
                 main = main.child(tree);
             }
         }
