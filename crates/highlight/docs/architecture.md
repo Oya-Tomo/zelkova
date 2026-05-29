@@ -2,16 +2,16 @@
 
 ## Role
 
-Tree-sitterベースのコードブロックシンタックスハイライト。GUIエディタのMarkdownコードフェンス内のソースコードを、言語ごとに構文解析してスタイル付き範囲 (`StyledRange`) を返す。
+Tree-sitter-based code block syntax highlighting. Parses source code inside Markdown code fences in the GUI editor by language and returns styled ranges (`StyledRange`).
 
-このクレートはGPUIに依存しない。色の解決（文字列→Hsla変換）はGUI側の `ResolvedColors` が行う。
+This crate does not depend on GPUI. Color resolution (string-to-Hsla conversion) is handled by `ResolvedColors` on the GUI side.
 
 ## Module Layout
 
 ```
 src/
-├── lib.rs     言語設定の遅延初期化、resolve_language、highlight_code
-└── theme.rs   CodeTheme、HIGHLIGHT_NAMES、色マッピング定義
+├── lib.rs     Lazy initialization of language configs, resolve_language, highlight_code
+└── theme.rs   CodeTheme, HIGHLIGHT_NAMES, color mapping definitions
 ```
 
 ## Supported Languages
@@ -24,18 +24,18 @@ src/
 | Go | tree-sitter-go 0.25 | `"go"` | `HIGHLIGHTS_QUERY` |
 | C | tree-sitter-c 0.24 | `"c"` | `HIGHLIGHT_QUERY` |
 
-注意: grammar crateのバージョンはバラバラだが、全て `tree-sitter-language = "0.1"` に依存するため `tree-sitter = "0.26"` と互換。
+Note: Grammar crate versions vary, but all depend on `tree-sitter-language = "0.1"`, making them compatible with `tree-sitter = "0.26"`.
 
 ## Key APIs
 
 ### `resolve_language(info: &str) -> Option<&'static str>`
 
-Markdownフェンスの情報文字列を内部言語キーに変換。
+Converts a Markdown fence info string to an internal language key.
 
 ```
 "rust" | "rs"           → "rust"
 "javascript" | "js"     → "javascript"
-"typescript" | "ts"     → "javascript"  // TSはJS文法でハイライト
+"typescript" | "ts"     → "javascript"  // TS highlighted with JS grammar
 "python" | "py"         → "python"
 "go" | "golang"         → "go"
 "c" | "h"               → "c"
@@ -43,20 +43,20 @@ Markdownフェンスの情報文字列を内部言語キーに変換。
 
 ### `highlight_code(code: &str, language: &str) -> Vec<StyledRange>`
 
-コード文字列をTree-sitterで解析し、`StyledRange` のリストを返す。各 `StyledRange` はバイト範囲とハイライトインデックスを持つ。未知の言語・空文字列は空Vec。
+Parses the code string with Tree-sitter and returns a list of `StyledRange`. Each `StyledRange` holds a byte range and a highlight index. Returns an empty Vec for unknown languages or empty strings.
 
 ### `StyledRange`
 
 ```rust
 pub struct StyledRange {
-    pub range: Range<usize>,       // バイトオフセット範囲
-    pub highlight_index: usize,    // HIGHLIGHT_NAMES のインデックス
+    pub range: Range<usize>,       // Byte offset range
+    pub highlight_index: usize,    // Index into HIGHLIGHT_NAMES
 }
 ```
 
 ### `HIGHLIGHT_NAMES`
 
-Tree-sitterに渡す12個のハイライトクラス名。インデックスが `Highlight(usize)` に対応。
+12 highlight class names passed to Tree-sitter. Indices correspond to `Highlight(usize)`.
 
 ```rust
 ["attribute", "comment", "constant", "function", "keyword",
@@ -65,38 +65,38 @@ Tree-sitterに渡す12個のハイライトクラス名。インデックスが 
 
 ### `CodeTheme`
 
-12クラスに対応する色文字列 (`#RRGGBB`) を保持。GUI側の `ResolvedColors` が同等の機能をHslaで提供するため、この構造体は直接のレンダリングには使われない。テストとcrateの独立性維持のために存在。
+Holds color strings (`#RRGGBB`) for the 12 classes. Since the GUI's `ResolvedColors` provides equivalent functionality with Hsla values, this struct is not used for direct rendering. It exists for testing and to maintain crate independence.
 
-- `CodeTheme::from_editor_colors(&EditorColors)` — 設定から構築
-- `color_by_index(usize) -> Option<&str>` — インデックスから色文字列を逆引き
+- `CodeTheme::from_editor_colors(&EditorColors)` — Construct from configuration
+- `color_by_index(usize) -> Option<&str>` — Look up color string by index
 
 ## Internal Architecture
 
 ### Lazy Configuration (`CONFIGS`)
 
-`HighlightConfiguration` の初期化は重いため、`Lazy<HashMap>` で遅延評価。各grammarのクエリ定数名に注意:
+`HighlightConfiguration` initialization is expensive, so it is lazily evaluated via `Lazy<HashMap>`. Note the query constant names per grammar:
 
-- Rust, Python, Go: `HIGHLIGHTS_QUERY` (複数形)
-- JavaScript, C: `HIGHLIGHT_QUERY` (単数形)
+- Rust, Python, Go: `HIGHLIGHTS_QUERY` (plural)
+- JavaScript, C: `HIGHLIGHT_QUERY` (singular)
 
 ### Data Flow
 
 ```
-GUI: build_highlights() がフェンス言語を検出
+GUI: build_highlights() detects fence language
   │
   ├─ resolve_language("rust") → Some("rust")
   │
   ├─ highlight_code(source, "rust")
   │   ├─ CONFIGS.get("rust") → &HighlightConfiguration
-  │   ├─ TsHighlighter::highlight() → HighlightEventストリーム
-  │   └─ イベントを畳み込んで Vec<StyledRange>
+  │   ├─ TsHighlighter::highlight() → HighlightEvent stream
+  │   └─ Fold events into Vec<StyledRange>
   │
-  └─ GUI: ResolvedColors.syntax_color(index) → Hsla を直接適用
+  └─ GUI: ResolvedColors.syntax_color(index) → Apply Hsla directly
 ```
 
 ## Dependencies
 
 - `tree-sitter = "0.26"`, `tree-sitter-highlight = "0.26"`
-- Grammar crates (0.24-0.25) → 依存先は `tree-sitter-language = "0.1"` (0.26互換)
-- `once_cell = "1"` — Lazy初期化
-- `zelkova-config` — `CodeTheme::from_editor_colors` で `EditorColors` を参照
+- Grammar crates (0.24-0.25) → depend on `tree-sitter-language = "0.1"` (0.26-compatible)
+- `once_cell = "1"` — Lazy initialization
+- `zelkova-config` — `CodeTheme::from_editor_colors` references `EditorColors`

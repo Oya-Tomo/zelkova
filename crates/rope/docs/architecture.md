@@ -2,71 +2,71 @@
 
 ## Role
 
-B-treeベースのRopeデータ構造による効率的なテキスト編集と、undo/redo付きのテキストバッファを提供するcrate。外部依存なし。
+A crate providing a B-tree-based Rope data structure for efficient text editing, along with a text buffer with undo/redo support. No external dependencies.
 
 ## Module Layout
 
 ```
 src/
-└── lib.rs    全実装 (Node, Rope, Buffer) 約545行
+└── lib.rs    All implementations (Node, Rope, Buffer) ~545 lines
 ```
 
 ## Dependencies
 
-なし (標準ライブラリのみ)
+None (standard library only)
 
 ## Key Types / APIs
 
-### 定数
+### Constants
 
-| 定数 | 値 | 用途 |
+| Constant | Value | Purpose |
 |---|---|---|
-| `CHUNK_SIZE` | 512 | リーフノードの最大バイト数 |
-| `MIN_SPLIT` | 128 (`CHUNK_SIZE / 4`) | 分割の最小閾値 (現在未使用) |
+| `CHUNK_SIZE` | 512 | Maximum bytes per leaf node |
+| `MIN_SPLIT` | 128 (`CHUNK_SIZE / 4`) | Minimum split threshold (currently unused) |
 
 ### Node enum
 
-Ropeの内部ノード。永続データ構造として不変 (insert/deleteは新しいNodeを返す)。
+Internal node of the Rope. Immutable as a persistent data structure (insert/delete return new Nodes).
 
 ```rust
 enum Node {
     Leaf {
-        text: String,         // 最大CHUNK_SIZEバイトのテキスト断片
-        line_count: usize,    // 改行数ベースの行数 (最低1)
+        text: String,         // Text fragment up to CHUNK_SIZE bytes
+        line_count: usize,    // Line count based on newline count (minimum 1)
     },
     Internal {
-        left: Box<Node>,      // 左部分木
-        right: Box<Node>,     // 右部分木
-        char_count: usize,    // 左+右の合計バイト数
-        line_count: usize,    // 左+右の合計行数
+        left: Box<Node>,      // Left subtree
+        right: Box<Node>,     // Right subtree
+        char_count: usize,    // Total byte count of left + right
+        line_count: usize,    // Total line count of left + right
     },
 }
 ```
 
-**メソッド:**
+**Methods:**
 
-| メソッド | シグネチャ | 計算量 | 説明 |
+| Method | Signature | Complexity | Description |
 |---|---|---|---|
-| `char_count` | `&self -> usize` | O(1) | バイト数を返す (リーフはtext.len、内部はキャッシュ) |
-| `line_count` | `&self -> usize` | O(1) | 行数を返す |
-| `from_str` | `&str -> Self` | O(n) | 文字列から構築。CHUNK_SIZE超過なら再帰的に分割 |
-| `insert` | `&self, usize, &str -> Self` | O(log n) | 指定位置にテキストを挿入 |
-| `delete` | `&self, usize, usize -> Self` | O(log n) | 指定範囲 [start, end) を削除 |
-| `line` | `&self, usize -> String` | O(n) worst | 指定行のテキストを取得 |
-| `text` | `&self -> String` | O(n) | 全テキストを結合して返す |
-| `char_at` | `&self, usize -> Option<char>` | O(log n) | 指定位置の文字を取得 |
+| `char_count` | `&self -> usize` | O(1) | Return byte count (leaf: text.len, internal: cached) |
+| `line_count` | `&self -> usize` | O(1) | Return line count |
+| `from_str` | `&str -> Self` | O(n) | Build from string. Splits recursively if exceeding CHUNK_SIZE |
+| `insert` | `&self, usize, &str -> Self` | O(log n) | Insert text at specified position |
+| `delete` | `&self, usize, usize -> Self` | O(log n) | Delete range [start, end) |
+| `line` | `&self, usize -> String` | O(n) worst | Get text at specified line |
+| `text` | `&self -> String` | O(n) | Concatenate and return all text |
+| `char_at` | `&self, usize -> Option<char>` | O(log n) | Get character at specified position |
 
-### 分割点の決定 (find_split_point)
+### Split Point Determination (find_split_point)
 
-`CHUNK_SIZE`を超える文字列を構築する際、中央付近で改行またはスペースを探して分割。見つからなければ中央で分割。
+When building a string that exceeds `CHUNK_SIZE`, searches for a newline or space near the midpoint to split on. Falls back to splitting at the midpoint if none is found.
 
-### リバランス (rebalance)
+### Rebalancing (rebalance)
 
-delete後に一方の子が空になった場合、もう一方の子を直接返す。それ以外は`merge`で両者を結合。
+After deletion, if one child is empty, returns the other child directly. Otherwise, merges both via `merge`.
 
 ### Rope struct
 
-Nodeのルートをラップした公開API。
+Public API wrapping the Node root.
 
 ```rust
 struct Rope {
@@ -74,21 +74,21 @@ struct Rope {
 }
 ```
 
-| メソッド | 説明 |
+| Method | Description |
 |---|---|
-| `new()` | 空のRopeを作成 |
-| `from(text)` | 文字列からRopeを作成 |
-| `char_count()` | バイト数 |
-| `line_count()` | 行数 |
-| `insert(pos, text)` | 位置posにテキストを挿入 |
-| `delete(start, end)` | 範囲を削除 |
-| `line(idx)` | 行idxの内容を取得 |
-| `text()` | 全テキストを取得 |
-| `char_at(pos)` | 位置posの文字を取得 |
+| `new()` | Create an empty Rope |
+| `from(text)` | Create a Rope from a string |
+| `char_count()` | Byte count |
+| `line_count()` | Line count |
+| `insert(pos, text)` | Insert text at position pos |
+| `delete(start, end)` | Delete range |
+| `line(idx)` | Get content of line idx |
+| `text()` | Get all text |
+| `char_at(pos)` | Get character at position pos |
 
 ### Buffer struct
 
-Ropeをラップし、undo/redoスタックを管理するテキストバッファ。
+A text buffer that wraps a Rope and manages undo/redo stacks.
 
 ```rust
 struct Buffer {
@@ -107,61 +107,61 @@ enum Edit {
 }
 ```
 
-1回の編集操作は常に`[Insert, Delete]`のペアとしてundo_stackに記録される:
-- `edit(start, end, new_text)` → Delete(旧テキスト) + Insert(新テキスト) をpush
-- `undo()` → ペアを逆順に適用 (Insertを削除、Deleteを復元)
-- `redo()` → ペアを再適用
+A single edit operation is always recorded as an `[Insert, Delete]` pair on the undo_stack:
+- `edit(start, end, new_text)` → pushes Delete(old text) + Insert(new text)
+- `undo()` → Applies the pair in reverse order (delete Insert, restore Delete)
+- `redo()` → Re-applies the pair
 
-**メソッド:**
+**Methods:**
 
-| メソッド | 説明 |
+| Method | Description |
 |---|---|
-| `new()` | 空バッファを作成 |
-| `from(text)` | 初期テキスト付きバッファを作成 |
-| `edit(start, end, new_text)` | 範囲を置換 (undo/redo記録付き) |
-| `insert(pos, text)` | `edit(pos, pos, text)` の短縮形 |
-| `delete(start, end)` | `edit(start, end, "")` の短縮形 |
-| `undo() -> bool` | 直前の編集を取り消し |
-| `redo() -> bool` | 取り消した編集を再適用 |
-| `text()` | 全テキストを取得 |
-| `line(idx)` | 行idxの内容を取得 |
-| `line_count()` | 行数 |
-| `char_count()` | バイト数 |
-| `can_undo()` | undo_stackが空でないか |
-| `can_redo()` | redo_stackが空でないか |
+| `new()` | Create an empty buffer |
+| `from(text)` | Create a buffer with initial text |
+| `edit(start, end, new_text)` | Replace range (with undo/redo recording) |
+| `insert(pos, text)` | Shorthand for `edit(pos, pos, text)` |
+| `delete(start, end)` | Shorthand for `edit(start, end, "")` |
+| `undo() -> bool` | Undo the last edit |
+| `redo() -> bool` | Redo a previously undone edit |
+| `text()` | Get all text |
+| `line(idx)` | Get content of line idx |
+| `line_count()` | Line count |
+| `char_count()` | Byte count |
+| `can_undo()` | Whether undo_stack is non-empty |
+| `can_redo()` | Whether redo_stack is non-empty |
 
 ## Data Flow
 
 ```
-テキスト挿入:
+Text insertion:
   Buffer::edit(start, end, "new")
-    ├── rope.delete(start, end)        → 新しいNodeツリー
-    ├── rope.insert(start, "new")      → 新しいNodeツリー
+    ├── rope.delete(start, end)        → New Node tree
+    ├── rope.insert(start, "new")      → New Node tree
     ├── undo_stack.push(Insert{...})
     ├── undo_stack.push(Delete{...})
     └── redo_stack.clear()
 
 undo:
-  undo_stackから[Insert, Delete]ペアをpop
-    ├── Insertのテキストをrope.delete()で削除
-    ├── Deleteのテキストをrope.insert()で復元
-    └── ペアをredo_stackにpush
+  Pop [Insert, Delete] pair from undo_stack
+    ├── Delete text from Insert via rope.delete()
+    ├── Restore text from Delete via rope.insert()
+    └── Push pair to redo_stack
 
 redo:
-  redo_stackから[Insert, Delete]ペアをpop
-    ├── Deleteのテキストをrope.delete()で削除
-    ├── Insertのテキストをrope.insert()で再挿入
-    └── ペアをundo_stackにpush
+  Pop [Insert, Delete] pair from redo_stack
+    ├── Delete text from Delete via rope.delete()
+    ├── Re-insert text from Insert via rope.insert()
+    └── Push pair to undo_stack
 ```
 
-### Rope内部構造のイメージ
+### Rope Internal Structure Example
 
 ```
-"Hello World\nFoo\nBar" → CHUNK_SIZE=512以下なので単一リーフ:
+"Hello World\nFoo\nBar" → Under CHUNK_SIZE=512, single leaf:
 
 Node::Leaf { text: "Hello World\nFoo\nBar", line_count: 3 }
 
-大きなテキスト (>512バイト):
+Large text (>512 bytes):
           Internal { char_count: 1200, line_count: 30 }
          /                                              \
   Leaf { text: "...512B...", line_count: 15 }    Internal { char_count: 688, line_count: 15 }
