@@ -230,7 +230,6 @@ impl Focusable for PaneManager {
 
 impl Render for PaneManager {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let bg = parse_hex(&self.ui.bg);
         let border = parse_hex(&self.ui.border);
         let text_dim = parse_hex(&self.ui.text_dim);
 
