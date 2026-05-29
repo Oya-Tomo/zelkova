@@ -21,7 +21,8 @@ main (protected, always stable)
 - **Branch naming**: `<prefix>/<issue-number>-<task-description>`
 - **Prefixes**: feature, bugfix, docs, refactor, chore
 - **Base branch**: Always branch from `develop`
-- **Merge**: PR via Squash Merge
+- **Merge**: PR via Squash Merge (done by human, not Claude)
+- **Meta changes**: CLAUDE.md and other project config changes follow the same Issue → Branch → PR flow as code
 
 ### Versioning: SemVer
 
