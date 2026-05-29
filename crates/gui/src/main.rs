@@ -12,12 +12,12 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
     WindowOptions, actions, div, prelude::*, px, size,
 };
+use gpui_component::Icon;
 use gpui_component::Root;
 use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel};
 use gpui_component::sidebar::{
     Sidebar, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarToggleButton,
 };
-use gpui_component::{Icon, Sizable};
 use zelkova_config::AppConfig;
 
 actions!(
@@ -641,8 +641,8 @@ fn build_folder_item(
         ));
     }
 
-    let mut item = SidebarMenuItem::new(folder.name.clone())
-        .icon(Icon::new(gpui_component::IconName::Folder).small());
+    let mut item =
+        SidebarMenuItem::new(folder.name.clone()).icon(Icon::new(gpui_component::IconName::Folder));
     if !children.is_empty() {
         item = item.default_open(is_expanded).children(children);
     }
@@ -659,7 +659,7 @@ fn build_note_item(note: &NoteEntry, tab_manager: &Entity<tab::TabManager>) -> S
     let tm = tab_manager.clone();
 
     SidebarMenuItem::new(title)
-        .icon(Icon::new(gpui_component::IconName::File).small())
+        .icon(Icon::new(gpui_component::IconName::File))
         .on_click(move |_event, _window, cx| {
             tm.update(cx, |tm, cx| tm.open_in_focused(path.clone(), cx));
         })
@@ -803,46 +803,48 @@ fn main() {
     let config = AppConfig::load().unwrap_or_default();
     let keymap_config = zelkova_config::KeymapConfig::load().unwrap_or_default();
 
-    Application::new().run(move |cx: &mut App| {
-        gpui_component::init(cx);
+    Application::new()
+        .with_assets(gpui_component_assets::Assets)
+        .run(move |cx: &mut App| {
+            gpui_component::init(cx);
 
-        let bindings = keymap::build_bindings(&keymap_config);
-        cx.bind_keys(bindings);
+            let bindings = keymap::build_bindings(&keymap_config);
+            cx.bind_keys(bindings);
 
-        let bounds = Bounds::centered(None, size(px(1024.0), px(768.0)), cx);
-        let config_clone = config.clone();
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(gpui::TitlebarOptions {
-                    title: Some(SharedString::from("Zelkova")),
+            let bounds = Bounds::centered(None, size(px(1024.0), px(768.0)), cx);
+            let config_clone = config.clone();
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(gpui::TitlebarOptions {
+                        title: Some(SharedString::from("Zelkova")),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            },
-            |window, cx| {
-                let app = cx.new(|cx| {
-                    let mut app = ZelkovaApp::new(config_clone.clone(), cx);
-                    let sub = cx.observe(&app.tab_manager, |this: &mut ZelkovaApp, _tm, cx| {
-                        let (path, title) = this.tab_manager.read(cx).active_editor_title(cx);
-                        if let (Some(path), Some(title)) = (path, title) {
-                            for note in &mut this.notes {
-                                if note.path == path {
-                                    if note.title != title {
-                                        note.title = title;
+                },
+                |window, cx| {
+                    let app = cx.new(|cx| {
+                        let mut app = ZelkovaApp::new(config_clone.clone(), cx);
+                        let sub = cx.observe(&app.tab_manager, |this: &mut ZelkovaApp, _tm, cx| {
+                            let (path, title) = this.tab_manager.read(cx).active_editor_title(cx);
+                            if let (Some(path), Some(title)) = (path, title) {
+                                for note in &mut this.notes {
+                                    if note.path == path {
+                                        if note.title != title {
+                                            note.title = title;
+                                        }
+                                        break;
                                     }
-                                    break;
                                 }
                             }
-                        }
+                        });
+                        app._tab_subscription = Some(sub);
+                        app
                     });
-                    app._tab_subscription = Some(sub);
-                    app
-                });
-                cx.new(|cx| Root::new(app, window, cx))
-            },
-        )
-        .expect("window creation is infallible on supported platforms");
-        cx.activate(true);
-    });
+                    cx.new(|cx| Root::new(app, window, cx))
+                },
+            )
+            .expect("window creation is infallible on supported platforms");
+            cx.activate(true);
+        });
 }
