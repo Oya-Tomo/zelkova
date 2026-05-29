@@ -1035,7 +1035,21 @@ impl Render for Editor {
             cx.notify();
         }
 
-        let content_element = div().flex().flex_col().flex_shrink_0().children(children);
+        let max_line_width = if !self.wrap {
+            lines
+                .iter()
+                .map(|l| l.chars().count() as f32 * ascii_char_width)
+                .fold(0.0_f32, f32::max)
+        } else {
+            0.0
+        };
+
+        let content_element = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .when(!self.wrap, |el| el.items_start().min_w(px(max_line_width)))
+            .children(children);
 
         // Absolute-positioned scroll_div inside a relative container.
         // This prevents Taffy 0.9.0's min-content propagation from expanding
