@@ -3,6 +3,7 @@ mod editor;
 mod keymap;
 mod pane;
 mod preview;
+mod tab;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -43,6 +44,9 @@ actions!(
         SplitPaneRight,
         SplitPaneDown,
         ClosePane,
+        NewTab,
+        NextTab,
+        PrevTab,
         Undo,
         Redo,
         Confirm,
@@ -65,11 +69,11 @@ struct ZelkovaApp {
     expanded: HashSet<uuid::Uuid>,
     sidebar_visible: bool,
     command_palette: Option<Entity<command_palette::CommandPalette>>,
-    pane_manager: Entity<pane::PaneManager>,
+    tab_manager: Entity<tab::TabManager>,
     sidebar_resize_state: Entity<ResizableState>,
     sidebar_width: gpui::Pixels,
     config: AppConfig,
-    _pane_subscription: Option<Subscription>,
+    _tab_subscription: Option<Subscription>,
 }
 
 struct NoteEntry {
@@ -148,12 +152,12 @@ impl ZelkovaApp {
         let theme = zelkova_config::ThemeConfig::load().unwrap_or_default();
         let ui_colors = theme.ui.clone();
 
-        let pane_manager = cx.new(|cx| {
-            let mut pm = pane::PaneManager::new(cx);
-            pm.set_socket_path(config.daemon.socket_path.clone());
-            pm.set_theme(ui_colors.clone());
-            pm.set_wrap(config.editor.wrap, config.preview.wrap, cx);
-            pm
+        let tab_manager = cx.new(|cx| {
+            let mut tm = tab::TabManager::new(cx);
+            tm.set_socket_path(config.daemon.socket_path.clone());
+            tm.set_theme(ui_colors.clone());
+            tm.set_wrap(config.editor.wrap, config.preview.wrap, cx);
+            tm
         });
 
         // Expand all folders by default
@@ -168,11 +172,11 @@ impl ZelkovaApp {
             expanded,
             sidebar_visible: true,
             command_palette: None,
-            pane_manager,
+            tab_manager,
             sidebar_resize_state,
             sidebar_width: px(220.0),
             config,
-            _pane_subscription: None,
+            _tab_subscription: None,
         }
     }
 
@@ -249,8 +253,7 @@ impl ZelkovaApp {
     }
 
     fn handle_save(&mut self, _: &SaveNote, _window: &mut Window, cx: &mut Context<Self>) {
-        // Sync sidebar title from the active editor's frontmatter
-        let (path, title) = self.pane_manager.read(cx).active_editor_title(cx);
+        let (path, title) = self.tab_manager.read(cx).active_editor_title(cx);
         if let (Some(path), Some(title)) = (path, title) {
             for note in &mut self.notes {
                 if note.path == path {
@@ -346,8 +349,8 @@ impl ZelkovaApp {
                     title: result.title.clone(),
                     path: result.path,
                 });
-                self.pane_manager
-                    .update(cx, |pm, cx| pm.open_in_focused(path, cx));
+                self.tab_manager
+                    .update(cx, |tm, cx| tm.open_in_focused(path, cx));
                 cx.notify();
             }
         }
@@ -371,8 +374,8 @@ impl ZelkovaApp {
                             title: result.title.clone(),
                             path: result.path,
                         });
-                        self.pane_manager
-                            .update(cx, |pm, cx| pm.open_in_focused(path, cx));
+                        self.tab_manager
+                            .update(cx, |tm, cx| tm.open_in_focused(path, cx));
                     }
                 }
             }
@@ -496,23 +499,38 @@ impl ZelkovaApp {
                 self.sidebar_visible = !self.sidebar_visible;
             }
             "Toggle View Mode" => {
-                self.pane_manager.update(cx, |pm, cx| {
-                    pm.handle_toggle_view(&ToggleViewMode, window, cx);
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_toggle_view(&ToggleViewMode, window, cx);
                 });
             }
             "Split Pane Right" => {
-                self.pane_manager.update(cx, |pm, cx| {
-                    pm.handle_split_right(&SplitPaneRight, window, cx);
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_split_right(&SplitPaneRight, window, cx);
                 });
             }
             "Split Pane Down" => {
-                self.pane_manager.update(cx, |pm, cx| {
-                    pm.handle_split_down(&SplitPaneDown, window, cx);
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_split_down(&SplitPaneDown, window, cx);
                 });
             }
             "Close Pane" => {
-                self.pane_manager.update(cx, |pm, cx| {
-                    pm.handle_close_pane(&ClosePane, window, cx);
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_close_pane(&ClosePane, window, cx);
+                });
+            }
+            "New Tab" => {
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_new_tab(&NewTab, window, cx);
+                });
+            }
+            "Next Tab" => {
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_next_tab(&NextTab, window, cx);
+                });
+            }
+            "Prev Tab" => {
+                self.tab_manager.update(cx, |tm, cx| {
+                    tm.handle_prev_tab(&PrevTab, window, cx);
                 });
             }
             "Save Note" => {
@@ -571,7 +589,7 @@ fn build_sidebar_items(
     notes: &[NoteEntry],
     mappings: &[MappingEntry],
     expanded: &HashSet<uuid::Uuid>,
-    pane_manager: &Entity<pane::PaneManager>,
+    tab_manager: &Entity<tab::TabManager>,
 ) -> Vec<SidebarMenuItem> {
     let mut items = Vec::new();
 
@@ -582,13 +600,13 @@ fn build_sidebar_items(
             notes,
             mappings,
             expanded,
-            pane_manager,
+            tab_manager,
         ));
     }
 
     let mapped_note_ids: HashSet<String> = mappings.iter().map(|m| m.note_id.to_string()).collect();
     for note in notes.iter().filter(|n| !mapped_note_ids.contains(&n.id)) {
-        items.push(build_note_item(note, pane_manager));
+        items.push(build_note_item(note, tab_manager));
     }
 
     items
@@ -600,14 +618,14 @@ fn build_folder_item(
     notes: &[NoteEntry],
     mappings: &[MappingEntry],
     expanded: &HashSet<uuid::Uuid>,
-    pane_manager: &Entity<pane::PaneManager>,
+    tab_manager: &Entity<tab::TabManager>,
 ) -> SidebarMenuItem {
     let is_expanded = expanded.contains(&folder.id);
     let mut children: Vec<SidebarMenuItem> = Vec::new();
 
     for mapping in mappings.iter().filter(|m| m.folder_id == folder.id) {
         if let Some(note) = notes.iter().find(|n| n.id == mapping.note_id.to_string()) {
-            children.push(build_note_item(note, pane_manager));
+            children.push(build_note_item(note, tab_manager));
         }
     }
 
@@ -618,7 +636,7 @@ fn build_folder_item(
             notes,
             mappings,
             expanded,
-            pane_manager,
+            tab_manager,
         ));
     }
 
@@ -632,17 +650,17 @@ fn build_folder_item(
     item
 }
 
-fn build_note_item(note: &NoteEntry, pane_manager: &Entity<pane::PaneManager>) -> SidebarMenuItem {
+fn build_note_item(note: &NoteEntry, tab_manager: &Entity<tab::TabManager>) -> SidebarMenuItem {
     let title = if note.title.is_empty() {
         "Untitled".to_string()
     } else {
         note.title.clone()
     };
     let path = note.path.clone();
-    let pm = pane_manager.clone();
+    let tm = tab_manager.clone();
 
     SidebarMenuItem::new(title).on_click(move |_event, _window, cx| {
-        pm.update(cx, |pm, cx| pm.open_in_focused(path.clone(), cx));
+        tm.update(cx, |tm, cx| tm.open_in_focused(path.clone(), cx));
     })
 }
 
@@ -659,14 +677,14 @@ fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid
 
 impl Render for ZelkovaApp {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let pane = self.pane_manager.clone();
+        let tab_mgr = self.tab_manager.clone();
 
         let sidebar_items = build_sidebar_items(
             &self.folders,
             &self.notes,
             &self.mappings,
             &self.expanded,
-            &self.pane_manager,
+            &self.tab_manager,
         );
 
         let header = SidebarHeader::new().child(
@@ -747,7 +765,7 @@ impl Render for ZelkovaApp {
                         .size_range(px(150.0)..px(400.0))
                         .child(sidebar),
                 )
-                .child(resizable_panel().child(pane));
+                .child(resizable_panel().child(tab_mgr));
             main = main.child(resizable);
         } else {
             let mut content = div()
@@ -756,7 +774,7 @@ impl Render for ZelkovaApp {
                 .flex_col()
                 .flex_1()
                 .h_full()
-                .child(pane);
+                .child(tab_mgr);
 
             content = content.child(
                 div().absolute().top_0().left_0().p_1().child(
@@ -804,9 +822,8 @@ fn main() {
             |window, cx| {
                 let app = cx.new(|cx| {
                     let mut app = ZelkovaApp::new(config_clone.clone(), cx);
-                    // Observe PaneManager to sync sidebar titles in real-time
-                    let sub = cx.observe(&app.pane_manager, |this: &mut ZelkovaApp, _pane, cx| {
-                        let (path, title) = this.pane_manager.read(cx).active_editor_title(cx);
+                    let sub = cx.observe(&app.tab_manager, |this: &mut ZelkovaApp, _tm, cx| {
+                        let (path, title) = this.tab_manager.read(cx).active_editor_title(cx);
                         if let (Some(path), Some(title)) = (path, title) {
                             for note in &mut this.notes {
                                 if note.path == path {
@@ -818,7 +835,7 @@ fn main() {
                             }
                         }
                     });
-                    app._pane_subscription = Some(sub);
+                    app._tab_subscription = Some(sub);
                     app
                 });
                 cx.new(|cx| Root::new(app, window, cx))

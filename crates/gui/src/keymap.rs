@@ -45,6 +45,11 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
         None,
     ));
 
+    // Tab (Alt)
+    bindings.push(KeyBinding::new("alt-t", crate::NewTab, None));
+    bindings.push(KeyBinding::new("alt-n", crate::NextTab, None));
+    bindings.push(KeyBinding::new("alt-b", crate::PrevTab, None));
+
     // SelectAll
     bindings.push(KeyBinding::new("ctrl-a", crate::SelectAll, None));
 
@@ -111,6 +116,9 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
         )),
         "split_pane_down" => Some(KeyBinding::new(&binding.key, crate::SplitPaneDown, context)),
         "close_pane" => Some(KeyBinding::new(&binding.key, crate::ClosePane, context)),
+        "new_tab" => Some(KeyBinding::new(&binding.key, crate::NewTab, context)),
+        "next_tab" => Some(KeyBinding::new(&binding.key, crate::NextTab, context)),
+        "prev_tab" => Some(KeyBinding::new(&binding.key, crate::PrevTab, context)),
         "undo" => Some(KeyBinding::new(&binding.key, crate::Undo, context)),
         "redo" => Some(KeyBinding::new(&binding.key, crate::Redo, context)),
         "confirm" => Some(KeyBinding::new(&binding.key, crate::Confirm, context)),
@@ -304,6 +312,9 @@ pub fn all_command_specs(
         CommandSpec::no_arg("Split Pane Right"),
         CommandSpec::no_arg("Split Pane Down"),
         CommandSpec::no_arg("Close Pane"),
+        CommandSpec::no_arg("New Tab"),
+        CommandSpec::no_arg("Next Tab"),
+        CommandSpec::no_arg("Prev Tab"),
         CommandSpec::no_arg("Save Note"),
         CommandSpec::no_arg("Quit"),
     ]
