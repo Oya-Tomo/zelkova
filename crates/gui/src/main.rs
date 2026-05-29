@@ -11,6 +11,7 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
     WindowOptions, actions, div, prelude::*, px, size,
 };
+use gpui_component::Root;
 use zelkova_config::AppConfig;
 
 actions!(
@@ -805,6 +806,8 @@ fn main() {
     let keymap_config = zelkova_config::KeymapConfig::load().unwrap_or_default();
 
     Application::new().run(move |cx: &mut App| {
+        gpui_component::init(cx);
+
         let bindings = keymap::build_bindings(&keymap_config);
         cx.bind_keys(bindings);
 
@@ -819,8 +822,8 @@ fn main() {
                 }),
                 ..Default::default()
             },
-            |_, cx| {
-                cx.new(|cx| {
+            |window, cx| {
+                let app = cx.new(|cx| {
                     let mut app = ZelkovaApp::new(config_clone.clone(), cx);
                     // Observe PaneManager to sync sidebar titles in real-time
                     let sub = cx.observe(&app.pane_manager, |this: &mut ZelkovaApp, _pane, cx| {
@@ -838,7 +841,8 @@ fn main() {
                     });
                     app._pane_subscription = Some(sub);
                     app
-                })
+                });
+                cx.new(|cx| Root::new(app, window, cx))
             },
         )
         .expect("window creation is infallible on supported platforms");
