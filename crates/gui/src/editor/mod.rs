@@ -1048,7 +1048,9 @@ impl Render for Editor {
             .flex()
             .flex_col()
             .flex_shrink_0()
-            .when(!self.wrap, |el| el.items_start().min_w(px(max_line_width)))
+            .when(!self.wrap, |el| {
+                el.items_start().min_w(px(max_line_width)).pb(px(16.0))
+            })
             .children(children);
 
         let scrollbar_axis = if self.wrap {
