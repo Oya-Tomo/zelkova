@@ -12,6 +12,7 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
     WindowOptions, actions, div, prelude::*, px, size,
 };
+use gpui_component::Icon;
 use gpui_component::Root;
 use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel};
 use gpui_component::sidebar::{
@@ -640,12 +641,10 @@ fn build_folder_item(
         ));
     }
 
-    let mut item = SidebarMenuItem::new(folder.name.clone());
+    let mut item =
+        SidebarMenuItem::new(folder.name.clone()).icon(Icon::new(gpui_component::IconName::Folder));
     if !children.is_empty() {
-        item = item
-            .default_open(is_expanded)
-            .click_to_open(true)
-            .children(children);
+        item = item.default_open(is_expanded).children(children);
     }
     item
 }
@@ -659,9 +658,11 @@ fn build_note_item(note: &NoteEntry, tab_manager: &Entity<tab::TabManager>) -> S
     let path = note.path.clone();
     let tm = tab_manager.clone();
 
-    SidebarMenuItem::new(title).on_click(move |_event, _window, cx| {
-        tm.update(cx, |tm, cx| tm.open_in_focused(path.clone(), cx));
-    })
+    SidebarMenuItem::new(title)
+        .icon(Icon::new(gpui_component::IconName::File))
+        .on_click(move |_event, _window, cx| {
+            tm.update(cx, |tm, cx| tm.open_in_focused(path.clone(), cx));
+        })
 }
 
 fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid::Uuid> {
