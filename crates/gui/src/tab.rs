@@ -500,6 +500,10 @@ impl Render for TabManager {
         let active_tab = self.active_tab;
         let show_pane_count = self.show_pane_count;
 
+        // Capture entity early for closures
+        let tm_for_bar = cx.entity().clone();
+        let tm_for_focus = cx.entity().clone();
+
         // Build tab bar
         let tab_bar_items: Vec<Tab> = self
             .tabs
@@ -512,28 +516,28 @@ impl Render for TabManager {
                 } else {
                     label
                 };
-                let idx = i;
                 Tab::new()
                     .label(SharedString::from(display))
                     .selected(i == active_tab)
-                    .on_click(move |_event, _window, cx| {
-                        // Tab switching is handled via TabManager actions
-                        let _ = (idx, cx);
-                    })
             })
             .collect();
 
         let tab_bar = TabBar::new("workspace-tabs")
             .selected_index(active_tab)
+            .on_click(move |index, _window, cx| {
+                tm_for_bar.update(cx, |tm, cx| {
+                    tm.active_tab = *index;
+                    cx.notify();
+                });
+            })
             .children(tab_bar_items);
 
         // Build pane tree for active tab
         let tab = self.active_tab_mut();
         let focused = tab.focused;
 
-        let tm = cx.entity().clone();
         let on_focus: Rc<dyn Fn(PaneId, &mut App)> = Rc::new(move |leaf_id, cx| {
-            tm.update(cx, |tm, cx| {
+            tm_for_focus.update(cx, |tm, cx| {
                 tm.active_tab_mut().focused = leaf_id;
                 cx.notify();
             });
