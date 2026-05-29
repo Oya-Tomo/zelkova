@@ -22,25 +22,25 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
     bindings.push(KeyBinding::new("ctrl-z", crate::Undo, None));
     bindings.push(KeyBinding::new("ctrl-shift-z", crate::Redo, None));
 
-    // Pane key bindings
-    bindings.push(KeyBinding::new("ctrl-n", crate::NextPane, None));
-    bindings.push(KeyBinding::new("ctrl-b", crate::PrevPane, None));
-    bindings.push(KeyBinding::new("ctrl-t", crate::ToggleViewMode, None));
-    bindings.push(KeyBinding::new("ctrl-h", crate::SplitPaneRight, None));
-    bindings.push(KeyBinding::new("ctrl-v", crate::SplitPaneDown, None));
-    bindings.push(KeyBinding::new("ctrl-q", crate::ClosePane, None));
+    // Pane key bindings (Ctrl+Shift)
+    bindings.push(KeyBinding::new("ctrl-shift-n", crate::NextPane, None));
+    bindings.push(KeyBinding::new("ctrl-shift-b", crate::PrevPane, None));
+    bindings.push(KeyBinding::new("ctrl-shift-t", crate::ToggleViewMode, None));
+    bindings.push(KeyBinding::new("ctrl-shift-h", crate::SplitPaneRight, None));
+    bindings.push(KeyBinding::new("ctrl-shift-v", crate::SplitPaneDown, None));
+    bindings.push(KeyBinding::new("ctrl-shift-q", crate::ClosePane, None));
 
     // Global
     bindings.push(KeyBinding::new("escape", crate::Cancel, None));
 
-    // Sidebar resize
+    // Sidebar (Alt+Shift)
     bindings.push(KeyBinding::new(
-        "ctrl-shift-h",
+        "alt-shift-h",
         crate::ResizeSidebarLeft,
         None,
     ));
     bindings.push(KeyBinding::new(
-        "ctrl-shift-l",
+        "alt-shift-l",
         crate::ResizeSidebarRight,
         None,
     ));
