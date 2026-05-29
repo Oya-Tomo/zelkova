@@ -520,17 +520,17 @@ impl ZelkovaApp {
             }
             "New Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_new_tab(cx);
+                    tm.handle_new_tab(&NewTab, window, cx);
                 });
             }
             "Next Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_next_tab(cx);
+                    tm.handle_next_tab(&NextTab, window, cx);
                 });
             }
             "Prev Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_prev_tab(cx);
+                    tm.handle_prev_tab(&PrevTab, window, cx);
                 });
             }
             "Save Note" => {

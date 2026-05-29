@@ -16,7 +16,7 @@ use crate::pane::{
     render_pane_node,
 };
 use crate::preview::Preview;
-use crate::{ClosePane, NextPane, PrevPane, SplitPaneDown, SplitPaneRight, ToggleViewMode};
+use crate::{ClosePane, NewTab, NextPane, NextTab, PrevPane, PrevTab, SplitPaneDown, SplitPaneRight, ToggleViewMode};
 
 pub struct TabWorkspace {
     root: PaneNode,
@@ -438,7 +438,7 @@ impl TabManager {
 
     // -- Tab operations --
 
-    pub fn handle_new_tab(&mut self, cx: &mut Context<Self>) {
+    pub fn handle_new_tab(&mut self, _: &NewTab, _window: &mut Window, cx: &mut Context<Self>) {
         self.auto_save_focused(cx);
 
         let new_id = PaneId(self.next_id);
@@ -457,7 +457,7 @@ impl TabManager {
         cx.notify();
     }
 
-    pub fn handle_next_tab(&mut self, cx: &mut Context<Self>) {
+    pub fn handle_next_tab(&mut self, _: &NextTab, _window: &mut Window, cx: &mut Context<Self>) {
         if self.tabs.len() <= 1 {
             return;
         }
@@ -466,7 +466,7 @@ impl TabManager {
         cx.notify();
     }
 
-    pub fn handle_prev_tab(&mut self, cx: &mut Context<Self>) {
+    pub fn handle_prev_tab(&mut self, _: &PrevTab, _window: &mut Window, cx: &mut Context<Self>) {
         if self.tabs.len() <= 1 {
             return;
         }
@@ -655,5 +655,8 @@ impl Render for TabManager {
             .on_action(cx.listener(TabManager::handle_next_pane))
             .on_action(cx.listener(TabManager::handle_prev_pane))
             .on_action(cx.listener(TabManager::handle_toggle_view))
+            .on_action(cx.listener(TabManager::handle_new_tab))
+            .on_action(cx.listener(TabManager::handle_next_tab))
+            .on_action(cx.listener(TabManager::handle_prev_tab))
     }
 }
