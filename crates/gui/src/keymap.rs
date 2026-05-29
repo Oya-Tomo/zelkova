@@ -23,9 +23,12 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
     bindings.push(KeyBinding::new("ctrl-shift-z", crate::Redo, None));
 
     // Pane key bindings
-    bindings.push(KeyBinding::new("ctrl-alt-right", crate::NextPane, None));
-    bindings.push(KeyBinding::new("ctrl-alt-left", crate::PrevPane, None));
-    bindings.push(KeyBinding::new("ctrl-alt-v", crate::ToggleViewMode, None));
+    bindings.push(KeyBinding::new("ctrl-n", crate::NextPane, None));
+    bindings.push(KeyBinding::new("ctrl-b", crate::PrevPane, None));
+    bindings.push(KeyBinding::new("ctrl-t", crate::ToggleViewMode, None));
+    bindings.push(KeyBinding::new("ctrl-h", crate::SplitPaneRight, None));
+    bindings.push(KeyBinding::new("ctrl-v", crate::SplitPaneDown, None));
+    bindings.push(KeyBinding::new("ctrl-q", crate::ClosePane, None));
 
     // Global
     bindings.push(KeyBinding::new("escape", crate::Cancel, None));
@@ -101,6 +104,13 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
             crate::ToggleViewMode,
             context,
         )),
+        "split_pane_right" => Some(KeyBinding::new(
+            &binding.key,
+            crate::SplitPaneRight,
+            context,
+        )),
+        "split_pane_down" => Some(KeyBinding::new(&binding.key, crate::SplitPaneDown, context)),
+        "close_pane" => Some(KeyBinding::new(&binding.key, crate::ClosePane, context)),
         "undo" => Some(KeyBinding::new(&binding.key, crate::Undo, context)),
         "redo" => Some(KeyBinding::new(&binding.key, crate::Redo, context)),
         "confirm" => Some(KeyBinding::new(&binding.key, crate::Confirm, context)),
@@ -291,6 +301,9 @@ pub fn all_command_specs(
         CommandSpec::no_arg("Show Tags"),
         CommandSpec::no_arg("Toggle Sidebar"),
         CommandSpec::no_arg("Toggle View Mode"),
+        CommandSpec::no_arg("Split Pane Right"),
+        CommandSpec::no_arg("Split Pane Down"),
+        CommandSpec::no_arg("Close Pane"),
         CommandSpec::no_arg("Save Note"),
         CommandSpec::no_arg("Quit"),
     ]

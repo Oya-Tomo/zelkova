@@ -40,6 +40,9 @@ actions!(
         NextPane,
         PrevPane,
         ToggleViewMode,
+        SplitPaneRight,
+        SplitPaneDown,
+        ClosePane,
         Undo,
         Redo,
         Confirm,
@@ -343,7 +346,8 @@ impl ZelkovaApp {
                     title: result.title.clone(),
                     path: result.path,
                 });
-                self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                self.pane_manager
+                    .update(cx, |pm, cx| pm.open_in_focused(path, cx));
                 cx.notify();
             }
         }
@@ -367,7 +371,8 @@ impl ZelkovaApp {
                             title: result.title.clone(),
                             path: result.path,
                         });
-                        self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
+                        self.pane_manager
+                            .update(cx, |pm, cx| pm.open_in_focused(path, cx));
                     }
                 }
             }
@@ -493,6 +498,21 @@ impl ZelkovaApp {
             "Toggle View Mode" => {
                 self.pane_manager.update(cx, |pm, cx| {
                     pm.handle_toggle_view(&ToggleViewMode, window, cx);
+                });
+            }
+            "Split Pane Right" => {
+                self.pane_manager.update(cx, |pm, cx| {
+                    pm.handle_split_right(&SplitPaneRight, window, cx);
+                });
+            }
+            "Split Pane Down" => {
+                self.pane_manager.update(cx, |pm, cx| {
+                    pm.handle_split_down(&SplitPaneDown, window, cx);
+                });
+            }
+            "Close Pane" => {
+                self.pane_manager.update(cx, |pm, cx| {
+                    pm.handle_close_pane(&ClosePane, window, cx);
                 });
             }
             "Save Note" => {
@@ -622,7 +642,7 @@ fn build_note_item(note: &NoteEntry, pane_manager: &Entity<pane::PaneManager>) -
     let pm = pane_manager.clone();
 
     SidebarMenuItem::new(title).on_click(move |_event, _window, cx| {
-        pm.update(cx, |pm, cx| pm.open_tab(path.clone(), cx));
+        pm.update(cx, |pm, cx| pm.open_in_focused(path.clone(), cx));
     })
 }
 
