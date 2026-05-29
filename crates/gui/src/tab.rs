@@ -116,13 +116,16 @@ impl TabManager {
     }
 
     fn for_each_leaf_mut(node: &mut PaneNode, f: impl Fn(&mut PaneLeaf, &mut App), cx: &mut App) {
-        match node {
-            PaneNode::Leaf(leaf) => f(leaf, cx),
-            PaneNode::Split { children, .. } => {
-                Self::for_each_leaf_mut(&mut children.0, &f, cx);
-                Self::for_each_leaf_mut(&mut children.1, &f, cx);
+        fn apply(node: &mut PaneNode, f: &dyn Fn(&mut PaneLeaf, &mut App), cx: &mut App) {
+            match node {
+                PaneNode::Leaf(leaf) => f(leaf, cx),
+                PaneNode::Split { children, .. } => {
+                    apply(&mut children.0, f, cx);
+                    apply(&mut children.1, f, cx);
+                }
             }
         }
+        apply(node, &f, cx);
     }
 
     fn active_tab(&self) -> &TabWorkspace {
