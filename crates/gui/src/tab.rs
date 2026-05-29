@@ -546,7 +546,28 @@ impl Render for TabManager {
             });
         });
 
-        let pane_content = match &tab.root {
+        // Focus the active view
+        let tab = self.active_tab();
+        if let Some(leaf) = tab.root.find_leaf(tab.focused) {
+            match leaf.view_mode {
+                ViewMode::Editor => leaf.editor.focus_handle(cx).focus(window),
+                ViewMode::Preview => leaf.preview.focus_handle(cx).focus(window),
+                ViewMode::Split => leaf.editor.focus_handle(cx).focus(window),
+            }
+        } else {
+            self.focus_handle.focus(window);
+        }
+
+        let mut main = div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .track_focus(&self.focus_handle)
+            .child(tab_bar);
+
+        // Single leaf: render header + content as direct children (no wrapper)
+        // Split: use recursive rendering inside a container
+        match &self.tabs[self.active_tab].root {
             PaneNode::Leaf(leaf) => {
                 let header = div()
                     .flex()
@@ -616,39 +637,28 @@ impl Render for TabManager {
                     }
                 };
 
-                div().child(header).child(content).into_any_element()
+                main = main.child(header).child(content);
             }
             PaneNode::Split { .. } => {
-                render_pane_node(&tab.root, focused, border, text_dim, on_focus)
+                let tree = render_pane_node(
+                    &self.tabs[self.active_tab].root,
+                    focused,
+                    border,
+                    text_dim,
+                    on_focus,
+                );
+                main = main.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .child(tree),
+                );
             }
-        };
-
-        // Focus the active view
-        let tab = self.active_tab();
-        if let Some(leaf) = tab.root.find_leaf(tab.focused) {
-            match leaf.view_mode {
-                ViewMode::Editor => leaf.editor.focus_handle(cx).focus(window),
-                ViewMode::Preview => leaf.preview.focus_handle(cx).focus(window),
-                ViewMode::Split => leaf.editor.focus_handle(cx).focus(window),
-            }
-        } else {
-            self.focus_handle.focus(window);
         }
 
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .track_focus(&self.focus_handle)
-            .child(tab_bar)
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h(px(0.0))
-                    .child(pane_content),
-            )
+        main
             .on_action(cx.listener(TabManager::handle_split_right))
             .on_action(cx.listener(TabManager::handle_split_down))
             .on_action(cx.listener(TabManager::handle_close_pane))
