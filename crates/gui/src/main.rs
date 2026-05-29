@@ -691,7 +691,8 @@ impl Render for ZelkovaApp {
 
         let sidebar = Sidebar::left()
             .header(header)
-            .child(SidebarMenu::new().children(sidebar_items));
+            .child(SidebarMenu::new().children(sidebar_items))
+            .w_full();
 
         let mut main = div()
             .flex()
