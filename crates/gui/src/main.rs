@@ -12,12 +12,12 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
     WindowOptions, actions, div, prelude::*, px, size,
 };
-use gpui_component::Icon;
 use gpui_component::Root;
 use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel};
 use gpui_component::sidebar::{
     Sidebar, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarToggleButton,
 };
+use gpui_component::{Icon, Sizable};
 use zelkova_config::AppConfig;
 
 actions!(
@@ -641,8 +641,8 @@ fn build_folder_item(
         ));
     }
 
-    let mut item =
-        SidebarMenuItem::new(folder.name.clone()).icon(Icon::new(gpui_component::IconName::Folder));
+    let mut item = SidebarMenuItem::new(folder.name.clone())
+        .icon(Icon::new(gpui_component::IconName::Folder).small());
     if !children.is_empty() {
         item = item.default_open(is_expanded).children(children);
     }
@@ -659,7 +659,7 @@ fn build_note_item(note: &NoteEntry, tab_manager: &Entity<tab::TabManager>) -> S
     let tm = tab_manager.clone();
 
     SidebarMenuItem::new(title)
-        .icon(Icon::new(gpui_component::IconName::File))
+        .icon(Icon::new(gpui_component::IconName::File).small())
         .on_click(move |_event, _window, cx| {
             tm.update(cx, |tm, cx| tm.open_in_focused(path.clone(), cx));
         })
