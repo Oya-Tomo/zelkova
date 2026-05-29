@@ -12,6 +12,9 @@ use gpui::{
     WindowOptions, actions, div, prelude::*, px, size,
 };
 use gpui_component::Root;
+use gpui_component::sidebar::{
+    Sidebar, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarToggleButton,
+};
 use zelkova_config::AppConfig;
 
 actions!(
@@ -54,12 +57,10 @@ struct ZelkovaApp {
     folders: Vec<FolderEntry>,
     mappings: Vec<MappingEntry>,
     expanded: HashSet<uuid::Uuid>,
-    selected: Option<usize>,
     sidebar_visible: bool,
     command_palette: Option<Entity<command_palette::CommandPalette>>,
     pane_manager: Entity<pane::PaneManager>,
     config: AppConfig,
-    ui_colors: zelkova_config::UiColors,
     _pane_subscription: Option<Subscription>,
 }
 
@@ -78,13 +79,6 @@ struct FolderEntry {
 struct MappingEntry {
     note_id: uuid::Uuid,
     folder_id: uuid::Uuid,
-}
-
-struct SidebarColors {
-    bg: gpui::Hsla,
-    text: gpui::Hsla,
-    text_dim: gpui::Hsla,
-    selection_bg: gpui::Hsla,
 }
 
 impl ZelkovaApp {
@@ -162,12 +156,10 @@ impl ZelkovaApp {
             folders,
             mappings,
             expanded,
-            selected: None,
             sidebar_visible: true,
             command_palette: None,
             pane_manager,
             config,
-            ui_colors,
             _pane_subscription: None,
         }
     }
@@ -307,15 +299,6 @@ impl ZelkovaApp {
                 self.execute_command(&label, &args, window, cx);
                 self.command_palette = None;
             }
-            cx.notify();
-            return;
-        }
-        // Sidebar note selection
-        if let Some(sel) = self.selected
-            && let Some(note) = self.notes.get(sel)
-        {
-            let path = note.path.clone();
-            self.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
             cx.notify();
         }
     }
@@ -530,171 +513,86 @@ impl ZelkovaApp {
             }
         }
     }
+}
 
-    fn render_sidebar_tree(
-        &mut self,
-        parent_folder: Option<uuid::Uuid>,
-        depth: usize,
-        colors: &SidebarColors,
-        cx: &mut Context<Self>,
-    ) -> Vec<gpui::AnyElement> {
-        let mut elements = Vec::new();
-        let indent = px(16.0) * depth as f32;
+fn build_sidebar_items(
+    folders: &[FolderEntry],
+    notes: &[NoteEntry],
+    mappings: &[MappingEntry],
+    expanded: &HashSet<uuid::Uuid>,
+    pane_manager: &Entity<pane::PaneManager>,
+) -> Vec<SidebarMenuItem> {
+    let mut items = Vec::new();
 
-        // Collect folder data at this level
-        let folders_at_level: Vec<(uuid::Uuid, String, bool)> = self
-            .folders
-            .iter()
-            .filter(|f| f.parent == parent_folder)
-            .map(|f| (f.id, f.name.clone(), self.expanded.contains(&f.id)))
-            .collect();
-
-        // Snapshot data needed for note rendering
-        let mappings_snapshot: Vec<(uuid::Uuid, usize)> = self
-            .mappings
-            .iter()
-            .filter_map(|m| {
-                let idx = self
-                    .notes
-                    .iter()
-                    .position(|n| n.id == m.note_id.to_string())?;
-                Some((m.folder_id, idx))
-            })
-            .collect();
-
-        let notes_snapshot: Vec<(usize, String, bool)> = self
-            .notes
-            .iter()
-            .enumerate()
-            .map(|(i, n)| {
-                (
-                    i,
-                    if n.title.is_empty() {
-                        "Untitled".to_string()
-                    } else {
-                        n.title.clone()
-                    },
-                    n.title.is_empty(),
-                )
-            })
-            .collect();
-
-        let selected = self.selected;
-
-        for (folder_id, folder_name, is_expanded) in &folders_at_level {
-            let arrow = if *is_expanded { "▾" } else { "▸" };
-            let fid = *folder_id;
-
-            let folder_row = div()
-                .px(px(8.0))
-                .pl(indent)
-                .py_1()
-                .text_color(colors.text)
-                .text_xs()
-                .cursor(gpui::CursorStyle::PointingHand)
-                .child(format!("{} {}", arrow, folder_name))
-                .on_mouse_down(
-                    gpui::MouseButton::Left,
-                    cx.listener(move |this, _event, _window, cx| {
-                        if this.expanded.contains(&fid) {
-                            this.expanded.remove(&fid);
-                        } else {
-                            this.expanded.insert(fid);
-                        }
-                        cx.notify();
-                    }),
-                );
-            elements.push(folder_row.into_any_element());
-
-            if *is_expanded {
-                // Notes in this folder
-                for &(map_folder, note_idx) in &mappings_snapshot {
-                    if map_folder != fid {
-                        continue;
-                    }
-                    let (idx, display_title, is_empty) = &notes_snapshot[note_idx];
-                    let is_selected = selected == Some(*idx);
-                    let note_bg = if is_selected {
-                        colors.selection_bg
-                    } else {
-                        colors.bg
-                    };
-                    let title_color = if *is_empty {
-                        colors.text_dim
-                    } else {
-                        colors.text
-                    };
-                    let note_row = div()
-                        .px(px(8.0))
-                        .pl(indent + px(16.0))
-                        .py_1()
-                        .bg(note_bg)
-                        .text_color(title_color)
-                        .text_xs()
-                        .cursor(gpui::CursorStyle::PointingHand)
-                        .child(display_title.clone())
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(move |this, _event, _window, cx| {
-                                this.selected = Some(note_idx);
-                                let path = this.notes[note_idx].path.clone();
-                                this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
-                                cx.notify();
-                            }),
-                        );
-                    elements.push(note_row.into_any_element());
-                }
-
-                // Sub-folders (recursive)
-                let mut sub_tree = self.render_sidebar_tree(Some(fid), depth + 1, colors, cx);
-                elements.append(&mut sub_tree);
-            }
-        }
-
-        // At root level, render unmapped notes
-        if parent_folder.is_none() {
-            let mapped_note_indices: HashSet<usize> =
-                mappings_snapshot.iter().map(|&(_, idx)| idx).collect();
-            for (idx, display_title, is_empty) in &notes_snapshot {
-                if mapped_note_indices.contains(idx) {
-                    continue;
-                }
-                let is_selected = selected == Some(*idx);
-                let note_bg = if is_selected {
-                    colors.selection_bg
-                } else {
-                    colors.bg
-                };
-                let title_color = if *is_empty {
-                    colors.text_dim
-                } else {
-                    colors.text
-                };
-                let ni = *idx;
-                let dt = display_title.clone();
-                let note_row = div()
-                    .px(px(8.0))
-                    .py_1()
-                    .bg(note_bg)
-                    .text_color(title_color)
-                    .text_xs()
-                    .cursor(gpui::CursorStyle::PointingHand)
-                    .child(dt)
-                    .on_mouse_down(
-                        gpui::MouseButton::Left,
-                        cx.listener(move |this, _event, _window, cx| {
-                            this.selected = Some(ni);
-                            let path = this.notes[ni].path.clone();
-                            this.pane_manager.update(cx, |pm, cx| pm.open_tab(path, cx));
-                            cx.notify();
-                        }),
-                    );
-                elements.push(note_row.into_any_element());
-            }
-        }
-
-        elements
+    for folder in folders.iter().filter(|f| f.parent.is_none()) {
+        items.push(build_folder_item(
+            folder,
+            folders,
+            notes,
+            mappings,
+            expanded,
+            pane_manager,
+        ));
     }
+
+    let mapped_note_ids: HashSet<String> = mappings.iter().map(|m| m.note_id.to_string()).collect();
+    for note in notes.iter().filter(|n| !mapped_note_ids.contains(&n.id)) {
+        items.push(build_note_item(note, pane_manager));
+    }
+
+    items
+}
+
+fn build_folder_item(
+    folder: &FolderEntry,
+    all_folders: &[FolderEntry],
+    notes: &[NoteEntry],
+    mappings: &[MappingEntry],
+    expanded: &HashSet<uuid::Uuid>,
+    pane_manager: &Entity<pane::PaneManager>,
+) -> SidebarMenuItem {
+    let is_expanded = expanded.contains(&folder.id);
+    let mut children: Vec<SidebarMenuItem> = Vec::new();
+
+    for mapping in mappings.iter().filter(|m| m.folder_id == folder.id) {
+        if let Some(note) = notes.iter().find(|n| n.id == mapping.note_id.to_string()) {
+            children.push(build_note_item(note, pane_manager));
+        }
+    }
+
+    for sub_folder in all_folders.iter().filter(|f| f.parent == Some(folder.id)) {
+        children.push(build_folder_item(
+            sub_folder,
+            all_folders,
+            notes,
+            mappings,
+            expanded,
+            pane_manager,
+        ));
+    }
+
+    let mut item = SidebarMenuItem::new(folder.name.clone());
+    if !children.is_empty() {
+        item = item
+            .default_open(is_expanded)
+            .click_to_open(true)
+            .children(children);
+    }
+    item
+}
+
+fn build_note_item(note: &NoteEntry, pane_manager: &Entity<pane::PaneManager>) -> SidebarMenuItem {
+    let title = if note.title.is_empty() {
+        "Untitled".to_string()
+    } else {
+        note.title.clone()
+    };
+    let path = note.path.clone();
+    let pm = pane_manager.clone();
+
+    SidebarMenuItem::new(title).on_click(move |_event, _window, cx| {
+        pm.update(cx, |pm, cx| pm.open_tab(path.clone(), cx));
+    })
 }
 
 fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid::Uuid> {
@@ -711,65 +609,63 @@ fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid
 impl Render for ZelkovaApp {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let pane = self.pane_manager.clone();
-        let ui = &self.ui_colors;
-        let bg = editor::parse_hex(&ui.bg);
-        let sidebar_bg = editor::parse_hex(&ui.sidebar_bg);
-        let border = editor::parse_hex(&ui.border);
-        let text = editor::parse_hex(&ui.text);
-        let text_dim = editor::parse_hex(&ui.text_dim);
-        let selection_bg = editor::parse_hex(&ui.selection_bg);
 
-        let sidebar_colors = SidebarColors {
-            bg: sidebar_bg,
-            text,
-            text_dim,
-            selection_bg,
-        };
+        let sidebar_items = build_sidebar_items(
+            &self.folders,
+            &self.notes,
+            &self.mappings,
+            &self.expanded,
+            &self.pane_manager,
+        );
 
-        let sidebar = div()
-            .flex()
-            .flex_col()
-            .w(px(250.0))
-            .h_full()
-            .bg(sidebar_bg)
-            .border_r_1()
-            .border_color(border)
-            .child(
-                div()
-                    .px_3()
-                    .py_2()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_weight(gpui::FontWeight::BOLD)
-                            .text_color(text)
-                            .child("Zelkova"),
-                    )
-                    .child(
-                        div()
-                            .cursor(gpui::CursorStyle::PointingHand)
-                            .text_color(text_dim)
-                            .text_sm()
-                            .child("+")
-                            .on_mouse_down(
-                                gpui::MouseButton::Left,
-                                cx.listener(|this, _event, _window, cx| {
-                                    this.handle_create_note(&CreateNote, _window, cx);
-                                }),
-                            ),
-                    ),
-            )
-            .children(self.render_sidebar_tree(None, 0, &sidebar_colors, cx));
+        let header = SidebarHeader::new().child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .w_full()
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap_1()
+                        .child(SidebarToggleButton::left().on_click(cx.listener(
+                            |this, _event, _window, cx| {
+                                this.sidebar_visible = false;
+                                cx.notify();
+                            },
+                        )))
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .child("Zelkova"),
+                        ),
+                )
+                .child(
+                    div()
+                        .cursor(gpui::CursorStyle::PointingHand)
+                        .text_sm()
+                        .child("+")
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(|this, _event, _window, cx| {
+                                this.handle_create_note(&CreateNote, _window, cx);
+                            }),
+                        ),
+                ),
+        );
+
+        let sidebar = Sidebar::left()
+            .header(header)
+            .child(SidebarMenu::new().children(sidebar_items));
 
         let mut main = div()
             .flex()
             .flex_row()
             .size_full()
-            .bg(bg)
             .key_context("ZelkovaApp")
             .on_action(cx.listener(ZelkovaApp::handle_open_command_palette))
             .on_action(cx.listener(ZelkovaApp::handle_toggle_sidebar))
@@ -791,7 +687,29 @@ impl Render for ZelkovaApp {
         if self.sidebar_visible {
             main = main.child(sidebar);
         }
-        main = main.child(div().flex().flex_col().flex_1().h_full().child(pane));
+
+        let mut content = div()
+            .relative()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .h_full()
+            .child(pane);
+
+        if !self.sidebar_visible {
+            content = content.child(
+                div().absolute().top_0().left_0().p_1().child(
+                    SidebarToggleButton::left()
+                        .collapsed(true)
+                        .on_click(cx.listener(|this, _event, _window, cx| {
+                            this.sidebar_visible = true;
+                            cx.notify();
+                        })),
+                ),
+            );
+        }
+
+        main = main.child(content);
 
         if let Some(ref palette) = self.command_palette {
             main = main.child(palette.clone());
