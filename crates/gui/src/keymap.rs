@@ -30,6 +30,18 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
     // Global
     bindings.push(KeyBinding::new("escape", crate::Cancel, None));
 
+    // Sidebar resize
+    bindings.push(KeyBinding::new(
+        "ctrl-shift-h",
+        crate::ResizeSidebarLeft,
+        None,
+    ));
+    bindings.push(KeyBinding::new(
+        "ctrl-shift-l",
+        crate::ResizeSidebarRight,
+        None,
+    ));
+
     // SelectAll
     bindings.push(KeyBinding::new("ctrl-a", crate::SelectAll, None));
 
@@ -64,6 +76,16 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
         "list_notes" => Some(KeyBinding::new(&binding.key, crate::ListNotes, context)),
         "show_tags" => Some(KeyBinding::new(&binding.key, crate::ShowTags, context)),
         "toggle_sidebar" => Some(KeyBinding::new(&binding.key, crate::ToggleSidebar, context)),
+        "resize_sidebar_left" => Some(KeyBinding::new(
+            &binding.key,
+            crate::ResizeSidebarLeft,
+            context,
+        )),
+        "resize_sidebar_right" => Some(KeyBinding::new(
+            &binding.key,
+            crate::ResizeSidebarRight,
+            context,
+        )),
         "save_note" => Some(KeyBinding::new(&binding.key, crate::SaveNote, context)),
         "quit" => Some(KeyBinding::new(&binding.key, crate::Quit, context)),
         "move_up" => Some(KeyBinding::new(&binding.key, crate::MoveUp, context)),

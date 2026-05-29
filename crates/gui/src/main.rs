@@ -12,6 +12,7 @@ use gpui::{
     WindowOptions, actions, div, prelude::*, px, size,
 };
 use gpui_component::Root;
+use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel};
 use gpui_component::sidebar::{
     Sidebar, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarToggleButton,
 };
@@ -26,6 +27,8 @@ actions!(
         ListNotes,
         ShowTags,
         ToggleSidebar,
+        ResizeSidebarLeft,
+        ResizeSidebarRight,
         SaveNote,
         Quit,
         MoveUp,
@@ -60,6 +63,8 @@ struct ZelkovaApp {
     sidebar_visible: bool,
     command_palette: Option<Entity<command_palette::CommandPalette>>,
     pane_manager: Entity<pane::PaneManager>,
+    sidebar_resize_state: Entity<ResizableState>,
+    sidebar_width: gpui::Pixels,
     config: AppConfig,
     _pane_subscription: Option<Subscription>,
 }
@@ -151,6 +156,8 @@ impl ZelkovaApp {
         // Expand all folders by default
         let expanded: HashSet<uuid::Uuid> = folders.iter().map(|f| f.id).collect();
 
+        let sidebar_resize_state = cx.new(|_| ResizableState::default());
+
         Self {
             notes,
             folders,
@@ -159,6 +166,8 @@ impl ZelkovaApp {
             sidebar_visible: true,
             command_palette: None,
             pane_manager,
+            sidebar_resize_state,
+            sidebar_width: px(220.0),
             config,
             _pane_subscription: None,
         }
@@ -198,6 +207,28 @@ impl ZelkovaApp {
         _cx: &mut Context<Self>,
     ) {
         self.sidebar_visible = !self.sidebar_visible;
+    }
+
+    fn handle_resize_sidebar_left(
+        &mut self,
+        _: &ResizeSidebarLeft,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.sidebar_width = (self.sidebar_width - px(20.0)).max(px(150.0));
+        self.sidebar_resize_state = cx.new(|_| ResizableState::default());
+        cx.notify();
+    }
+
+    fn handle_resize_sidebar_right(
+        &mut self,
+        _: &ResizeSidebarRight,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.sidebar_width = (self.sidebar_width + px(20.0)).min(px(400.0));
+        self.sidebar_resize_state = cx.new(|_| ResizableState::default());
+        cx.notify();
     }
 
     fn handle_quit(&mut self, _: &Quit, _window: &mut Window, cx: &mut Context<Self>) {
@@ -669,6 +700,8 @@ impl Render for ZelkovaApp {
             .key_context("ZelkovaApp")
             .on_action(cx.listener(ZelkovaApp::handle_open_command_palette))
             .on_action(cx.listener(ZelkovaApp::handle_toggle_sidebar))
+            .on_action(cx.listener(ZelkovaApp::handle_resize_sidebar_left))
+            .on_action(cx.listener(ZelkovaApp::handle_resize_sidebar_right))
             .on_action(cx.listener(ZelkovaApp::handle_quit))
             .on_action(cx.listener(ZelkovaApp::handle_cancel))
             .on_action(cx.listener(ZelkovaApp::handle_move_left))
@@ -685,18 +718,25 @@ impl Render for ZelkovaApp {
             .on_action(cx.listener(ZelkovaApp::handle_cut));
 
         if self.sidebar_visible {
-            main = main.child(sidebar);
-        }
+            let resizable = h_resizable("app-layout")
+                .with_state(&self.sidebar_resize_state)
+                .child(
+                    resizable_panel()
+                        .size(self.sidebar_width)
+                        .size_range(px(150.0)..px(400.0))
+                        .child(sidebar),
+                )
+                .child(resizable_panel().child(pane));
+            main = main.child(resizable);
+        } else {
+            let mut content = div()
+                .relative()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .h_full()
+                .child(pane);
 
-        let mut content = div()
-            .relative()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .h_full()
-            .child(pane);
-
-        if !self.sidebar_visible {
             content = content.child(
                 div().absolute().top_0().left_0().p_1().child(
                     SidebarToggleButton::left()
@@ -707,9 +747,9 @@ impl Render for ZelkovaApp {
                         })),
                 ),
             );
-        }
 
-        main = main.child(content);
+            main = main.child(content);
+        }
 
         if let Some(ref palette) = self.command_palette {
             main = main.child(palette.clone());
