@@ -69,12 +69,24 @@ impl PaneManager {
         }
     }
 
+    fn auto_save_current_tab(&self, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.get(self.active_tab) {
+            let editor = tab.editor.clone();
+            if editor.read(cx).is_dirty() {
+                editor.update(cx, |ed, _| ed.save_to_disk());
+            }
+        }
+    }
+
     pub fn open_tab(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         let title = path
             .file_stem()
             .and_then(|s| s.to_str())
             .expect("file_stem is valid because PathBuf came from a valid file path")
             .to_string();
+
+        // Auto-save current tab before replacing content
+        self.auto_save_current_tab(cx);
 
         // Check if already open
         for (i, tab) in self.tabs.iter().enumerate() {
@@ -131,6 +143,13 @@ impl PaneManager {
         if index >= self.tabs.len() {
             return;
         }
+        // Auto-save the tab being closed
+        if let Some(tab) = self.tabs.get(index) {
+            let editor = tab.editor.clone();
+            if editor.read(cx).is_dirty() {
+                editor.update(cx, |ed, _| ed.save_to_disk());
+            }
+        }
         self.tabs.remove(index);
         if self.tabs.is_empty() {
             self.active_tab = 0;
@@ -164,27 +183,19 @@ impl PaneManager {
         (None, None)
     }
 
-    pub fn handle_next_pane(
-        &mut self,
-        _: &NextPane,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
+    pub fn handle_next_pane(&mut self, _: &NextPane, _window: &mut Window, cx: &mut Context<Self>) {
         if self.tabs.is_empty() {
             return;
         }
+        self.auto_save_current_tab(cx);
         self.active_tab = (self.active_tab + 1) % self.tabs.len();
     }
 
-    pub fn handle_prev_pane(
-        &mut self,
-        _: &PrevPane,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
+    pub fn handle_prev_pane(&mut self, _: &PrevPane, _window: &mut Window, cx: &mut Context<Self>) {
         if self.tabs.is_empty() {
             return;
         }
+        self.auto_save_current_tab(cx);
         self.active_tab = if self.active_tab == 0 {
             self.tabs.len() - 1
         } else {
@@ -242,6 +253,7 @@ impl Render for PaneManager {
             }))
             .selected_index(self.active_tab)
             .on_click(cx.listener(|this, index, _window, cx| {
+                this.auto_save_current_tab(cx);
                 this.active_tab = *index;
                 cx.notify();
             }));
