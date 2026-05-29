@@ -525,11 +525,86 @@ fn render_pane_node(
     focused: PaneId,
     border: gpui::Hsla,
     text_dim: gpui::Hsla,
-    header_bg: gpui::Hsla,
 ) -> gpui::AnyElement {
     match node {
         PaneNode::Leaf(leaf) => {
-            render_leaf_element(leaf, leaf.id == focused, border, text_dim, header_bg)
+            let is_focused = leaf.id == focused;
+            let header = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .px_2()
+                .py(px(2.0))
+                .border_b_1()
+                .border_color(border)
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(text_dim)
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .child(if leaf.file_path.is_some() {
+                            leaf.title.clone()
+                        } else {
+                            String::new()
+                        }),
+                );
+
+            let content = if leaf.file_path.is_none() {
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(text_dim)
+                    .text_sm()
+                    .child("Open or Create Note")
+                    .into_any_element()
+            } else {
+                match leaf.view_mode {
+                    ViewMode::Editor => div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .overflow_hidden()
+                        .child(leaf.editor.clone())
+                        .into_any_element(),
+                    ViewMode::Preview => div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .overflow_hidden()
+                        .child(leaf.preview.clone())
+                        .into_any_element(),
+                    ViewMode::Split => div()
+                        .flex()
+                        .flex_row()
+                        .flex_1()
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .overflow_hidden()
+                                .child(leaf.editor.clone()),
+                        )
+                        .child(div().w(px(1.0)).bg(border))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .overflow_hidden()
+                                .child(leaf.preview.clone()),
+                        )
+                        .into_any_element(),
+                }
+            };
+
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .when(is_focused, |el| el.border_1().border_color(border))
+                .child(header)
+                .child(content)
+                .into_any_element()
         }
         PaneNode::Split {
             id,
@@ -537,8 +612,8 @@ fn render_pane_node(
             children,
             resize_state,
         } => {
-            let left = render_pane_node(&children.0, focused, border, text_dim, header_bg);
-            let right = render_pane_node(&children.1, focused, border, text_dim, header_bg);
+            let left = render_pane_node(&children.0, focused, border, text_dim);
+            let right = render_pane_node(&children.1, focused, border, text_dim);
 
             let group_id = ("pane-split", id.0);
 
@@ -558,104 +633,99 @@ fn render_pane_node(
     }
 }
 
-fn render_leaf_element(
-    leaf: &PaneLeaf,
-    is_focused: bool,
-    border: gpui::Hsla,
-    text_dim: gpui::Hsla,
-    header_bg: gpui::Hsla,
-) -> gpui::AnyElement {
-    // Mini header showing file name
-    let display_title = if leaf.file_path.is_some() {
-        leaf.title.clone()
-    } else {
-        String::new()
-    };
-
-    let header = div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .px_2()
-        .py(px(2.0))
-        .bg(header_bg)
-        .border_b_1()
-        .border_color(border)
-        .child(
-            div()
-                .text_xs()
-                .text_color(text_dim)
-                .overflow_hidden()
-                .text_ellipsis()
-                .child(display_title),
-        );
-
-    // Content
-    let content = if leaf.file_path.is_none() {
-        div()
-            .flex_1()
-            .flex()
-            .items_center()
-            .justify_center()
-            .text_color(text_dim)
-            .text_sm()
-            .child("Open or Create Note")
-            .into_any_element()
-    } else {
-        match leaf.view_mode {
-            ViewMode::Editor => div()
-                .flex_1()
-                .min_w(px(0.0))
-                .overflow_hidden()
-                .child(leaf.editor.clone())
-                .into_any_element(),
-            ViewMode::Preview => div()
-                .flex_1()
-                .min_w(px(0.0))
-                .overflow_hidden()
-                .child(leaf.preview.clone())
-                .into_any_element(),
-            ViewMode::Split => div()
-                .flex()
-                .flex_row()
-                .flex_1()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w(px(0.0))
-                        .overflow_hidden()
-                        .child(leaf.editor.clone()),
-                )
-                .child(div().w(px(1.0)).bg(border))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w(px(0.0))
-                        .overflow_hidden()
-                        .child(leaf.preview.clone()),
-                )
-                .into_any_element(),
-        }
-    };
-
-    div()
-        .flex()
-        .flex_col()
-        .size_full()
-        .when(is_focused, |el| el.border_1().border_color(border))
-        .child(header)
-        .child(content)
-        .into_any_element()
-}
-
 impl Render for PaneManager {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = parse_hex(&self.ui.border);
         let text_dim = parse_hex(&self.ui.text_dim);
-        let header_bg = parse_hex(&self.ui.sidebar_bg);
         let focused = self.focused;
 
-        let content = render_pane_node(&self.root, focused, border, text_dim, header_bg);
+        // Single leaf: render header + content as direct children (no wrapper)
+        // Split: use recursive rendering
+        let mut main = div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .track_focus(&self.focus_handle);
+
+        match &self.root {
+            PaneNode::Leaf(leaf) => {
+                // Header
+                let header = div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .px_2()
+                    .py(px(2.0))
+                    .border_b_1()
+                    .border_color(border)
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(text_dim)
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .child(if leaf.file_path.is_some() {
+                                leaf.title.clone()
+                            } else {
+                                String::new()
+                            }),
+                    );
+                main = main.child(header);
+
+                // Content
+                let content = if leaf.file_path.is_none() {
+                    div()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_color(text_dim)
+                        .text_sm()
+                        .child("Open or Create Note")
+                        .into_any_element()
+                } else {
+                    match leaf.view_mode {
+                        ViewMode::Editor => div()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .overflow_hidden()
+                            .child(leaf.editor.clone())
+                            .into_any_element(),
+                        ViewMode::Preview => div()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .overflow_hidden()
+                            .child(leaf.preview.clone())
+                            .into_any_element(),
+                        ViewMode::Split => div()
+                            .flex()
+                            .flex_row()
+                            .flex_1()
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.editor.clone()),
+                            )
+                            .child(div().w(px(1.0)).bg(border))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .overflow_hidden()
+                                    .child(leaf.preview.clone()),
+                            )
+                            .into_any_element(),
+                    }
+                };
+                main = main.child(content);
+            }
+            PaneNode::Split { .. } => {
+                let tree = render_pane_node(&self.root, focused, border, text_dim);
+                main = main.child(tree);
+            }
+        }
 
         // Focus the active view
         if let Some(leaf) = self.root.find_leaf(focused) {
@@ -668,13 +738,7 @@ impl Render for PaneManager {
             self.focus_handle.focus(window);
         }
 
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .track_focus(&self.focus_handle)
-            .child(content)
-            .on_action(cx.listener(PaneManager::handle_split_right))
+        main.on_action(cx.listener(PaneManager::handle_split_right))
             .on_action(cx.listener(PaneManager::handle_split_down))
             .on_action(cx.listener(PaneManager::handle_close_pane))
             .on_action(cx.listener(PaneManager::handle_next_pane))
