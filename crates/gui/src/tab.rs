@@ -16,7 +16,10 @@ use crate::pane::{
     render_pane_node,
 };
 use crate::preview::Preview;
-use crate::{ClosePane, NewTab, NextPane, NextTab, PrevPane, PrevTab, SplitPaneDown, SplitPaneRight, ToggleViewMode};
+use crate::{
+    ClosePane, NewTab, NextPane, NextTab, PrevPane, PrevTab, SplitPaneDown, SplitPaneRight,
+    ToggleViewMode,
+};
 
 pub struct TabWorkspace {
     root: PaneNode,
@@ -647,19 +650,11 @@ impl Render for TabManager {
                     text_dim,
                     on_focus,
                 );
-                main = main.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .min_h(px(0.0))
-                        .child(tree),
-                );
+                main = main.child(div().flex().flex_col().flex_1().min_h(px(0.0)).child(tree));
             }
         }
 
-        main
-            .on_action(cx.listener(TabManager::handle_split_right))
+        main.on_action(cx.listener(TabManager::handle_split_right))
             .on_action(cx.listener(TabManager::handle_split_down))
             .on_action(cx.listener(TabManager::handle_close_pane))
             .on_action(cx.listener(TabManager::handle_next_pane))
