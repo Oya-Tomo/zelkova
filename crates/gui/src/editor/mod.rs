@@ -19,7 +19,7 @@ use gpui::{
     App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, ScrollHandle,
     SharedString, StyledText, Window, canvas, div, prelude::*, px,
 };
-use gpui_component::scroll::{ScrollableElement, ScrollbarAxis};
+use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
 use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
 
@@ -1051,24 +1051,50 @@ impl Render for Editor {
             .when(!self.wrap, |el| el.items_start().min_w(px(max_line_width)))
             .children(children);
 
-        // Absolute-positioned scroll_div inside a relative container.
+        let scrollbar_axis = if self.wrap {
+            ScrollbarAxis::Vertical
+        } else {
+            ScrollbarAxis::Both
+        };
+
+        // Absolute-positioned wrapper inside a relative container.
         // This prevents Taffy 0.9.0's min-content propagation from expanding
         // the container when content overflows horizontally. Absolute elements
         // are taken out of the normal flow, so their content never affects
         // the parent's layout size.
+        //
+        // Structure (matches gpui-component Scrollable):
+        //   div.absolute.size_full          — wrapper (prevents Taffy expansion)
+        //     div#editor-scroll             — scroll area (overflow_scroll)
+        //       content_element
+        //     div.absolute.top_0.left_0…    — scrollbar overlay (sibling, not inside scroll)
+        //       Scrollbar
         let scroll_container = div().flex_1().relative().overflow_hidden().child(
             div()
-                .id("editor-scroll")
                 .absolute()
                 .size_full()
-                .when(self.wrap, |el| el.overflow_y_scroll())
-                .when(!self.wrap, |el| el.overflow_scroll())
-                .track_scroll(&self.scroll_handle)
-                .when(self.wrap, |el| el.vertical_scrollbar(&self.scroll_handle))
-                .when(!self.wrap, |el| {
-                    el.scrollbar(&self.scroll_handle, ScrollbarAxis::Both)
-                })
-                .child(content_element),
+                .child(
+                    div()
+                        .id("editor-scroll")
+                        .size_full()
+                        .when(self.wrap, |el| el.overflow_y_scroll())
+                        .when(!self.wrap, |el| el.overflow_scroll())
+                        .track_scroll(&self.scroll_handle)
+                        .child(content_element),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .child(
+                            Scrollbar::new(&self.scroll_handle)
+                                .id("editor-scrollbar")
+                                .axis(scrollbar_axis),
+                        ),
+                ),
         );
 
         div()
