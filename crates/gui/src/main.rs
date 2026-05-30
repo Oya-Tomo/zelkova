@@ -806,7 +806,7 @@ fn main() {
             gpui_component::init(cx);
 
             // Load theme from config
-            let _markdown_colors = match theme::load_theme(
+            let markdown_colors = match theme::load_theme(
                 &config.ui.theme,
                 &config.ui.mode,
                 config.ui.override_path.as_deref(),
@@ -815,9 +815,12 @@ fn main() {
                 Ok(colors) => colors,
                 Err(err) => {
                     tracing::error!("Failed to load theme: {err}, using defaults");
-                    theme::ResolvedMarkdownColors::default()
+                    let defaults = theme::ResolvedMarkdownColors::default();
+                    cx.set_global(defaults.clone());
+                    defaults
                 }
             };
+            drop(markdown_colors);
 
             let bindings = keymap::build_bindings(&keymap_config);
             cx.bind_keys(bindings);
