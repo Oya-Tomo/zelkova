@@ -67,6 +67,8 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(cx: &mut App) -> Self {
+        let theme = cx.theme();
+        let md = ResolvedMarkdownColors::global(cx);
         Self {
             focus_handle: cx.focus_handle(),
             buffer: Buffer::new(),
@@ -77,7 +79,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: None,
             socket_path: None,
-            resolved_colors: ResolvedColors::default(),
+            resolved_colors: ResolvedColors::from_theme(&theme, md),
             dirty: false,
             frontmatter: None,
             tag_input: String::new(),
@@ -104,6 +106,8 @@ impl Editor {
             Some(fm) if fm.title.is_empty() => EditZone::Title,
             _ => EditZone::Content,
         };
+        let theme = cx.theme();
+        let md = ResolvedMarkdownColors::global(cx);
         Ok(Self {
             focus_handle: cx.focus_handle(),
             buffer: Buffer::from(&body),
@@ -114,7 +118,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: Some(path),
             socket_path: None,
-            resolved_colors: ResolvedColors::default(),
+            resolved_colors: ResolvedColors::from_theme(&theme, md),
             dirty: false,
             frontmatter,
             tag_input: String::new(),
@@ -134,7 +138,6 @@ impl Editor {
         self.socket_path = Some(path);
     }
 
-    #[allow(dead_code)]
     pub fn set_theme(&mut self, cx: &App) {
         let theme = cx.theme();
         let md = ResolvedMarkdownColors::global(cx);
