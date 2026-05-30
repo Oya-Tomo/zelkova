@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod keymap;
-pub mod themes;
 pub use keymap::{BindingConfig, KeymapConfig};
-pub use themes::BUNDLED_THEME_JSON;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
