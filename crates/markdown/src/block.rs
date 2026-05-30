@@ -108,9 +108,10 @@ pub fn detect_blocks(lines: &[&str]) -> Vec<BlockSlice> {
                 if lines[i].trim().is_empty() {
                     break;
                 }
-                if parse_list_marker(lines[i]).is_some() {
-                    i += 1;
-                } else if lines[i].starts_with(' ') || lines[i].starts_with('\t') {
+                if parse_list_marker(lines[i]).is_some()
+                    || lines[i].starts_with(' ')
+                    || lines[i].starts_with('\t')
+                {
                     i += 1;
                 } else {
                     break;
@@ -211,7 +212,7 @@ pub struct FenceInfo {
 fn parse_atx_heading(line: &str) -> Option<u8> {
     let trimmed = line.trim_start();
     let level = trimmed.bytes().take_while(|&b| b == b'#').count();
-    if level >= 1 && level <= 6 {
+    if (1..=6).contains(&level) {
         let rest = &trimmed[level..];
         if rest.is_empty() || rest.starts_with(' ') {
             return Some(level as u8);
@@ -249,11 +250,17 @@ fn parse_code_fence(line: &str) -> Option<FenceInfo> {
 }
 
 fn is_closing_fence(line: &str, marker: &str) -> bool {
-    let trimmed = line.trim();
-    if !trimmed.starts_with(&marker.chars().next().unwrap().to_string()) {
+    if marker.is_empty() {
         return false;
     }
-    let fence_char = marker.chars().next().unwrap();
+    let trimmed = line.trim();
+    let fence_char = marker
+        .chars()
+        .next()
+        .expect("marker is non-empty after is_empty check");
+    if !trimmed.starts_with(fence_char) {
+        return false;
+    }
     let count = trimmed.chars().take_while(|&c| c == fence_char).count();
     count >= 3
 }
@@ -263,7 +270,10 @@ fn is_thematic_break(line: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    let first = trimmed.chars().next().unwrap();
+    let first = trimmed
+        .chars()
+        .next()
+        .expect("trimmed is non-empty after is_empty check");
     if first != '-' && first != '*' && first != '_' {
         return false;
     }

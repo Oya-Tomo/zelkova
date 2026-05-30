@@ -2,7 +2,7 @@
 
 ## Overview
 
-GPUI 0.2ベースのMarkdownノートアプリ。Unix domain socket + JSON-RPC 2.0でGUI/CLIとデーモンが通信するクライアント・サーバー構成。
+A Markdown note-taking application built on GPUI 0.2. Client-server architecture where the GUI and CLI communicate with the daemon via Unix domain sockets and JSON-RPC 2.0.
 
 ```
 zelkova (GUI)  ──socket──>  zelkovad (daemon)  ──fs──>  ~/Notes/
@@ -52,7 +52,7 @@ highlight ────┘──► (config only dependency)
 
 ### ResolvedColors Pattern
 
-GUIのハイライトシステムでは、テーマ変更時に全ての色を一度だけ `parse_hex` で Hsla に変換し、`ResolvedColors` 構造体にキャッシュする。フレームごとに文字列パースを繰り返さない。
+In the GUI highlight system, all colors are converted from hex to Hsla via `parse_hex` only once when the theme changes, then cached in the `ResolvedColors` struct. This avoids repeated string parsing per frame.
 
 ```rust
 // highlight.rs
@@ -66,20 +66,19 @@ pub struct ResolvedColors {
 
 ### Deterministic Selection Overlay
 
-GPUIの `combine_highlights` は内部で HashSet を使い反復順序が非決定的。選択背景には代わりに `overlay_selection()` を使う — ハイライト範囲を選択境界で分割し、確実に選択背景が優先される。
+GPUI's `combine_highlights` uses a HashSet internally, resulting in non-deterministic iteration order. For selection backgrounds, `overlay_selection()` is used instead — it splits highlight ranges at selection boundaries, ensuring the selection background always takes priority.
 
 ### Lazy Highlight Rendering
 
-ハイライト計算は重いため、初回フレームはプレーンテキストで表示し、`highlights_dirty` フラグで次フレームに計算を遅延させる。
+Highlight computation is expensive, so the first frame renders plain text. The `highlights_dirty` flag defers computation to the next frame.
 
 ### File Watching
 
-Daemonは2秒間隔のポーリングでファイル変更を検知し、自動的に検索インデックスを更新する。
+The daemon detects file changes via polling at 2-second intervals and automatically updates the search index.
 
 ## Configuration
 
-- **App config**: `~/.config/zelkova/config.toml` (vault path, daemon socket)
+- **App config**: `~/.config/zelkova/config.toml` (vault path, daemon socket, theme)
 - **Keymap**: `~/.config/zelkova/keymap.toml` (leader key, custom bindings)
-- **Theme**: `~/.config/zelkova/theme.toml` (UI colors, editor colors, 12 code syntax colors)
 
-全設定項目はserde defaultで補完されるため、部分的なTOMLファイルで動作する。
+All configuration fields are filled in with serde defaults, so partial TOML files work correctly.

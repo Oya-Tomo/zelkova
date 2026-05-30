@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets -- -W clippy::unwrap_used -A clippy::result_large_err
+      - run: cargo clippy --workspace --all-targets
 
   fmt:
     name: Format

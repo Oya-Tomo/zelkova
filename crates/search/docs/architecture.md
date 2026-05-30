@@ -2,29 +2,29 @@
 
 ## Role
 
-ノートの全文検索インデックスを抽象化し、Tantivyベースのバックエンド実装を提供するcrate。
+A crate that abstracts full-text search indexing for notes and provides a Tantivy-based backend implementation.
 
 ## Module Layout
 
 ```
 src/
-├── lib.rs               モジュール宣言, default_search_index ファクトリ関数
+├── lib.rs               Module declarations, default_search_index factory function
 ├── engine/
 │   └── mod.rs           SearchDocument, SearchQuery, SearchResult, SearchIndex trait
-└── tantivy_backend.rs   TantivyIndex (feature "tantivy" で有効化)
+└── tantivy_backend.rs   TantivyIndex (enabled by feature "tantivy")
 ```
 
 ## Dependencies
 
-- `uuid` — ドキュメントID
-- `anyhow` — エラーハンドリング
-- `tantivy` (feature-gated) — 全文検索エンジン
+- `uuid` — Document ID
+- `anyhow` — Error handling
+- `tantivy` (feature-gated) — Full-text search engine
 
 ## Key Types / APIs
 
 ### SearchDocument (engine/mod.rs)
 
-インデックスに登録するドキュメント。
+A document to be indexed.
 
 ```rust
 struct SearchDocument {
@@ -38,33 +38,33 @@ struct SearchDocument {
 
 ### SearchQuery (engine/mod.rs)
 
-検索クエリ。
+A search query.
 
 ```rust
 struct SearchQuery {
-    text: String,           // 全文検索テキスト
-    limit: Option<usize>,   // 結果の最大数 (デフォルト20)
-    tags: Vec<String>,      // タグフィルタ (AND条件)
+    text: String,           // Full-text search query
+    limit: Option<usize>,   // Maximum number of results (default: 20)
+    tags: Vec<String>,      // Tag filter (AND condition)
 }
 ```
 
 ### SearchResult (engine/mod.rs)
 
-検索結果の1件。
+A single search result.
 
 ```rust
 struct SearchResult {
     id: Uuid,
     title: String,
     path: PathBuf,
-    score: f32,         // 関連度スコア
-    snippet: String,    // スニペット (現在未実装: 空文字列)
+    score: f32,         // Relevance score
+    snippet: String,    // Snippet (currently unimplemented: empty string)
 }
 ```
 
 ### SearchIndex trait (engine/mod.rs)
 
-検索バックエンドの抽象インターフェース。
+Abstract interface for search backends.
 
 ```rust
 trait SearchIndex: Send + Sync {
@@ -81,13 +81,13 @@ trait SearchIndex: Send + Sync {
 fn default_search_index(path: &Path) -> Result<Box<dyn SearchIndex>>
 ```
 
-Feature flagに基づいてバックエンドを選択:
-- `"tantivy"` feature有効 → `TantivyIndex::open(path)` を返す
-- feature無効 → コンパイルエラー
+Selects the backend based on feature flags:
+- `"tantivy"` feature enabled → returns `TantivyIndex::open(path)`
+- Feature disabled → compilation error
 
 ### TantivyIndex (tantivy_backend.rs)
 
-TantivyベースのSearchIndex実装。feature `"tantivy"` で有効化。
+Tantivy-based SearchIndex implementation. Enabled by feature `"tantivy"`.
 
 ```rust
 struct TantivyIndex {
@@ -97,61 +97,61 @@ struct TantivyIndex {
 }
 ```
 
-**インデックススキーマ (5フィールド):**
+**Index schema (5 fields):**
 
-| フィールド | 型 | オプション | 用途 |
+| Field | Type | Options | Purpose |
 |---|---|---|---|
-| `id` | STRING | STORED | ドキュメントの一意識別子 |
-| `title` | TEXT | STORED | タイトル (トークナイズ済み) |
-| `content` | TEXT | STORED | 本文 (トークナイズ済み) |
-| `tags` | TEXT | STORED | タグ (スペース区切りで結合して格納) |
-| `path` | TEXT | STORED | ファイルパス |
+| `id` | STRING | STORED | Unique document identifier |
+| `title` | TEXT | STORED | Title (tokenized) |
+| `content` | TEXT | STORED | Body text (tokenized) |
+| `tags` | TEXT | STORED | Tags (joined with spaces before storing) |
+| `path` | TEXT | STORED | File path |
 
-**SearchIndex実装:**
+**SearchIndex implementation:**
 
-| メソッド | 実装詳細 |
+| Method | Implementation details |
 |---|---|
-| `add_document` | `doc!`マクロでTantivyドキュメントを構築し、writerに追加→commit |
-| `remove_document` | idフィールドのTermで削除→commit |
-| `search` | QueryParser (title, content, tags対象) + タグTermQuery → BooleanQuery → TopDocs |
-| `rebuild` | `delete_all_documents()` → commit → 全ドキュメントをadd_document |
+| `add_document` | Build Tantivy document via `doc!` macro, add to writer → commit |
+| `remove_document` | Delete by id field Term → commit |
+| `search` | QueryParser (targeting title, content, tags) + tag TermQuery → BooleanQuery → TopDocs |
+| `rebuild` | `delete_all_documents()` → commit → add_document for all documents |
 
-**検索クエリ構築:**
-1. `text`が非空 → QueryParserでパース → `Occur::Must`として追加
-2. 各`tag` → TermQueryでタグフィールドを検索 → `Occur::Must`として追加
-3. 全条件をBooleanQueryで結合 (AND条件)
-4. 条件が空 → ワイルドカードクエリ (`*`)
+**Search query construction:**
+1. `text` is non-empty → parse via QueryParser → add as `Occur::Must`
+2. Each `tag` → TermQuery on tags field → add as `Occur::Must`
+3. Combine all conditions via BooleanQuery (AND condition)
+4. No conditions → wildcard query (`*`)
 
-**スレッド安全性:** `IndexWriter`は`Mutex`で保護。`SearchIndex: Send + Sync`を満たす。
+**Thread safety:** `IndexWriter` is protected by `Mutex`. Satisfies `SearchIndex: Send + Sync`.
 
-**インデックスの永続化:** 指定されたディレクトリにTantivyインデックスを保存。`meta.json`の有無で新規作成か既存オープンかを判定。
+**Index persistence:** Saves the Tantivy index to the specified directory. Determines whether to create new or open existing based on the presence of `meta.json`.
 
 ## Data Flow
 
 ```
-ノート追加:
+Adding a note:
   SearchDocument { id, title, content, tags, path }
       │
       TantivyIndex::add_document()
       │
-      ├── doc! マクロでフィールドをマッピング
-      │     tags: Vec<String> → スペース区切りの単一テキスト
+      ├── Map fields via doc! macro
+      │     tags: Vec<String> → single space-separated text
       │
       ├── writer.add_document(doc)
       └── writer.commit()
 
-検索:
+Searching:
   SearchQuery { text: "Rust", tags: ["programming"], limit: Some(10) }
       │
       TantivyIndex::search()
       │
-      ├── QueryParser: title, content, tagsフィールドで "Rust" を検索
-      ├── TermQuery: tagsフィールドで "programming" を検索
-      ├── BooleanQuery: Must (AND) で結合
-      ├── TopDocs::with_limit(10) で取得
-      └── SearchResult[] に変換 (id, title, path, score)
+      ├── QueryParser: search "Rust" in title, content, tags fields
+      ├── TermQuery: search "programming" in tags field
+      ├── BooleanQuery: Must (AND) combination
+      ├── Retrieve via TopDocs::with_limit(10)
+      └── Convert to SearchResult[] (id, title, path, score)
 
-インデックス再構築:
+Index rebuild:
   rebuild(docs)
       │
       ├── delete_all_documents() → commit

@@ -1,9 +1,7 @@
 /// B-tree based Rope for efficient text editing.
 /// Leaf nodes hold up to CHUNK_SIZE bytes.
 /// Internal nodes hold 2 children + left subtree metrics.
-
 const CHUNK_SIZE: usize = 512;
-const MIN_SPLIT: usize = CHUNK_SIZE / 4;
 
 #[derive(Debug, Clone)]
 pub enum Node {
@@ -34,7 +32,7 @@ impl Node {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn build(s: &str) -> Self {
         if s.len() <= CHUNK_SIZE {
             let line_count = s.lines().count().max(1);
             Node::Leaf {
@@ -43,8 +41,8 @@ impl Node {
             }
         } else {
             let mid = find_split_point(s);
-            let left = Node::from_str(&s[..mid]);
-            let right = Node::from_str(&s[mid..]);
+            let left = Node::build(&s[..mid]);
+            let right = Node::build(&s[mid..]);
             Node::merge(left, right)
         }
     }
@@ -82,13 +80,13 @@ impl Node {
                         line_count,
                     }
                 } else {
-                    Node::from_str(&new_text)
+                    Node::build(&new_text)
                 }
             }
             Node::Internal {
                 left,
                 right,
-                char_count,
+                char_count: _,
                 ..
             } => {
                 let left_len = left.char_count();
@@ -245,6 +243,12 @@ pub struct Rope {
     root: Node,
 }
 
+impl Default for Rope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Rope {
     pub fn new() -> Self {
         Self {
@@ -260,7 +264,7 @@ impl Rope {
             Self::new()
         } else {
             Self {
-                root: Node::from_str(text),
+                root: Node::build(text),
             }
         }
     }
@@ -393,7 +397,9 @@ enum Edit {
         text: String,
     },
     Delete {
+        #[allow(dead_code)]
         start: usize,
+        #[allow(dead_code)]
         end: usize,
         text: String,
     },
@@ -403,6 +409,12 @@ pub struct Buffer {
     rope: Rope,
     undo_stack: Vec<Edit>,
     redo_stack: Vec<Edit>,
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Buffer {

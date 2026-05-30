@@ -22,16 +22,41 @@ pub fn build_bindings(keymap_config: &KeymapConfig) -> Vec<KeyBinding> {
     bindings.push(KeyBinding::new("ctrl-z", crate::Undo, None));
     bindings.push(KeyBinding::new("ctrl-shift-z", crate::Redo, None));
 
-    // Pane key bindings
-    bindings.push(KeyBinding::new("ctrl-alt-right", crate::NextPane, None));
-    bindings.push(KeyBinding::new("ctrl-alt-left", crate::PrevPane, None));
-    bindings.push(KeyBinding::new("ctrl-alt-v", crate::ToggleViewMode, None));
+    // Pane key bindings (Ctrl+Shift)
+    bindings.push(KeyBinding::new("ctrl-shift-n", crate::NextPane, None));
+    bindings.push(KeyBinding::new("ctrl-shift-b", crate::PrevPane, None));
+    bindings.push(KeyBinding::new("ctrl-shift-t", crate::ToggleViewMode, None));
+    bindings.push(KeyBinding::new("ctrl-shift-h", crate::SplitPaneRight, None));
+    bindings.push(KeyBinding::new("ctrl-shift-v", crate::SplitPaneDown, None));
+    bindings.push(KeyBinding::new("ctrl-shift-q", crate::ClosePane, None));
 
     // Global
     bindings.push(KeyBinding::new("escape", crate::Cancel, None));
 
+    // Sidebar (Alt+Shift)
+    bindings.push(KeyBinding::new(
+        "alt-shift-h",
+        crate::ResizeSidebarLeft,
+        None,
+    ));
+    bindings.push(KeyBinding::new(
+        "alt-shift-l",
+        crate::ResizeSidebarRight,
+        None,
+    ));
+
+    // Tab (Alt)
+    bindings.push(KeyBinding::new("alt-t", crate::NewTab, None));
+    bindings.push(KeyBinding::new("alt-n", crate::NextTab, None));
+    bindings.push(KeyBinding::new("alt-b", crate::PrevTab, None));
+
     // SelectAll
     bindings.push(KeyBinding::new("ctrl-a", crate::SelectAll, None));
+
+    // Clipboard
+    bindings.push(KeyBinding::new("ctrl-c", crate::Copy, None));
+    bindings.push(KeyBinding::new("ctrl-v", crate::Paste, None));
+    bindings.push(KeyBinding::new("ctrl-x", crate::Cut, None));
 
     // User-defined bindings from config
     let resolved = keymap_config.resolved_bindings();
@@ -59,6 +84,16 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
         "list_notes" => Some(KeyBinding::new(&binding.key, crate::ListNotes, context)),
         "show_tags" => Some(KeyBinding::new(&binding.key, crate::ShowTags, context)),
         "toggle_sidebar" => Some(KeyBinding::new(&binding.key, crate::ToggleSidebar, context)),
+        "resize_sidebar_left" => Some(KeyBinding::new(
+            &binding.key,
+            crate::ResizeSidebarLeft,
+            context,
+        )),
+        "resize_sidebar_right" => Some(KeyBinding::new(
+            &binding.key,
+            crate::ResizeSidebarRight,
+            context,
+        )),
         "save_note" => Some(KeyBinding::new(&binding.key, crate::SaveNote, context)),
         "quit" => Some(KeyBinding::new(&binding.key, crate::Quit, context)),
         "move_up" => Some(KeyBinding::new(&binding.key, crate::MoveUp, context)),
@@ -74,11 +109,24 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
             crate::ToggleViewMode,
             context,
         )),
+        "split_pane_right" => Some(KeyBinding::new(
+            &binding.key,
+            crate::SplitPaneRight,
+            context,
+        )),
+        "split_pane_down" => Some(KeyBinding::new(&binding.key, crate::SplitPaneDown, context)),
+        "close_pane" => Some(KeyBinding::new(&binding.key, crate::ClosePane, context)),
+        "new_tab" => Some(KeyBinding::new(&binding.key, crate::NewTab, context)),
+        "next_tab" => Some(KeyBinding::new(&binding.key, crate::NextTab, context)),
+        "prev_tab" => Some(KeyBinding::new(&binding.key, crate::PrevTab, context)),
         "undo" => Some(KeyBinding::new(&binding.key, crate::Undo, context)),
         "redo" => Some(KeyBinding::new(&binding.key, crate::Redo, context)),
         "confirm" => Some(KeyBinding::new(&binding.key, crate::Confirm, context)),
         "cancel" => Some(KeyBinding::new(&binding.key, crate::Cancel, context)),
         "select_all" => Some(KeyBinding::new(&binding.key, crate::SelectAll, context)),
+        "copy" => Some(KeyBinding::new(&binding.key, crate::Copy, context)),
+        "paste" => Some(KeyBinding::new(&binding.key, crate::Paste, context)),
+        "cut" => Some(KeyBinding::new(&binding.key, crate::Cut, context)),
         _ => {
             eprintln!("warning: unknown action in keymap: {}", binding.action);
             None
@@ -86,16 +134,188 @@ fn binding_to_key_binding(binding: &BindingConfig) -> Option<KeyBinding> {
     }
 }
 
-/// All action names with their display labels, for the command palette.
-pub fn all_action_entries() -> Vec<(String, String)> {
+/// Command specs with argument definitions for the command palette.
+/// `folder_names` and `note_titles` are populated from daemon data to
+/// fill Select-style argument options dynamically.
+pub fn all_command_specs(
+    folder_names: &[String],
+    note_titles: &[String],
+) -> Vec<super::command_palette::CommandSpec> {
+    use super::command_palette::{ArgSpec, ArgType, CommandSpec};
+
+    let folder_options = {
+        let mut opts = vec!["(root)".into()];
+        opts.extend(folder_names.iter().cloned());
+        opts
+    };
+    let folder_only_options: Vec<String> = folder_names.to_vec();
+    let note_options: Vec<String> = note_titles.to_vec();
+
     vec![
-        ("OpenCommandPalette".into(), "Open Command Palette".into()),
-        ("SearchNotes".into(), "Search Notes".into()),
-        ("CreateNote".into(), "Create Note".into()),
-        ("ListNotes".into(), "List Notes".into()),
-        ("ShowTags".into(), "Show Tags".into()),
-        ("ToggleSidebar".into(), "Toggle Sidebar".into()),
-        ("SaveNote".into(), "Save Note".into()),
-        ("Quit".into(), "Quit".into()),
+        CommandSpec::no_arg("Open Command Palette"),
+        CommandSpec::no_arg("Search Notes"),
+        CommandSpec::with_args(
+            "Create Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note title".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: true,
+                },
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options.clone(),
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Create Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder name".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Parent folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options.clone(),
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Move Note to Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Destination".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options.clone(),
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Move Folder to Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Destination".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_options,
+                    },
+                    optional: true,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Delete Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Contents".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Move notes to root".into(), "Delete notes too".into()],
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Confirm".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Cancel".into(), "Yes, delete".into()],
+                    },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Rename Folder",
+            vec![
+                ArgSpec {
+                    prompt: "Folder".into(),
+                    arg_type: ArgType::Select {
+                        options: folder_only_options,
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "New name".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Rename Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options.clone(),
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "New title".into(),
+                    arg_type: ArgType::FreeText { default: None },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::with_args(
+            "Delete Note",
+            vec![
+                ArgSpec {
+                    prompt: "Note".into(),
+                    arg_type: ArgType::Select {
+                        options: note_options,
+                    },
+                    optional: false,
+                },
+                ArgSpec {
+                    prompt: "Confirm".into(),
+                    arg_type: ArgType::Select {
+                        options: vec!["Cancel".into(), "Yes, delete".into()],
+                    },
+                    optional: false,
+                },
+            ],
+        ),
+        CommandSpec::no_arg("List Notes"),
+        CommandSpec::no_arg("Show Tags"),
+        CommandSpec::no_arg("Toggle Sidebar"),
+        CommandSpec::no_arg("Toggle View Mode"),
+        CommandSpec::no_arg("Split Pane Right"),
+        CommandSpec::no_arg("Split Pane Down"),
+        CommandSpec::no_arg("Close Pane"),
+        CommandSpec::no_arg("New Tab"),
+        CommandSpec::no_arg("Next Tab"),
+        CommandSpec::no_arg("Prev Tab"),
+        CommandSpec::no_arg("Save Note"),
+        CommandSpec::no_arg("Quit"),
     ]
 }

@@ -3,9 +3,9 @@ mod indexer;
 mod watcher;
 
 use anyhow::{Context, Result};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use zelkova_config::AppConfig;
-use zelkova_note_core::Vault;
+use zelkova_note_core::{DirectoryStructure, Vault};
 use zelkova_rpc::server::RpcServer;
 use zelkova_search::SearchIndex;
 
@@ -13,6 +13,7 @@ struct DaemonState {
     vault: Vault,
     search_index: Box<dyn SearchIndex>,
     config: AppConfig,
+    directory: Mutex<DirectoryStructure>,
 }
 
 fn main() -> Result<()> {
@@ -24,10 +25,14 @@ fn main() -> Result<()> {
     let search_index =
         zelkova_search::default_search_index(&index_path).context("failed to open search index")?;
 
+    let directory = DirectoryStructure::load(&config.note.vault_path)
+        .context("failed to load directory structure")?;
+
     let state = Arc::new(DaemonState {
         vault,
         search_index,
         config: config.clone(),
+        directory: Mutex::new(directory),
     });
 
     // initial index
@@ -52,10 +57,10 @@ fn main() -> Result<()> {
     write_pid_file(&config)?;
 
     // Start file watcher
-    if config.daemon.index_on_start {
-        if let Err(e) = watcher::start_watcher(state.clone()) {
-            eprintln!("warning: file watcher failed to start: {e}");
-        }
+    if config.daemon.index_on_start
+        && let Err(e) = watcher::start_watcher(state.clone())
+    {
+        eprintln!("warning: file watcher failed to start: {e}");
     }
 
     loop {

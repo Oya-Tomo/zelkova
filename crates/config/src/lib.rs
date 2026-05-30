@@ -3,11 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod keymap;
-pub mod theme;
 pub use keymap::{BindingConfig, KeymapConfig};
-pub use theme::{EditorColors, ThemeConfig, UiColors};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub note: NoteConfig,
@@ -15,6 +13,33 @@ pub struct AppConfig {
     pub daemon: DaemonConfig,
     #[serde(default)]
     pub mcp: McpConfig,
+    #[serde(default)]
+    pub editor: EditorBehavior,
+    #[serde(default)]
+    pub preview: PreviewBehavior,
+    #[serde(default)]
+    pub ui: UiConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiConfig {
+    pub theme: String,
+    #[serde(default = "default_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub override_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditorBehavior {
+    #[serde(default = "default_true")]
+    pub wrap: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewBehavior {
+    #[serde(default = "default_true")]
+    pub wrap: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,14 +82,8 @@ fn default_true() -> bool {
     true
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            note: NoteConfig::default(),
-            daemon: DaemonConfig::default(),
-            mcp: McpConfig::default(),
-        }
-    }
+fn default_mode() -> String {
+    "dark".to_string()
 }
 
 impl Default for NoteConfig {
@@ -88,6 +107,28 @@ impl Default for DaemonConfig {
 impl Default for McpConfig {
     fn default() -> Self {
         Self { enabled: true }
+    }
+}
+
+impl Default for EditorBehavior {
+    fn default() -> Self {
+        Self { wrap: true }
+    }
+}
+
+impl Default for PreviewBehavior {
+    fn default() -> Self {
+        Self { wrap: true }
+    }
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            theme: "catppuccin".to_string(),
+            mode: default_mode(),
+            override_path: None,
+        }
     }
 }
 
@@ -125,11 +166,15 @@ mod tests {
         );
         assert!(config.daemon.index_on_start);
         assert!(config.mcp.enabled);
+        assert!(config.editor.wrap);
+        assert!(config.preview.wrap);
+        assert_eq!(config.ui.theme, "catppuccin");
+        assert_eq!(config.ui.mode, "dark");
     }
 
     #[test]
     fn config_path_is_under_xdg() {
-        let path = AppConfig::config_path().unwrap();
+        let path = AppConfig::config_path().expect("config path is valid in test env");
         assert!(path.to_string_lossy().contains("zelkova"));
         assert!(path.to_string_lossy().ends_with("config.toml"));
     }
@@ -140,17 +185,32 @@ mod tests {
 [note]
 vault_path = "/tmp/test-vault"
 "#;
-        let config: AppConfig = toml::from_str(toml).unwrap();
+        let config: AppConfig = toml::from_str(toml).expect("valid TOML in test");
         assert_eq!(config.note.vault_path, PathBuf::from("/tmp/test-vault"));
         assert!(config.daemon.index_on_start);
     }
 
     #[test]
+    fn parse_ui_section() {
+        let toml = r#"
+[ui]
+theme = "tokyonight"
+mode = "light"
+override_path = "my-theme.json"
+"#;
+        let config: AppConfig = toml::from_str(toml).expect("valid TOML in test");
+        assert_eq!(config.ui.theme, "tokyonight");
+        assert_eq!(config.ui.mode, "light");
+        assert_eq!(config.ui.override_path, Some("my-theme.json".to_string()));
+    }
+
+    #[test]
     fn roundtrip_default() {
         let config = AppConfig::default();
-        let toml_str = toml::to_string_pretty(&config).unwrap();
-        let parsed: AppConfig = toml::from_str(&toml_str).unwrap();
+        let toml_str = toml::to_string_pretty(&config).expect("default config serializes");
+        let parsed: AppConfig = toml::from_str(&toml_str).expect("roundtrip TOML parses");
         assert_eq!(config.note.vault_path, parsed.note.vault_path);
         assert_eq!(config.daemon.socket_path, parsed.daemon.socket_path);
+        assert_eq!(config.ui.theme, parsed.ui.theme);
     }
 }

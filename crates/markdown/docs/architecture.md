@@ -2,38 +2,38 @@
 
 ## Role
 
-Markdown文字列を独自AST (抽象構文木) にパースするcrate。外部依存なし。
+A crate that parses Markdown strings into a custom AST (Abstract Syntax Tree). No external dependencies.
 
 ## Module Layout
 
 ```
 src/
-├── lib.rs      公開API (parse関数), re-export
-├── ast.rs      AST構造体定義 (MarkdownDoc, Block, Inline, ListItem等)
-├── block.rs    ブロック検出 (BlockKind, BlockSlice, detect_blocks)
-└── parser.rs   パーサー本体, フロントマター分割, 各ブロックの構築
+├── lib.rs      Public API (parse function), re-exports
+├── ast.rs      AST struct definitions (MarkdownDoc, Block, Inline, ListItem, etc.)
+├── block.rs    Block detection (BlockKind, BlockSlice, detect_blocks)
+└── parser.rs   Parser core, frontmatter splitting, block construction
 ```
 
 ## Dependencies
 
-なし (標準ライブラリのみ)
+None (standard library only)
 
 ## Key Types / APIs
 
 ### MarkdownDoc (ast.rs)
 
-パース結果のルート構造体。
+Root struct of the parse result.
 
 ```rust
 struct MarkdownDoc {
-    frontmatter: Option<String>,  // YAML frontmatterの生文字列 (未パース)
-    blocks: Vec<Block>,           // ブロック要素のリスト
+    frontmatter: Option<String>,  // Raw YAML frontmatter string (unparsed)
+    blocks: Vec<Block>,           // List of block elements
 }
 ```
 
 ### Block enum (ast.rs)
 
-ブロックレベル要素。10種類。
+Block-level elements. 10 variants.
 
 ```rust
 enum Block {
@@ -41,25 +41,25 @@ enum Block {
     Paragraph(Vec<Inline>),
     CodeBlock { language: Option<String>, code: String },
     List { items: Vec<ListItem> },
-    BlockQuote(Vec<Block>),                            // 再帰的
+    BlockQuote(Vec<Block>),                            // Recursive
     Table { headers, aligns, rows },
     ThematicBreak,
     MathBlock { content: String },
     HtmlBlock { content: String },
-    FootnoteDefinition { label: String, content: Vec<Block> },  // 再帰的
+    FootnoteDefinition { label: String, content: Vec<Block> },  // Recursive
 }
 ```
 
 ### Inline enum (ast.rs)
 
-インライン要素。13種類。
+Inline elements. 13 variants.
 
 ```rust
 enum Inline {
     Text(String),
-    Bold(Vec<Inline>),              // 入れ子可
-    Italic(Vec<Inline>),            // 入れ子可
-    Strikethrough(Vec<Inline>),     // 入れ子可
+    Bold(Vec<Inline>),              // Nestable
+    Italic(Vec<Inline>),            // Nestable
+    Strikethrough(Vec<Inline>),     // Nestable
     Code(String),                   // `code`
     Link { text: Vec<Inline>, url: String, title: Option<String> },
     Image { alt: String, url: String, title: Option<String> },
@@ -73,13 +73,13 @@ enum Inline {
 
 ### ListItem struct (ast.rs)
 
-リスト項目。再帰的なサブアイテムを持つ。
+A list item with recursive sub-items.
 
 ```rust
 struct ListItem {
     marker: ListMarker,
     children: Vec<Inline>,
-    sub_items: Vec<ListItem>,     // ネストされたリスト
+    sub_items: Vec<ListItem>,     // Nested list
 }
 ```
 
@@ -104,34 +104,34 @@ enum TableAlign {
 }
 ```
 
-### parse() 関数 (parser.rs)
+### parse() function (parser.rs)
 
-パーサーのエントリポイント。
+Parser entry point.
 
 ```rust
 pub fn parse(input: &str) -> MarkdownDoc
 ```
 
-**パースパイプライン:**
+**Parse pipeline:**
 
-1. `split_frontmatter(input)` — `---`区切りのYAML frontmatterを分離
-2. `block::detect_blocks(&lines)` — 行リストから`BlockSlice`配列を検出
-3. 各スライスに対して `build_block()` を呼び出しBlockを構築
-   - `inline::parse_inline(text)` でインライン要素を再帰的にパース
+1. `split_frontmatter(input)` — Separate YAML frontmatter delimited by `---`
+2. `block::detect_blocks(&lines)` — Detect `BlockSlice` array from line list
+3. Call `build_block()` for each slice to construct a Block
+   - Inline elements are parsed recursively via `inline::parse_inline(text)`
 
-**BlockQuote / FootnoteDefinition** は内容を`parse()`に再帰的に渡すことでネスト構造をサポート。
+**BlockQuote / FootnoteDefinition** support nesting by recursively passing their content to `parse()`.
 
-### テーブルパーサー
+### Table parser
 
-- 1行目: ヘッダー (`|`区切り)
-- 2行目: セパレーター (`:---:`等 → TableAlign)
-- 3行目以降: データ行
+- Line 1: Header (`|`-delimited)
+- Line 2: Separator (`:---:` etc. → TableAlign)
+- Line 3+: Data rows
 
-### リストパーサー
+### List parser
 
-- マーカー種別を自動検出 (`-`, `+`, `*`, 数字)
-- インデントされたサブアイテムを再帰的に収集
-- 継続行 (空行でない非マーカー行) を同じアイテムに含める
+- Auto-detects marker type (`-`, `+`, `*`, numbers)
+- Recursively collects indented sub-items
+- Includes continuation lines (non-empty non-marker lines) in the same item
 
 ## Data Flow
 
@@ -142,7 +142,7 @@ pub fn parse(input: &str) -> MarkdownDoc
     ├── split_frontmatter()
     │     → (None, "# Title\n\nHello **bold**\n\n```rust\ncode\n```")
     │
-    ├── lines收集 → ["# Title", "", "Hello **bold**", "", "```rust", "code", "```"]
+    ├── Collect lines → ["# Title", "", "Hello **bold**", "", "```rust", "code", "```"]
     │
     ├── detect_blocks()
     │     → [Heading{1}, Paragraph, CodeBlock{rust}]
@@ -153,7 +153,7 @@ pub fn parse(input: &str) -> MarkdownDoc
           │     → [Text("Hello "), Bold([Text("bold")])]
           └─ CodeBlock → language: Some("rust"), code: "code"
 
-結果:
+Result:
 MarkdownDoc {
     frontmatter: None,
     blocks: [

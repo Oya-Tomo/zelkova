@@ -1,6 +1,6 @@
 [package]
 name = "zelkova-gui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [[bin]]
@@ -9,8 +9,13 @@ path = "src/main.rs"
 
 [dependencies]
 gpui = "0.2"
+gpui-component = "0.5"
+gpui-component-assets = "0.5"
 serde = { workspace = true }
+serde_json = { workspace = true }
 serde_yaml = "0.9"
+tracing = { workspace = true }
+dirs = "6"
 anyhow = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
@@ -21,6 +26,7 @@ zelkova-rpc = { path = "../rpc" }
 zelkova-rope = { path = "../rope" }
 zelkova-markdown = { path = "../markdown" }
 zelkova-highlight = { path = "../highlight" }
+zelkova-math-render = { path = "../math_render" }
 
 [lints]
 workspace = true

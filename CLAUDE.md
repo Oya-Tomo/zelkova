@@ -21,7 +21,8 @@ main (protected, always stable)
 - **Branch naming**: `<prefix>/<issue-number>-<task-description>`
 - **Prefixes**: feature, bugfix, docs, refactor, chore
 - **Base branch**: Always branch from `develop`
-- **Merge**: PR via Squash Merge
+- **Merge**: PR via Squash Merge (done by human, not Claude)
+- **Meta changes**: CLAUDE.md and other project config changes follow the same Issue → Branch → PR flow as code
 
 ### Versioning: SemVer
 
@@ -52,7 +53,7 @@ type(scope): description
 
 | Rule | Detail |
 |---|---|
-| **No `unwrap()`** | `clippy::unwrap_used` is a warning. Use `expect("reason")` instead. CI will deny this once existing code is fixed |
+| **No `unwrap()`** | `clippy::unwrap_used` is denied in `Cargo.toml [workspace.lints]`. Use `expect("reason")` instead |
 | **`expect()` requires a reason** | `expect("index is valid because len was checked")` — explain *why* it is safe |
 | **No silent error suppression** | Don't use `let _ = ...` to ignore errors. Log or propagate instead. `clippy::let_underscore_untyped = "warn"` |
 | **`unsafe` requires SAFETY comment** | `// SAFETY: ...` explaining why the unsafe block is sound |
@@ -66,6 +67,19 @@ type(scope): description
 3. **Add tests** — Write `#[cfg(test)]` tests for new functions and logic
 4. **Run checks** — Always run `cargo test` and `cargo clippy` after changes
 
+### Pre-push CI checks
+
+Before pushing, run the same checks as CI locally:
+
+1. `cargo fmt --all -- --check` — Format check
+2. `cargo clippy --workspace --all-targets` — Lint check (all lint levels configured in `Cargo.toml [workspace.lints.clippy]`)
+3. `cargo test --workspace --exclude zelkova-gui` — Test suite
+4. `cargo check --workspace` — Compilation check
+
+After pushing, confirm CI passes with `gh pr checks <PR_NUMBER>`.
+
+**Note:** `cargo clippy --fix` breaks formatting — always run `cargo fmt --all` after.
+
 ### PR Size
 
 Aim for **under 400 lines** per PR. If it exceeds that, split into sub-tasks in the Issue.
@@ -78,8 +92,7 @@ Aim for **under 400 lines** per PR. If it exceeds that, split into sub-tasks in 
 
 ## Communication
 
-- Commit messages, PR descriptions, Issue text: **English**
-- Discussions, spec reviews, comments: **Japanese**
+- All project communication (commit messages, PR descriptions, Issue text, specs, comments, discussions): **English**
 
 ## Project Structure
 

@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use uuid::Uuid;
 
 pub struct RpcClient {
     socket_path: std::path::PathBuf,
@@ -102,15 +103,9 @@ impl RpcClient {
         serde_json::from_value(result).context("failed to parse get_note result")
     }
 
-    pub fn create_note(
-        &self,
-        title: &str,
-        directory: Option<&str>,
-        tags: Vec<String>,
-    ) -> Result<CreateNoteResult> {
+    pub fn create_note(&self, title: Option<&str>, tags: Vec<String>) -> Result<CreateNoteResult> {
         let params = CreateNoteParams {
-            title: title.to_string(),
-            directory: directory.map(String::from),
+            title: title.map(String::from),
             tags,
         };
         let request = JsonRpcRequest::new(
@@ -153,6 +148,143 @@ impl RpcClient {
 
         if let Some(error) = response.error {
             anyhow::bail!("note_updated error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn create_folder(&self, name: &str, parent: Option<Uuid>) -> Result<CreateFolderResult> {
+        let params = CreateFolderParams {
+            name: name.to_string(),
+            parent,
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_CREATE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("create_folder error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse create_folder result")
+    }
+
+    pub fn move_note(&self, note_id: Uuid, folder_id: Option<Uuid>) -> Result<()> {
+        let params = MoveNoteParams { note_id, folder_id };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_MOVE_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("move_note error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn list_tree(&self) -> Result<ListTreeResult> {
+        let request = JsonRpcRequest::new(next_id(), METHOD_LIST_TREE, None);
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("list_tree error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse list_tree result")
+    }
+
+    pub fn delete_folder(&self, folder_id: Uuid, cascade: bool) -> Result<()> {
+        let params = DeleteFolderParams { folder_id, cascade };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_DELETE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("delete_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn rename_folder(&self, folder_id: Uuid, new_name: &str) -> Result<()> {
+        let params = RenameFolderParams {
+            folder_id,
+            new_name: new_name.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_RENAME_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("rename_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn move_folder(&self, folder_id: Uuid, new_parent: Option<Uuid>) -> Result<()> {
+        let params = MoveFolderParams {
+            folder_id,
+            new_parent,
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_MOVE_FOLDER,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("move_folder error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_note(&self, note_id: Uuid) -> Result<()> {
+        let params = DeleteNoteParams { note_id };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_DELETE_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("delete_note error: {} ({})", error.message, error.code);
+        }
+
+        Ok(())
+    }
+
+    pub fn rename_note(&self, note_id: Uuid, new_title: &str) -> Result<()> {
+        let params = RenameNoteParams {
+            note_id,
+            new_title: new_title.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_RENAME_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("rename_note error: {} ({})", error.message, error.code);
         }
 
         Ok(())

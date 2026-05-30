@@ -1,246 +1,364 @@
 use std::path::PathBuf;
+use std::rc::Rc;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
+    App, AppContext, Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px,
 };
-use zelkova_config::EditorColors;
+use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel, v_resizable};
 
 use crate::editor::Editor;
-use crate::editor::parse_hex;
 use crate::preview::Preview;
-use crate::{NextPane, PrevPane, ToggleViewMode};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ViewMode {
     Editor,
-    Split,
+    SplitHorizontal,
+    SplitVertical,
     Preview,
 }
 
-pub struct Tab {
-    pub title: String,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PaneId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SplitDirection {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Clone)]
+pub struct PaneLeaf {
+    pub id: PaneId,
     pub file_path: Option<PathBuf>,
+    pub title: String,
     pub editor: Entity<Editor>,
     pub preview: Entity<Preview>,
     pub view_mode: ViewMode,
+    pub resize_state: Entity<ResizableState>,
 }
 
-pub struct PaneManager {
-    tabs: Vec<Tab>,
-    active_tab: usize,
-    focus_handle: FocusHandle,
-    theme: EditorColors,
-    socket_path: Option<PathBuf>,
+#[derive(Clone)]
+pub enum PaneNode {
+    Leaf(PaneLeaf),
+    Split {
+        id: PaneId,
+        direction: SplitDirection,
+        children: Box<(PaneNode, PaneNode)>,
+        resize_state: Entity<ResizableState>,
+    },
 }
 
-impl PaneManager {
-    pub fn new(cx: &mut App) -> Self {
-        Self {
-            tabs: Vec::new(),
-            active_tab: 0,
-            focus_handle: cx.focus_handle(),
-            theme: EditorColors::default(),
-            socket_path: None,
+impl PaneNode {
+    pub fn find_leaf(&self, id: PaneId) -> Option<&PaneLeaf> {
+        match self {
+            PaneNode::Leaf(leaf) if leaf.id == id => Some(leaf),
+            PaneNode::Leaf(_) => None,
+            PaneNode::Split { children, .. } => children
+                .0
+                .find_leaf(id)
+                .or_else(|| children.1.find_leaf(id)),
         }
     }
 
-    pub fn set_socket_path(&mut self, path: PathBuf) {
-        self.socket_path = Some(path);
+    pub fn find_leaf_mut(&mut self, id: PaneId) -> Option<&mut PaneLeaf> {
+        match self {
+            PaneNode::Leaf(leaf) if leaf.id == id => Some(leaf),
+            PaneNode::Leaf(_) => None,
+            PaneNode::Split { children, .. } => children
+                .0
+                .find_leaf_mut(id)
+                .or_else(|| children.1.find_leaf_mut(id)),
+        }
     }
 
-    pub fn set_theme(&mut self, theme: EditorColors) {
-        self.theme = theme;
-    }
-
-    pub fn open_tab(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        let title = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("untitled")
-            .to_string();
-
-        // Check if already open
-        for (i, tab) in self.tabs.iter().enumerate() {
-            if tab.file_path.as_ref() == Some(&path) {
-                self.active_tab = i;
-                return;
+    pub fn collect_leaves(&self) -> Vec<PaneId> {
+        match self {
+            PaneNode::Leaf(leaf) => vec![leaf.id],
+            PaneNode::Split { children, .. } => {
+                let mut leaves = children.0.collect_leaves();
+                leaves.extend(children.1.collect_leaves());
+                leaves
             }
         }
-
-        let editor = cx.new(|cx| match Editor::load(path.clone(), cx) {
-            Ok(e) => e,
-            Err(_) => Editor::new(cx),
-        });
-        // Pass socket path to editor for save notifications
-        if let Some(ref socket) = self.socket_path {
-            editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
-        }
-        let text = editor.read(cx).text().to_string();
-        let preview = cx.new(|_cx| Preview::from_markdown(&text));
-
-        self.tabs.push(Tab {
-            title,
-            file_path: Some(path),
-            editor,
-            preview,
-            view_mode: ViewMode::Editor,
-        });
-        self.active_tab = self.tabs.len() - 1;
     }
 
-    pub fn close_active_tab(&mut self) {
-        if self.tabs.is_empty() {
-            return;
-        }
-        self.tabs.remove(self.active_tab);
-        if self.active_tab >= self.tabs.len() && !self.tabs.is_empty() {
-            self.active_tab = self.tabs.len() - 1;
+    pub fn find_file(&self, path: &PathBuf) -> Option<PaneId> {
+        match self {
+            PaneNode::Leaf(leaf) => {
+                if leaf.file_path.as_ref() == Some(path) {
+                    Some(leaf.id)
+                } else {
+                    None
+                }
+            }
+            PaneNode::Split { children, .. } => children
+                .0
+                .find_file(path)
+                .or_else(|| children.1.find_file(path)),
         }
     }
 
-    pub fn active_editor(&self) -> Option<&Entity<Editor>> {
-        self.tabs.get(self.active_tab).map(|t| &t.editor)
-    }
-
-    pub fn active_tab_info(&self) -> (Option<PathBuf>, Option<String>) {
-        self.tabs
-            .get(self.active_tab)
-            .map(|t| (t.file_path.clone(), Some(t.title.clone())))
-            .unwrap_or((None, None))
-    }
-
-    pub fn active_editor_title(&self, cx: &App) -> (Option<PathBuf>, Option<String>) {
-        if let Some(tab) = self.tabs.get(self.active_tab) {
-            let path = tab.file_path.clone();
-            let title = tab.editor.read(cx).title().to_string();
-            return (path, Some(title));
+    pub fn find_leaf_by_editor_mut(&mut self, editor: &Entity<Editor>) -> Option<&mut PaneLeaf> {
+        match self {
+            PaneNode::Leaf(leaf) => {
+                if &leaf.editor == editor {
+                    Some(leaf)
+                } else {
+                    None
+                }
+            }
+            PaneNode::Split { children, .. } => children
+                .0
+                .find_leaf_by_editor_mut(editor)
+                .or_else(|| children.1.find_leaf_by_editor_mut(editor)),
         }
-        (None, None)
     }
 
-    pub fn handle_next_pane(
-        &mut self,
-        _: &NextPane,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        if self.tabs.is_empty() {
-            return;
+    pub fn first_leaf_id(&self) -> PaneId {
+        match self {
+            PaneNode::Leaf(leaf) => leaf.id,
+            PaneNode::Split { children, .. } => children.0.first_leaf_id(),
         }
-        self.active_tab = (self.active_tab + 1) % self.tabs.len();
     }
 
-    pub fn handle_prev_pane(
-        &mut self,
-        _: &PrevPane,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        if self.tabs.is_empty() {
-            return;
-        }
-        self.active_tab = if self.active_tab == 0 {
-            self.tabs.len() - 1
-        } else {
-            self.active_tab - 1
-        };
-    }
-
-    pub fn handle_toggle_view(
-        &mut self,
-        _: &ToggleViewMode,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        if let Some(tab) = self.tabs.get_mut(self.active_tab) {
-            tab.view_mode = match tab.view_mode {
-                ViewMode::Editor => ViewMode::Split,
-                ViewMode::Split => ViewMode::Preview,
-                ViewMode::Preview => ViewMode::Editor,
-            };
-        }
+    pub fn is_single_leaf(&self) -> bool {
+        matches!(self, PaneNode::Leaf(_))
     }
 }
 
-impl Focusable for PaneManager {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus_handle.clone()
+pub fn close_leaf_in_node(node: &mut PaneNode, target_id: PaneId) -> bool {
+    match node {
+        PaneNode::Split { children, .. } => {
+            let left_is_target =
+                matches!(&children.0, PaneNode::Leaf(leaf) if leaf.id == target_id);
+            let right_is_target =
+                matches!(&children.1, PaneNode::Leaf(leaf) if leaf.id == target_id);
+
+            if left_is_target {
+                let replacement = children.1.clone();
+                *node = replacement;
+                return true;
+            }
+            if right_is_target {
+                let replacement = children.0.clone();
+                *node = replacement;
+                return true;
+            }
+
+            close_leaf_in_node(&mut children.0, target_id)
+                || close_leaf_in_node(&mut children.1, target_id)
+        }
+        _ => false,
     }
 }
 
-impl Render for PaneManager {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let bg = parse_hex("#1e1e2e");
-        let border = parse_hex("#313244");
-        let text = parse_hex("#cdd6f4");
-        let text_dim = parse_hex("#a6adc8");
-        let tab_bar_bg = parse_hex("#181825");
+pub fn create_empty_leaf(
+    id: PaneId,
+    socket_path: Option<PathBuf>,
+    editor_wrap: bool,
+    preview_wrap: bool,
+    cx: &mut App,
+) -> PaneLeaf {
+    let editor = cx.new(|cx| Editor::new(cx));
+    if let Some(ref socket) = socket_path {
+        editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
+    }
+    editor.update(cx, |ed, _| ed.set_wrap(editor_wrap));
+    let preview = cx.new(|cx| Preview::from_markdown("", None, cx));
+    preview.update(cx, |p, _| p.set_wrap(preview_wrap));
 
-        // Tab bar
-        let tab_bar = div()
-            .flex()
-            .flex_row()
-            .w_full()
-            .h(px(32.0))
-            .bg(tab_bar_bg)
-            .border_b_1()
-            .border_color(border)
-            .children(self.tabs.iter().enumerate().map(|(i, tab)| {
-                let is_active = i == self.active_tab;
-                let tab_bg = if is_active { bg } else { tab_bar_bg };
-                let tab_text = if is_active { text } else { text_dim };
+    PaneLeaf {
+        id,
+        file_path: None,
+        title: String::new(),
+        editor,
+        preview,
+        view_mode: ViewMode::Editor,
+        resize_state: cx.new(|_| ResizableState::default()),
+    }
+}
+
+pub fn render_pane_node(
+    node: &PaneNode,
+    focused: PaneId,
+    border: gpui::Hsla,
+    text_dim: gpui::Hsla,
+    on_focus: Rc<dyn Fn(PaneId, &mut App)>,
+) -> gpui::AnyElement {
+    match node {
+        PaneNode::Leaf(leaf) => {
+            let is_focused = leaf.id == focused;
+            let leaf_id = leaf.id;
+            let on_focus_clone = on_focus.clone();
+
+            let header = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .px_2()
+                .py(px(2.0))
+                .border_b_1()
+                .border_color(border)
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(text_dim)
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .child(if leaf.file_path.is_some() {
+                            leaf.title.clone()
+                        } else {
+                            String::new()
+                        }),
+                );
+
+            let content = if leaf.file_path.is_none() {
                 div()
-                    .px(px(12.0))
+                    .flex_1()
                     .flex()
                     .items_center()
-                    .h(px(32.0))
-                    .bg(tab_bg)
-                    .border_r_1()
-                    .border_color(border)
-                    .text_color(tab_text)
-                    .text_xs()
-                    .child(tab.title.clone())
-            }));
+                    .justify_center()
+                    .text_color(text_dim)
+                    .text_sm()
+                    .child("Open or Create Note")
+                    .into_any_element()
+            } else {
+                match leaf.view_mode {
+                    ViewMode::Editor => div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .overflow_hidden()
+                        .child(leaf.editor.clone())
+                        .into_any_element(),
+                    ViewMode::Preview => div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .overflow_hidden()
+                        .child(leaf.preview.clone())
+                        .into_any_element(),
+                    ViewMode::SplitHorizontal => {
+                        let split = h_resizable(("editor-preview-split", leaf_id.0))
+                            .with_state(&leaf.resize_state)
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.editor.clone()),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.preview.clone()),
+                                ),
+                            );
+                        div()
+                            .flex_1()
+                            .min_h(px(0.0))
+                            .child(split)
+                            .into_any_element()
+                    }
+                    ViewMode::SplitVertical => {
+                        let split = v_resizable(("editor-preview-split", leaf_id.0))
+                            .with_state(&leaf.resize_state)
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.editor.clone()),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.preview.clone()),
+                                ),
+                            );
+                        div()
+                            .flex_1()
+                            .min_h(px(0.0))
+                            .child(split)
+                            .into_any_element()
+                    }
+                }
+            };
 
-        // Content area
-        let content = if let Some(tab) = self.tabs.get(self.active_tab) {
-            match tab.view_mode {
-                ViewMode::Editor => div().flex_1().child(tab.editor.clone()).into_any_element(),
-                ViewMode::Preview => div().flex_1().child(tab.preview.clone()).into_any_element(),
-                ViewMode::Split => div()
-                    .flex()
-                    .flex_row()
-                    .flex_1()
-                    .child(div().flex_1().child(tab.editor.clone()))
-                    .child(div().w(px(1.0)).bg(border))
-                    .child(div().flex_1().child(tab.preview.clone()))
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .when(is_focused, |el| el.border_1().border_color(border))
+                .on_mouse_down(gpui::MouseButton::Left, move |_event, _window, cx| {
+                    on_focus_clone(leaf_id, cx);
+                })
+                .child(header)
+                .child(content)
+                .into_any_element()
+        }
+        PaneNode::Split {
+            id,
+            direction,
+            children,
+            resize_state,
+        } => {
+            let left = render_pane_node(&children.0, focused, border, text_dim, on_focus.clone());
+            let right = render_pane_node(&children.1, focused, border, text_dim, on_focus);
+
+            let group_id = ("pane-split", id.0);
+
+            match direction {
+                SplitDirection::Horizontal => h_resizable(group_id)
+                    .with_state(resize_state)
+                    .child(resizable_panel().child(left))
+                    .child(resizable_panel().child(right))
+                    .into_any_element(),
+                SplitDirection::Vertical => v_resizable(group_id)
+                    .with_state(resize_state)
+                    .child(resizable_panel().child(left))
+                    .child(resizable_panel().child(right))
                     .into_any_element(),
             }
-        } else {
-            div()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(text_dim)
-                .text_sm()
-                .child("No open tabs")
-                .into_any_element()
-        };
-
-        // Focus the active editor
-        if let Some(tab) = self.tabs.get(self.active_tab) {
-            tab.editor.focus_handle(cx).focus(window);
         }
+    }
+}
 
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .child(tab_bar)
-            .child(content)
-            .on_action(cx.listener(PaneManager::handle_next_pane))
-            .on_action(cx.listener(PaneManager::handle_prev_pane))
-            .on_action(cx.listener(PaneManager::handle_toggle_view))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pane_id_equality() {
+        assert_eq!(PaneId(0), PaneId(0));
+        assert_ne!(PaneId(0), PaneId(1));
+    }
+
+    #[test]
+    fn split_direction_values() {
+        assert_ne!(SplitDirection::Horizontal, SplitDirection::Vertical);
+    }
+
+    #[test]
+    fn view_mode_cycle() {
+        let mode = ViewMode::Editor;
+        assert_eq!(
+            match mode {
+                ViewMode::Editor => ViewMode::SplitHorizontal,
+                ViewMode::SplitHorizontal => ViewMode::SplitVertical,
+                ViewMode::SplitVertical => ViewMode::Preview,
+                ViewMode::Preview => ViewMode::Editor,
+            },
+            ViewMode::SplitHorizontal
+        );
     }
 }

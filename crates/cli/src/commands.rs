@@ -53,17 +53,17 @@ pub fn show(client: &RpcClient, id: &Uuid) -> Result<()> {
     Ok(())
 }
 
-pub fn create(
-    client: &RpcClient,
-    title: &str,
-    directory: Option<&str>,
-    tags: Vec<String>,
-) -> Result<()> {
+pub fn create(client: &RpcClient, title: Option<&str>, tags: Vec<String>) -> Result<()> {
     let result = client
-        .create_note(title, directory, tags)
+        .create_note(title, tags)
         .context("create_note failed")?;
     println!("Created note: {}", result.id);
-    println!("  Title: {}", result.title);
+    let display_title = if result.title.is_empty() {
+        "(untitled)"
+    } else {
+        &result.title
+    };
+    println!("  Title: {}", display_title);
     println!("  Path:  {}", result.path.display());
     Ok(())
 }
@@ -98,7 +98,10 @@ pub fn daemon_status(config: &AppConfig) -> Result<()> {
 pub fn daemon_start(_config: &AppConfig) -> Result<()> {
     // find zelkovad binary
     let exe = std::env::current_exe().context("cannot determine current executable")?;
-    let daemon_exe = exe.parent().unwrap().join("zelkovad");
+    let daemon_exe = exe
+        .parent()
+        .expect("current executable path always has a parent directory")
+        .join("zelkovad");
 
     if !daemon_exe.exists() {
         anyhow::bail!("zelkovad binary not found at {}", daemon_exe.display());

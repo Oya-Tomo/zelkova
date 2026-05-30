@@ -1,7 +1,9 @@
 use std::ops::Range;
 
 use gpui::{FontStyle, FontWeight, HighlightStyle, Hsla, UnderlineStyle, px, rgba};
-use zelkova_config::EditorColors;
+use gpui_component::Theme;
+
+use crate::theme::ResolvedMarkdownColors;
 
 const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 
@@ -9,60 +11,129 @@ const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 /// then passed to highlight functions to avoid repeated string parsing.
 #[derive(Debug, Clone)]
 pub struct ResolvedColors {
+    pub text: Hsla,
+    pub bg: Hsla,
+    pub border: Hsla,
+    pub selection_bg: Hsla,
+    pub text_muted: Hsla,
     pub heading_marker: Hsla,
     pub heading_fg: Hsla,
     pub list_marker: Hsla,
     pub quote_fg: Hsla,
     pub text_dim: Hsla,
     pub bold_fg: Hsla,
+    pub bold_marker: Hsla,
     pub italic_fg: Hsla,
+    pub italic_marker: Hsla,
     pub strikethrough_fg: Hsla,
     pub image_marker: Hsla,
     pub link_fg: Hsla,
     pub math_fg: Hsla,
+    pub math_marker: Hsla,
+    pub math_bg: Hsla,
     pub code_bg: Hsla,
     pub code_fg: Hsla,
-    pub code_keyword: Hsla,
+    pub code_marker: Hsla,
+    pub tag_fg: Hsla,
     code_syntax: [Hsla; 12],
 }
 
 impl ResolvedColors {
-    pub fn new(colors: &EditorColors) -> Self {
+    pub fn from_theme(theme: &Theme, md: &ResolvedMarkdownColors) -> Self {
         Self {
-            heading_marker: parse_hex(&colors.heading_marker),
-            heading_fg: parse_hex(&colors.heading_fg),
-            list_marker: parse_hex(&colors.list_marker),
-            quote_fg: parse_hex(&colors.quote_fg),
-            text_dim: parse_hex(&colors.text_dim),
-            bold_fg: parse_hex(&colors.bold_fg),
-            italic_fg: parse_hex(&colors.italic_fg),
-            strikethrough_fg: parse_hex(&colors.strikethrough_fg),
-            image_marker: parse_hex(&colors.image_marker),
-            link_fg: parse_hex(&colors.link_fg),
-            math_fg: parse_hex(&colors.math_fg),
-            code_bg: parse_hex(&colors.code_bg),
-            code_fg: parse_hex(&colors.code_fg),
-            code_keyword: parse_hex(&colors.code_keyword),
-            code_syntax: [
-                parse_hex(&colors.code_attribute),
-                parse_hex(&colors.code_comment),
-                parse_hex(&colors.code_constant),
-                parse_hex(&colors.code_function),
-                parse_hex(&colors.code_keyword),
-                parse_hex(&colors.code_number),
-                parse_hex(&colors.code_operator),
-                parse_hex(&colors.code_property),
-                parse_hex(&colors.code_punctuation),
-                parse_hex(&colors.code_string),
-                parse_hex(&colors.code_tag),
-                parse_hex(&colors.code_type),
-            ],
+            text: theme.foreground,
+            bg: theme.background,
+            border: theme.border,
+            selection_bg: theme.selection,
+            text_muted: theme.muted_foreground,
+            heading_marker: md.heading_marker,
+            heading_fg: md.heading,
+            list_marker: md.list_marker,
+            quote_fg: md.quote,
+            text_dim: theme.muted_foreground,
+            bold_fg: md.bold,
+            bold_marker: md.bold_marker,
+            italic_fg: md.italic,
+            italic_marker: md.italic_marker,
+            strikethrough_fg: md.strikethrough,
+            image_marker: md.image_marker,
+            link_fg: md.link,
+            math_fg: md.math_fg,
+            math_marker: md.math_marker,
+            math_bg: md.math_bg,
+            code_bg: md.code_bg,
+            code_fg: md.code_fg,
+            code_marker: md.code_marker,
+            tag_fg: md.tag,
+            code_syntax: extract_syntax_colors(theme),
         }
     }
 
     pub fn syntax_color(&self, index: usize) -> Option<Hsla> {
         self.code_syntax.get(index).copied()
     }
+}
+
+impl Default for ResolvedColors {
+    fn default() -> Self {
+        let white = rgba(0xFFFFFFFF).into();
+        let gray = rgba(0xFF333333).into();
+        Self {
+            text: white,
+            bg: gray,
+            border: gray,
+            selection_bg: gray,
+            text_muted: white,
+            heading_marker: white,
+            heading_fg: white,
+            list_marker: white,
+            quote_fg: white,
+            text_dim: white,
+            bold_fg: white,
+            bold_marker: white,
+            italic_fg: white,
+            italic_marker: white,
+            strikethrough_fg: white,
+            image_marker: white,
+            link_fg: white,
+            math_fg: white,
+            math_marker: white,
+            math_bg: gray,
+            code_bg: gray,
+            code_fg: white,
+            code_marker: white,
+            tag_fg: white,
+            code_syntax: [white; 12],
+        }
+    }
+}
+
+/// Extract 12 syntax highlight colors from the theme's syntax colors.
+/// Order matches HIGHLIGHT_NAMES in zelkova-highlight:
+///   attribute, comment, constant, function, keyword, number,
+///   operator, property, punctuation, string, tag, type
+fn extract_syntax_colors(theme: &Theme) -> [Hsla; 12] {
+    let syn = &theme.highlight_theme.style.syntax;
+    let default_color = theme.foreground;
+    let color_of = |name: &str| -> Hsla {
+        syn.style(name)
+            .and_then(|s| s.color)
+            .unwrap_or(default_color)
+    };
+    [
+        color_of("attribute"),
+        color_of("comment"),
+        color_of("constant"),
+        color_of("function"),
+        color_of("keyword"),
+        color_of("number"),
+        color_of("constructor"),
+        color_of("property"),
+        color_of("embedded"),
+        color_of("string"),
+        color_of("tag"),
+        color_of("type"),
+    ]
 }
 
 #[derive(Debug, Clone)]
@@ -86,7 +157,7 @@ pub enum BlockContext {
 #[derive(Debug, Clone)]
 pub struct HighlightedLine {
     pub highlights: Vec<(Range<usize>, HighlightStyle)>,
-    pub image_url: Option<String>,
+    pub image_urls: Vec<String>,
     pub line_height: f32,
     pub heading_level: Option<u8>,
     pub line_bg: Option<Hsla>,
@@ -126,12 +197,13 @@ pub fn detect_line_context(line: &str, in_code_block: bool) -> BlockContext {
         return BlockContext::ListItem { marker_len: 2 };
     }
 
-    if let Some(dot_pos) = line.find(". ") {
-        if dot_pos > 0 && line[..dot_pos].chars().all(|c| c.is_ascii_digit()) {
-            return BlockContext::ListItem {
-                marker_len: dot_pos + 2,
-            };
-        }
+    if let Some(dot_pos) = line.find(". ")
+        && dot_pos > 0
+        && line[..dot_pos].chars().all(|c| c.is_ascii_digit())
+    {
+        return BlockContext::ListItem {
+            marker_len: dot_pos + 2,
+        };
     }
 
     if line.starts_with('>') {
@@ -177,7 +249,7 @@ pub fn highlight_fence_line(line: &str, colors: &ResolvedColors) -> HighlightedL
         highlights.push((
             label_start..label_end,
             HighlightStyle {
-                color: Some(colors.code_keyword),
+                color: Some(colors.syntax_color(4).unwrap_or(colors.text)),
                 background_color: Some(colors.code_bg),
                 ..Default::default()
             },
@@ -203,7 +275,7 @@ pub fn highlight_fence_line(line: &str, colors: &ResolvedColors) -> HighlightedL
 
     HighlightedLine {
         highlights,
-        image_url: None,
+        image_urls: Vec::new(),
         line_height: DEFAULT_LINE_HEIGHT,
         heading_level: None,
         line_bg: Some(colors.code_bg),
@@ -217,7 +289,7 @@ pub fn highlight_line(
     colors: &ResolvedColors,
 ) -> HighlightedLine {
     let mut highlights = Vec::new();
-    let mut image_url = None;
+    let mut image_urls = Vec::new();
     let mut line_height = DEFAULT_LINE_HEIGHT;
 
     match context {
@@ -248,11 +320,11 @@ pub fn highlight_line(
                     ));
                     let (ihl, imgs) = scan_inline(&line[rest_start..], rest_start, colors);
                     highlights.extend(ihl);
-                    image_url = imgs.into_iter().next();
+                    image_urls = imgs;
                 }
                 return HighlightedLine {
                     highlights,
-                    image_url,
+                    image_urls,
                     line_height,
                     heading_level: Some(*level),
                     line_bg: None,
@@ -294,7 +366,7 @@ pub fn highlight_line(
                         ..Default::default()
                     },
                 )],
-                image_url: None,
+                image_urls: Vec::new(),
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: Some(colors.code_bg),
@@ -309,7 +381,7 @@ pub fn highlight_line(
                         ..Default::default()
                     },
                 )],
-                image_url: None,
+                image_urls: Vec::new(),
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: None,
@@ -324,7 +396,7 @@ pub fn highlight_line(
             let bytes = line.as_bytes();
             while i < bytes.len() {
                 if bytes[i] == b'|' {
-                    highlights.push((i..i + 1, dim_pipe.clone()));
+                    highlights.push((i..i + 1, dim_pipe));
                     i += 1;
                 } else {
                     let start = i;
@@ -350,10 +422,10 @@ pub fn highlight_line(
             }
             let (ihl, imgs) = scan_inline(line, 0, colors);
             highlights.extend(ihl);
-            image_url = imgs.into_iter().next();
+            image_urls = imgs;
             return HighlightedLine {
                 highlights,
-                image_url,
+                image_urls,
                 line_height: DEFAULT_LINE_HEIGHT,
                 heading_level: None,
                 line_bg: None,
@@ -379,12 +451,12 @@ pub fn highlight_line(
     if skip < line.len() {
         let (ihl, imgs) = scan_inline(&line[skip..], skip, colors);
         highlights.extend(ihl);
-        image_url = imgs.into_iter().next();
+        image_urls = imgs;
     }
 
     HighlightedLine {
         highlights,
-        image_url,
+        image_urls,
         line_height,
         heading_level: None,
         line_bg: None,
@@ -416,8 +488,8 @@ fn scan_inline(
         {
             let marker = bytes[i];
             if let Some(end) = find_closing_double(bytes, i + 2, marker) {
-                let ms = marker_style(colors.bold_fg);
-                highlights.push((offset + i..offset + i + 2, ms.clone()));
+                let ms = marker_style(colors.bold_marker);
+                highlights.push((offset + i..offset + i + 2, ms));
                 highlights.push((
                     offset + i + 2..offset + end,
                     HighlightStyle {
@@ -432,25 +504,27 @@ fn scan_inline(
         }
 
         // Strikethrough ~~text~~
-        if bytes[i] == b'~' && i + 1 < bytes.len() && bytes[i + 1] == b'~' {
-            if let Some(end) = find_closing_double(bytes, i + 2, b'~') {
-                let ms = marker_style(colors.strikethrough_fg);
-                highlights.push((offset + i..offset + i + 2, ms.clone()));
-                highlights.push((
-                    offset + i + 2..offset + end,
-                    HighlightStyle {
+        if bytes[i] == b'~'
+            && i + 1 < bytes.len()
+            && bytes[i + 1] == b'~'
+            && let Some(end) = find_closing_double(bytes, i + 2, b'~')
+        {
+            let ms = marker_style(colors.strikethrough_fg);
+            highlights.push((offset + i..offset + i + 2, ms));
+            highlights.push((
+                offset + i + 2..offset + end,
+                HighlightStyle {
+                    color: Some(colors.strikethrough_fg),
+                    strikethrough: Some(gpui::StrikethroughStyle {
+                        thickness: px(1.0),
                         color: Some(colors.strikethrough_fg),
-                        strikethrough: Some(gpui::StrikethroughStyle {
-                            thickness: px(1.0),
-                            color: Some(colors.strikethrough_fg),
-                        }),
-                        ..Default::default()
-                    },
-                ));
-                highlights.push((offset + end..offset + end + 2, ms));
-                i = end + 2;
-                continue;
-            }
+                    }),
+                    ..Default::default()
+                },
+            ));
+            highlights.push((offset + end..offset + end + 2, ms));
+            i = end + 2;
+            continue;
         }
 
         // Italic *text* or _text_
@@ -461,8 +535,8 @@ fn scan_inline(
                 continue;
             }
             if let Some(end) = find_closing_single(bytes, i + 1, marker) {
-                let ms = marker_style(colors.italic_fg);
-                highlights.push((offset + i..offset + i + 1, ms.clone()));
+                let ms = marker_style(colors.italic_marker);
+                highlights.push((offset + i..offset + i + 1, ms));
                 highlights.push((
                     offset + i + 1..offset + end,
                     HighlightStyle {
@@ -481,7 +555,7 @@ fn scan_inline(
             let count = count_backticks(bytes, i);
             if let Some(end) = find_closing_backticks(bytes, i + count, count) {
                 let ms = HighlightStyle {
-                    color: Some(colors.code_fg),
+                    color: Some(colors.code_marker),
                     background_color: Some(colors.code_bg),
                     fade_out: Some(0.4),
                     ..Default::default()
@@ -491,7 +565,7 @@ fn scan_inline(
                     background_color: Some(colors.code_bg),
                     ..Default::default()
                 };
-                highlights.push((offset + i..offset + i + count, ms.clone()));
+                highlights.push((offset + i..offset + i + count, ms));
                 highlights.push((offset + i + count..offset + end, code_style));
                 highlights.push((offset + end..offset + end + count, ms));
                 i = end + count;
@@ -500,58 +574,65 @@ fn scan_inline(
         }
 
         // Image ![alt](url)
-        if bytes[i] == b'!' && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-            if let Some((url, end)) = parse_image(bytes, i + 2) {
-                highlights.push((
-                    offset + i..offset + end,
-                    HighlightStyle {
-                        color: Some(colors.image_marker),
-                        ..Default::default()
-                    },
-                ));
-                image_urls.push(url);
-                i = end;
-                continue;
-            }
+        if bytes[i] == b'!'
+            && i + 1 < bytes.len()
+            && bytes[i + 1] == b'['
+            && let Some((url, end)) = parse_image(bytes, i + 2)
+        {
+            highlights.push((
+                offset + i..offset + end,
+                HighlightStyle {
+                    color: Some(colors.image_marker),
+                    ..Default::default()
+                },
+            ));
+            image_urls.push(url);
+            i = end;
+            continue;
         }
 
         // Link [text](url)
-        if bytes[i] == b'[' {
-            if let Some(end) = parse_link(bytes, i + 1) {
-                highlights.push((
-                    offset + i..offset + end,
-                    HighlightStyle {
+        if bytes[i] == b'['
+            && let Some(end) = parse_link(bytes, i + 1)
+        {
+            highlights.push((
+                offset + i..offset + end,
+                HighlightStyle {
+                    color: Some(colors.link_fg),
+                    underline: Some(UnderlineStyle {
+                        thickness: gpui::px(1.0),
                         color: Some(colors.link_fg),
-                        underline: Some(UnderlineStyle {
-                            thickness: gpui::px(1.0),
-                            color: Some(colors.link_fg),
-                            wavy: false,
-                        }),
-                        ..Default::default()
-                    },
-                ));
-                i = end;
-                continue;
-            }
+                        wavy: false,
+                    }),
+                    ..Default::default()
+                },
+            ));
+            i = end;
+            continue;
         }
 
         // Math $...$
-        if bytes[i] == b'$' {
-            if let Some(end) = find_closing_single(bytes, i + 1, b'$') {
-                let ms = marker_style(colors.math_fg);
-                highlights.push((offset + i..offset + i + 1, ms.clone()));
-                highlights.push((
-                    offset + i + 1..offset + end,
-                    HighlightStyle {
-                        color: Some(colors.math_fg),
-                        font_style: Some(FontStyle::Italic),
-                        ..Default::default()
-                    },
-                ));
-                highlights.push((offset + end..offset + end + 1, ms));
-                i = end + 1;
-                continue;
-            }
+        if bytes[i] == b'$'
+            && let Some(end) = find_closing_single(bytes, i + 1, b'$')
+        {
+            let ms = HighlightStyle {
+                color: Some(colors.math_marker),
+                background_color: Some(colors.math_bg),
+                fade_out: Some(0.4),
+                ..Default::default()
+            };
+            highlights.push((offset + i..offset + i + 1, ms));
+            highlights.push((
+                offset + i + 1..offset + end,
+                HighlightStyle {
+                    color: Some(colors.math_fg),
+                    background_color: Some(colors.math_bg),
+                    ..Default::default()
+                },
+            ));
+            highlights.push((offset + end..offset + end + 1, ms));
+            i = end + 1;
+            continue;
         }
 
         i += 1;
@@ -643,17 +724,15 @@ fn parse_link(bytes: &[u8], start: usize) -> Option<usize> {
 
 /// Parse "#RRGGBB" hex color to Hsla.
 pub fn parse_hex(hex: &str) -> Hsla {
-    let (r, g, b) = EditorColors::parse_hex(hex);
-    rgba((r as u32) << 24 | (g as u32) << 16 | (b as u32) << 8 | 0xFF).into()
+    crate::theme::try_parse_hex(hex).unwrap_or(rgba(0xFFFFFFFF).into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zelkova_config::EditorColors;
 
     fn colors() -> ResolvedColors {
-        ResolvedColors::new(&EditorColors::default())
+        ResolvedColors::default()
     }
 
     #[test]
@@ -752,7 +831,7 @@ mod tests {
     #[test]
     fn highlight_inline_image() {
         let hl = highlight_line("![alt](image.png)", &BlockContext::Normal, &colors());
-        assert_eq!(hl.image_url, Some("image.png".to_string()));
+        assert_eq!(hl.image_urls, vec!["image.png".to_string()]);
     }
 
     #[test]
