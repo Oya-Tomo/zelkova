@@ -195,7 +195,12 @@ impl Render for Preview {
 
         // Inner div takes natural height from children, allowing the outer
         // scroll container to detect overflow and enable scrolling.
-        let content_div = div().flex().flex_col().flex_shrink_0().children(children);
+        let content_div = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .when(!self.wrap, |el| el.whitespace_nowrap())
+            .children(children);
 
         let scrollbar_axis = if self.wrap {
             ScrollbarAxis::Vertical
@@ -203,6 +208,15 @@ impl Render for Preview {
             ScrollbarAxis::Both
         };
 
+        // Absolute-positioned wrapper inside a relative container.
+        // This prevents Taffy 0.9.0's min-content propagation from expanding
+        // the container when content overflows horizontally (same pattern as Editor).
+        //
+        // Structure:
+        //   div#preview-scroll.size_full.relative — outer container
+        //     div.absolute.size_full — wrapper (prevents Taffy expansion)
+        //       div#preview-scroll-area.size_full.overflow_scroll — scroll area
+        //       div.absolute.top_0.left_0.right_0.bottom_0 — scrollbar overlay
         div()
             .id("preview-scroll")
             .size_full()
@@ -210,25 +224,30 @@ impl Render for Preview {
             .track_focus(&self.focus_handle)
             .child(
                 div()
-                    .id("preview-scroll-area")
-                    .size_full()
-                    .when(self.wrap, |el| el.overflow_y_scroll())
-                    .when(!self.wrap, |el| el.overflow_scroll())
-                    .track_scroll(&self.scroll_handle)
-                    .p(px(16.0))
-                    .child(content_div),
-            )
-            .child(
-                div()
                     .absolute()
-                    .top_0()
-                    .left_0()
-                    .right_0()
-                    .bottom_0()
+                    .size_full()
                     .child(
-                        Scrollbar::new(&self.scroll_handle)
-                            .id("preview-scrollbar")
-                            .axis(scrollbar_axis),
+                        div()
+                            .id("preview-scroll-area")
+                            .size_full()
+                            .when(self.wrap, |el| el.overflow_y_scroll())
+                            .when(!self.wrap, |el| el.overflow_scroll())
+                            .track_scroll(&self.scroll_handle)
+                            .p(px(16.0))
+                            .child(content_div),
+                    )
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .child(
+                                Scrollbar::new(&self.scroll_handle)
+                                    .id("preview-scrollbar")
+                                    .axis(scrollbar_axis),
+                            ),
                     ),
             )
             .text_color(text)
