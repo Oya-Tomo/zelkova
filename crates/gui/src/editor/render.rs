@@ -399,7 +399,11 @@ impl Editor {
 }
 
 /// Style a math block delimiter line ($$).
-pub(super) fn math_delim_line(line: &str, math_marker: gpui::Hsla, math_bg: gpui::Hsla) -> HighlightedLine {
+pub(super) fn math_delim_line(
+    line: &str,
+    math_marker: gpui::Hsla,
+    math_bg: gpui::Hsla,
+) -> HighlightedLine {
     let dollar_count = line.bytes().take_while(|&b| b == b'$').count();
     let mut highlights = vec![(
         0..dollar_count,
