@@ -237,48 +237,60 @@ pub fn render_pane_node(
                         .overflow_hidden()
                         .child(leaf.preview.clone())
                         .into_any_element(),
-                    ViewMode::SplitHorizontal => h_resizable(("editor-preview-split", leaf_id.0))
-                        .with_state(&leaf.resize_state)
-                        .child(
-                            resizable_panel().child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.editor.clone()),
-                            ),
-                        )
-                        .child(
-                            resizable_panel().child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.preview.clone()),
-                            ),
-                        )
-                        .into_any_element(),
-                    ViewMode::SplitVertical => v_resizable(("editor-preview-split", leaf_id.0))
-                        .with_state(&leaf.resize_state)
-                        .child(
-                            resizable_panel().child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.editor.clone()),
-                            ),
-                        )
-                        .child(
-                            resizable_panel().child(
-                                div()
-                                    .flex_1()
-                                    .min_w(px(0.0))
-                                    .overflow_hidden()
-                                    .child(leaf.preview.clone()),
-                            ),
-                        )
-                        .into_any_element(),
+                    ViewMode::SplitHorizontal => {
+                        let split = h_resizable(("editor-preview-split", leaf_id.0))
+                            .with_state(&leaf.resize_state)
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.editor.clone()),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.preview.clone()),
+                                ),
+                            );
+                        div()
+                            .flex_1()
+                            .min_h(px(0.0))
+                            .child(split)
+                            .into_any_element()
+                    }
+                    ViewMode::SplitVertical => {
+                        let split = v_resizable(("editor-preview-split", leaf_id.0))
+                            .with_state(&leaf.resize_state)
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.editor.clone()),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .overflow_hidden()
+                                        .child(leaf.preview.clone()),
+                                ),
+                            );
+                        div()
+                            .flex_1()
+                            .min_h(px(0.0))
+                            .child(split)
+                            .into_any_element()
+                    }
                 }
             };
 

@@ -186,16 +186,43 @@ impl Render for Preview {
         let file_path = self.file_path.clone();
         let math_renderer = &self.math_renderer;
         let text = colors.text;
+        let wrap = self.wrap;
         let children: Vec<_> = self
             .doc
             .blocks
             .iter()
-            .map(|block| render_block(block, &colors, file_path.as_deref(), math_renderer))
+            .map(|block| render_block(block, &colors, file_path.as_deref(), math_renderer, wrap))
             .collect();
 
-        // Inner div takes natural height from children, allowing the outer
-        // scroll container to detect overflow and enable scrolling.
-        let content_div = div().flex().flex_col().flex_shrink_0().children(children);
+        // Calculate max content width across ALL block types for horizontal scroll.
+        let max_content_width = if !wrap {
+            let char_width = 7.2_f32;
+            estimate_max_content_width(&self.doc.blocks, char_width)
+        } else {
+            0.0
+        };
+
+        // Build explicit scroll_size for the Scrollbar component.
+        // When content width is estimated, provide it to the Scrollbar so
+        // it can render the horizontal thumb even if GPUI's max_offset.x
+        // lags behind the actual overflow.
+        let handle = &self.scroll_handle;
+        let v_content = handle.max_offset().height + handle.bounds().size.height;
+        let scroll_size = if !wrap && max_content_width > 0.0 {
+            gpui::size(px(max_content_width), v_content)
+        } else {
+            gpui::size(handle.bounds().size.width, v_content)
+        };
+
+        // Content div — identical pattern to Editor content_element.
+        let content_div = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .when(!wrap, |el| {
+                el.items_start().min_w(px(max_content_width)).pb(px(16.0))
+            })
+            .children(children);
 
         let scrollbar_axis = if self.wrap {
             ScrollbarAxis::Vertical
@@ -203,33 +230,49 @@ impl Render for Preview {
             ScrollbarAxis::Both
         };
 
+        // Exact same structure as Editor scroll:
+        //   root: size_full.flex.flex_col.overflow_hidden
+        //     scroll_container: flex_1.relative.overflow_hidden
+        //       absolute wrapper: absolute.size_full
+        //         scroll_area: size_full.overflow_scroll
+        //         scrollbar overlay: absolute(top_0 left_0 right_0 bottom_0)
         div()
             .id("preview-scroll")
             .size_full()
-            .relative()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
             .track_focus(&self.focus_handle)
             .child(
-                div()
-                    .id("preview-scroll-area")
-                    .size_full()
-                    .when(self.wrap, |el| el.overflow_y_scroll())
-                    .when(!self.wrap, |el| el.overflow_scroll())
-                    .track_scroll(&self.scroll_handle)
-                    .p(px(16.0))
-                    .child(content_div),
-            )
-            .child(
-                div()
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .right_0()
-                    .bottom_0()
-                    .child(
-                        Scrollbar::new(&self.scroll_handle)
-                            .id("preview-scrollbar")
-                            .axis(scrollbar_axis),
-                    ),
+                div().flex_1().relative().overflow_hidden().child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .child(
+                            div()
+                                .id("preview-scroll-area")
+                                .size_full()
+                                .when(self.wrap, |el| el.overflow_y_scroll())
+                                .when(!self.wrap, |el| el.overflow_scroll())
+                                .track_scroll(&self.scroll_handle)
+                                .p(px(16.0))
+                                .child(content_div),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .bottom_0()
+                                .child(
+                                    Scrollbar::new(&self.scroll_handle)
+                                        .id("preview-scrollbar")
+                                        .axis(scrollbar_axis)
+                                        .scroll_size(scroll_size),
+                                ),
+                        ),
+                ),
             )
             .text_color(text)
             .text_sm()
@@ -241,6 +284,7 @@ fn render_block(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     match block {
         Block::Heading { level, children } => {
@@ -259,30 +303,80 @@ fn render_block(
                 .text_size(px(font_size))
                 .text_color(colors.heading_fg)
                 .font_weight(gpui::FontWeight::BOLD)
+                .when(!wrap, |el| el.whitespace_nowrap())
                 .child(text)
                 .into_any_element()
         }
         Block::Paragraph(inlines) => {
-            let rendered = render_inlines(inlines, colors, note_path, math_renderer);
+            let rendered = render_inlines(inlines, colors, note_path, math_renderer, wrap);
             div()
                 .mb(px(8.0))
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .when(wrap, |el| el.flex_wrap())
+                .when(!wrap, |el| el.flex_nowrap())
                 .children(rendered)
                 .into_any_element()
         }
         Block::CodeBlock { language, code } => {
             let lang_label = language.clone().unwrap_or_default();
-            let code_text = SharedString::from(code.to_string());
 
-            let highlights = match language.as_deref() {
+            let styled = match language.as_deref() {
                 Some(lang) if !lang.is_empty() => {
                     let code_theme = CodeTheme::default();
-                    build_code_highlights(code, lang, &code_theme)
+                    match resolve_language(lang) {
+                        Some(resolved) => highlight_code(code, resolved)
+                            .into_iter()
+                            .filter_map(|sr| {
+                                code_theme
+                                    .color_by_index(sr.highlight_index)
+                                    .map(|hex| (sr.range, crate::editor::parse_hex(hex)))
+                            })
+                            .collect::<Vec<_>>(),
+                        None => Vec::new(),
+                    }
                 }
                 _ => Vec::new(),
             };
+
+            // Render code line by line (like Editor) so whitespace_nowrap works
+            // and horizontal scroll can detect content overflow.
+            let mut line_elements: Vec<gpui::AnyElement> = Vec::new();
+            let mut byte_offset = 0usize;
+            for line in code.lines() {
+                let line_end = byte_offset + line.len();
+                let line_highlights: Vec<(std::ops::Range<usize>, HighlightStyle)> = styled
+                    .iter()
+                    .filter(|(range, _)| range.end > byte_offset && range.start < line_end)
+                    .map(|(range, color)| {
+                        let clamp_start = range.start.max(byte_offset) - byte_offset;
+                        let clamp_end = range.end.min(line_end) - byte_offset;
+                        (
+                            clamp_start..clamp_end,
+                            HighlightStyle {
+                                color: Some(*color),
+                                ..Default::default()
+                            },
+                        )
+                    })
+                    .collect();
+
+                let line_text = if line.is_empty() {
+                    " ".to_string()
+                } else {
+                    line.to_string()
+                };
+                line_elements.push(
+                    div()
+                        .when(!wrap, |el| el.whitespace_nowrap())
+                        .child(
+                            StyledText::new(SharedString::from(line_text))
+                                .with_highlights(line_highlights),
+                        )
+                        .into_any_element(),
+                );
+                byte_offset = line_end + 1; // +1 for '\n'
+            }
 
             div()
                 .mb(px(8.0))
@@ -296,13 +390,13 @@ fn render_block(
                         .mb(px(4.0))
                         .child(lang_label),
                 )
-                .child(StyledText::new(code_text).with_highlights(highlights))
+                .children(line_elements)
                 .into_any_element()
         }
         Block::List { items } => {
             let children: Vec<_> = items
                 .iter()
-                .map(|item| render_list_item(item, 0, colors, note_path, math_renderer))
+                .map(|item| render_list_item(item, 0, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -314,7 +408,7 @@ fn render_block(
         Block::BlockQuote(blocks) => {
             let children: Vec<_> = blocks
                 .iter()
-                .map(|b| render_block(b, colors, note_path, math_renderer))
+                .map(|b| render_block(b, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -331,7 +425,7 @@ fn render_block(
             headers,
             aligns,
             rows,
-        } => render_table(headers, aligns, rows, colors),
+        } => render_table(headers, aligns, rows, colors, wrap),
         Block::ThematicBreak => div()
             .my(px(12.0))
             .w_full()
@@ -371,12 +465,13 @@ fn render_block(
         Block::HtmlBlock { content } => div()
             .mb(px(8.0))
             .text_color(colors.text_dim)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(content.clone())
             .into_any_element(),
         Block::FootnoteDefinition { label, content } => {
             let blocks: Vec<_> = content
                 .iter()
-                .map(|b| render_block(b, colors, note_path, math_renderer))
+                .map(|b| render_block(b, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(4.0))
@@ -399,6 +494,7 @@ fn render_list_item(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     let marker_text = match &item.marker {
         ListMarker::Dash => "- ".to_string(),
@@ -407,11 +503,11 @@ fn render_list_item(
         ListMarker::Number(n) => format!("{n}. "),
     };
 
-    let inline = render_inlines(&item.children, colors, note_path, math_renderer);
+    let inline = render_inlines(&item.children, colors, note_path, math_renderer, wrap);
     let sub_children: Vec<_> = item
         .sub_items
         .iter()
-        .map(|sub| render_list_item(sub, depth + 1, colors, note_path, math_renderer))
+        .map(|sub| render_list_item(sub, depth + 1, colors, note_path, math_renderer, wrap))
         .collect();
 
     div()
@@ -422,6 +518,8 @@ fn render_list_item(
             div()
                 .flex()
                 .flex_row()
+                .when(wrap, |el| el.flex_wrap())
+                .when(!wrap, |el| el.flex_nowrap())
                 .child(div().text_color(colors.list_marker).child(marker_text))
                 .children(inline),
         )
@@ -434,6 +532,7 @@ fn render_table(
     _aligns: &[Option<TableAlign>],
     rows: &[Vec<Vec<Inline>>],
     colors: &PreviewColors,
+    wrap: bool,
 ) -> gpui::AnyElement {
     let col_count = headers.len().max(1);
 
@@ -443,7 +542,8 @@ fn render_table(
         .flex_col()
         .border_1()
         .border_color(colors.border)
-        .rounded(px(4.0));
+        .rounded(px(4.0))
+        .when(!wrap, |el| el.whitespace_nowrap());
 
     // Header row
     let header_cells: Vec<_> = headers
@@ -457,6 +557,7 @@ fn render_table(
                 .bg(colors.code_bg)
                 .font_weight(gpui::FontWeight::BOLD)
                 .text_color(colors.text)
+                .when(!wrap, |el| el.whitespace_nowrap())
                 .child(text)
         })
         .collect();
@@ -477,6 +578,7 @@ fn render_table(
                     .border_t_1()
                     .border_color(colors.border)
                     .text_color(colors.text)
+                    .when(!wrap, |el| el.whitespace_nowrap())
                     .child(text)
             })
             .collect();
@@ -491,10 +593,11 @@ fn render_inlines(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> Vec<gpui::AnyElement> {
     inlines
         .iter()
-        .map(|inline| render_inline(inline, colors, note_path, math_renderer))
+        .map(|inline| render_inline(inline, colors, note_path, math_renderer, wrap))
         .collect()
 }
 
@@ -503,33 +606,60 @@ fn render_inline(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     match inline {
-        Inline::Text(t) => div().child(t.clone()).into_any_element(),
+        Inline::Text(t) => div()
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .child(t.clone())
+            .into_any_element(),
         Inline::Bold(children) => div()
             .font_weight(gpui::FontWeight::BOLD)
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(
+                children,
+                colors,
+                note_path,
+                math_renderer,
+                wrap,
+            ))
             .into_any_element(),
         Inline::Italic(children) => div()
             .italic()
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(
+                children,
+                colors,
+                note_path,
+                math_renderer,
+                wrap,
+            ))
             .into_any_element(),
         Inline::Strikethrough(children) => div()
             .line_through()
             .text_color(colors.strikethrough_fg)
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(
+                children,
+                colors,
+                note_path,
+                math_renderer,
+                wrap,
+            ))
             .into_any_element(),
         Inline::Code(code) => div()
             .bg(colors.code_bg)
             .rounded(px(3.0))
             .px(px(4.0))
             .text_color(colors.code_fg)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(code.clone())
             .into_any_element(),
         Inline::Link { text, url: _, .. } => div()
             .text_color(colors.link_fg)
             .underline()
             .cursor(gpui::CursorStyle::PointingHand)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(inline_to_string(text))
             .into_any_element(),
         Inline::Image { alt, url, .. } => {
@@ -606,29 +736,68 @@ fn inline_to_string(inlines: &[Inline]) -> String {
         .collect()
 }
 
-fn build_code_highlights(
-    code: &str,
-    language: &str,
-    theme: &CodeTheme,
-) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
-    let resolved = match resolve_language(language) {
-        Some(lang) => lang,
-        None => return Vec::new(),
-    };
-    let ranges = highlight_code(code, resolved);
-    ranges
-        .into_iter()
-        .filter_map(|sr| {
-            theme.color_by_index(sr.highlight_index).map(|hex| {
-                let color = crate::editor::parse_hex(hex);
-                (
-                    sr.range,
-                    HighlightStyle {
-                        color: Some(color),
-                        ..Default::default()
-                    },
-                )
+fn estimate_max_content_width(blocks: &[Block], char_width: f32) -> f32 {
+    let mut max_w = 0.0_f32;
+    for block in blocks {
+        max_w = max_w.max(estimate_block_width(block, char_width));
+    }
+    max_w
+}
+
+fn estimate_block_width(block: &Block, char_width: f32) -> f32 {
+    match block {
+        Block::CodeBlock { code, .. } => code
+            .lines()
+            .map(|l| l.chars().count() as f32 * char_width)
+            .fold(0.0_f32, f32::max),
+        Block::Heading {
+            children, level, ..
+        } => {
+            let text = inline_to_string(children);
+            let scale = match level {
+                1 => 2.0,
+                2 => 1.7,
+                3 => 1.43,
+                4 => 1.29,
+                5 => 1.14,
+                _ => 1.0,
+            };
+            text.chars().count() as f32 * char_width * scale
+        }
+        Block::Paragraph(inlines) => {
+            let text = inline_to_string(inlines);
+            text.chars().count() as f32 * char_width
+        }
+        Block::List { items } => items
+            .iter()
+            .map(|item| {
+                let text = inline_to_string(&item.children);
+                text.chars().count() as f32 * char_width + 32.0
             })
-        })
-        .collect()
+            .fold(0.0_f32, f32::max),
+        Block::Table { headers, rows, .. } => {
+            let header_w: f32 = headers
+                .iter()
+                .map(|h| inline_to_string(h).chars().count() as f32 * char_width)
+                .sum();
+            let mut max_row_w = header_w;
+            for row in rows {
+                let row_w: f32 = row
+                    .iter()
+                    .map(|cells| inline_to_string(cells).chars().count() as f32 * char_width)
+                    .sum();
+                max_row_w = max_row_w.max(row_w);
+            }
+            max_row_w
+        }
+        Block::BlockQuote(inner_blocks) => {
+            estimate_max_content_width(inner_blocks, char_width) + 32.0
+        }
+        Block::FootnoteDefinition { content, .. } => {
+            estimate_max_content_width(content, char_width) + 32.0
+        }
+        Block::MathBlock { content } => content.chars().count() as f32 * char_width,
+        Block::HtmlBlock { content } => content.chars().count() as f32 * char_width,
+        Block::ThematicBreak => 0.0,
+    }
 }
