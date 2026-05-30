@@ -4,6 +4,7 @@ mod keymap;
 mod pane;
 mod preview;
 mod tab;
+mod theme;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -150,13 +151,9 @@ impl ZelkovaApp {
             }
         }
 
-        let theme = zelkova_config::ThemeConfig::load().unwrap_or_default();
-        let ui_colors = theme.ui.clone();
-
         let tab_manager = cx.new(|cx| {
             let mut tm = tab::TabManager::new(cx);
             tm.set_socket_path(config.daemon.socket_path.clone());
-            tm.set_theme(ui_colors.clone());
             tm.set_wrap(config.editor.wrap, config.preview.wrap, cx);
             tm
         });
@@ -807,6 +804,20 @@ fn main() {
         .with_assets(gpui_component_assets::Assets)
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
+
+            // Load theme from config
+            let _markdown_colors = match theme::load_theme(
+                &config.ui.theme,
+                &config.ui.mode,
+                config.ui.override_path.as_deref(),
+                cx,
+            ) {
+                Ok(colors) => colors,
+                Err(err) => {
+                    tracing::error!("Failed to load theme: {err}, using defaults");
+                    theme::ResolvedMarkdownColors::default()
+                }
+            };
 
             let bindings = keymap::build_bindings(&keymap_config);
             cx.bind_keys(bindings);

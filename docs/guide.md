@@ -108,9 +108,8 @@ Config files live in `~/.config/zelkova/`:
 
 | File | Purpose |
 |------|---------|
-| `config.toml` | General settings (vault path, daemon socket) |
+| `config.toml` | General settings (vault path, daemon socket, theme) |
 | `keymap.toml` | Custom keybindings |
-| `theme.toml` | Color theme |
 
 ### Custom Keybindings
 

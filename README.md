@@ -85,20 +85,17 @@ All configuration lives under `~/.config/zelkova/`:
 
 | File | Purpose |
 |---|---|
-| `config.toml` | Vault path, daemon socket |
+| `config.toml` | Vault path, daemon socket, theme settings |
 | `keymap.toml` | Custom key bindings with leader key |
-| `theme.toml` | UI colors, editor colors, code syntax colors |
 
 All fields have sensible defaults (Catppuccin Mocha) — create only the fields you want to override.
 
-### Example `theme.toml`
+### Example `config.toml` (theme section)
 
 ```toml
-[editor]
-heading_fg = "#89b4fa"
-code_bg = "#313244"
-code_keyword = "#cba6f7"
-code_string = "#a6e3a1"
+[ui]
+theme = "catppuccin"
+mode = "dark"
 ```
 
 ## Tech Stack

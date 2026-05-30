@@ -5,12 +5,12 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Subscription,
     Window, div, prelude::*, px,
 };
+use gpui_component::ActiveTheme;
 use gpui_component::Selectable;
 use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel, v_resizable};
 use gpui_component::tab::{Tab, TabBar};
-use zelkova_config::UiColors;
 
-use crate::editor::{Editor, parse_hex};
+use crate::editor::Editor;
 use crate::pane::{
     PaneId, PaneLeaf, PaneNode, SplitDirection, ViewMode, close_leaf_in_node, create_empty_leaf,
     render_pane_node,
@@ -58,7 +58,6 @@ pub struct TabManager {
     active_tab: usize,
     next_id: usize,
     focus_handle: FocusHandle,
-    ui: UiColors,
     socket_path: Option<PathBuf>,
     editor_wrap: bool,
     preview_wrap: bool,
@@ -87,7 +86,6 @@ impl TabManager {
             active_tab: 0,
             next_id: 1,
             focus_handle: cx.focus_handle(),
-            ui: UiColors::default(),
             socket_path: None,
             editor_wrap: true,
             preview_wrap: true,
@@ -98,10 +96,6 @@ impl TabManager {
 
     pub fn set_socket_path(&mut self, path: PathBuf) {
         self.socket_path = Some(path);
-    }
-
-    pub fn set_theme(&mut self, ui: UiColors) {
-        self.ui = ui;
     }
 
     pub fn set_wrap(&mut self, editor_wrap: bool, preview_wrap: bool, cx: &mut App) {
@@ -506,8 +500,9 @@ impl Focusable for TabManager {
 
 impl Render for TabManager {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = parse_hex(&self.ui.border);
-        let text_dim = parse_hex(&self.ui.text_dim);
+        let theme = cx.theme();
+        let border = theme.border;
+        let text_dim = theme.muted_foreground;
         let active_tab = self.active_tab;
         let show_pane_count = self.show_pane_count;
 

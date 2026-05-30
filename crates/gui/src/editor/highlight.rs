@@ -1,7 +1,9 @@
 use std::ops::Range;
 
 use gpui::{FontStyle, FontWeight, HighlightStyle, Hsla, UnderlineStyle, px, rgba};
-use zelkova_config::{EditorColors, UiColors};
+use gpui_component::Theme;
+
+use crate::theme::ResolvedMarkdownColors;
 
 const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 
@@ -9,76 +11,129 @@ const DEFAULT_LINE_HEIGHT: f32 = 22.0;
 /// then passed to highlight functions to avoid repeated string parsing.
 #[derive(Debug, Clone)]
 pub struct ResolvedColors {
-    // UI-level colors (from UiColors)
     pub text: Hsla,
     pub bg: Hsla,
     pub border: Hsla,
-    pub border_dim: Hsla,
     pub selection_bg: Hsla,
     pub text_muted: Hsla,
-    // Editor-level colors (from EditorColors)
     pub heading_marker: Hsla,
     pub heading_fg: Hsla,
     pub list_marker: Hsla,
     pub quote_fg: Hsla,
     pub text_dim: Hsla,
     pub bold_fg: Hsla,
+    pub bold_marker: Hsla,
     pub italic_fg: Hsla,
+    pub italic_marker: Hsla,
     pub strikethrough_fg: Hsla,
     pub image_marker: Hsla,
     pub link_fg: Hsla,
     pub math_fg: Hsla,
+    pub math_marker: Hsla,
+    pub math_bg: Hsla,
     pub code_bg: Hsla,
     pub code_fg: Hsla,
-    pub code_keyword: Hsla,
+    pub code_marker: Hsla,
     pub tag_fg: Hsla,
     code_syntax: [Hsla; 12],
 }
 
 impl ResolvedColors {
-    pub fn new(colors: &EditorColors, ui: &UiColors) -> Self {
+    pub fn from_theme(theme: &Theme, md: &ResolvedMarkdownColors) -> Self {
         Self {
-            text: parse_hex(&ui.text),
-            bg: parse_hex(&ui.bg),
-            border: parse_hex(&ui.border),
-            border_dim: parse_hex(&ui.border_dim),
-            selection_bg: parse_hex(&ui.selection_bg),
-            text_muted: parse_hex(&ui.text_muted),
-            heading_marker: parse_hex(&colors.heading_marker),
-            heading_fg: parse_hex(&colors.heading_fg),
-            list_marker: parse_hex(&colors.list_marker),
-            quote_fg: parse_hex(&colors.quote_fg),
-            text_dim: parse_hex(&colors.text_dim),
-            bold_fg: parse_hex(&colors.bold_fg),
-            italic_fg: parse_hex(&colors.italic_fg),
-            strikethrough_fg: parse_hex(&colors.strikethrough_fg),
-            image_marker: parse_hex(&colors.image_marker),
-            link_fg: parse_hex(&colors.link_fg),
-            math_fg: parse_hex(&colors.math_fg),
-            code_bg: parse_hex(&colors.code_bg),
-            code_fg: parse_hex(&colors.code_fg),
-            code_keyword: parse_hex(&colors.code_keyword),
-            tag_fg: parse_hex(&colors.tag_fg),
-            code_syntax: [
-                parse_hex(&colors.code_attribute),
-                parse_hex(&colors.code_comment),
-                parse_hex(&colors.code_constant),
-                parse_hex(&colors.code_function),
-                parse_hex(&colors.code_keyword),
-                parse_hex(&colors.code_number),
-                parse_hex(&colors.code_operator),
-                parse_hex(&colors.code_property),
-                parse_hex(&colors.code_punctuation),
-                parse_hex(&colors.code_string),
-                parse_hex(&colors.code_tag),
-                parse_hex(&colors.code_type),
-            ],
+            text: theme.foreground,
+            bg: theme.background,
+            border: theme.border,
+            selection_bg: theme.selection,
+            text_muted: theme.muted_foreground,
+            heading_marker: md.heading_marker,
+            heading_fg: md.heading,
+            list_marker: md.list_marker,
+            quote_fg: md.quote,
+            text_dim: theme.muted_foreground,
+            bold_fg: md.bold,
+            bold_marker: md.bold_marker,
+            italic_fg: md.italic,
+            italic_marker: md.italic_marker,
+            strikethrough_fg: md.strikethrough,
+            image_marker: md.image_marker,
+            link_fg: md.link,
+            math_fg: md.math_fg,
+            math_marker: md.math_marker,
+            math_bg: md.math_bg,
+            code_bg: md.code_bg,
+            code_fg: md.code_fg,
+            code_marker: md.code_marker,
+            tag_fg: md.tag,
+            code_syntax: extract_syntax_colors(theme),
         }
     }
 
     pub fn syntax_color(&self, index: usize) -> Option<Hsla> {
         self.code_syntax.get(index).copied()
     }
+}
+
+impl Default for ResolvedColors {
+    fn default() -> Self {
+        let white = rgba(0xFFFFFFFF).into();
+        let gray = rgba(0xFF333333).into();
+        Self {
+            text: white,
+            bg: gray,
+            border: gray,
+            selection_bg: gray,
+            text_muted: white,
+            heading_marker: white,
+            heading_fg: white,
+            list_marker: white,
+            quote_fg: white,
+            text_dim: white,
+            bold_fg: white,
+            bold_marker: white,
+            italic_fg: white,
+            italic_marker: white,
+            strikethrough_fg: white,
+            image_marker: white,
+            link_fg: white,
+            math_fg: white,
+            math_marker: white,
+            math_bg: gray,
+            code_bg: gray,
+            code_fg: white,
+            code_marker: white,
+            tag_fg: white,
+            code_syntax: [white; 12],
+        }
+    }
+}
+
+/// Extract 12 syntax highlight colors from the theme's syntax colors.
+/// Order matches HIGHLIGHT_NAMES in zelkova-highlight:
+///   attribute, comment, constant, function, keyword, number,
+///   operator, property, punctuation, string, tag, type
+fn extract_syntax_colors(theme: &Theme) -> [Hsla; 12] {
+    let syn = &theme.highlight_theme.style.syntax;
+    let default_color = theme.foreground;
+    let color_of = |name: &str| -> Hsla {
+        syn.style(name)
+            .and_then(|s| s.color)
+            .unwrap_or(default_color)
+    };
+    [
+        color_of("attribute"),
+        color_of("comment"),
+        color_of("constant"),
+        color_of("function"),
+        color_of("keyword"),
+        color_of("number"),
+        color_of("constructor"),
+        color_of("property"),
+        color_of("embedded"),
+        color_of("string"),
+        color_of("tag"),
+        color_of("type"),
+    ]
 }
 
 #[derive(Debug, Clone)]
@@ -194,7 +249,7 @@ pub fn highlight_fence_line(line: &str, colors: &ResolvedColors) -> HighlightedL
         highlights.push((
             label_start..label_end,
             HighlightStyle {
-                color: Some(colors.code_keyword),
+                color: Some(colors.syntax_color(4).unwrap_or(colors.text)),
                 background_color: Some(colors.code_bg),
                 ..Default::default()
             },
@@ -433,7 +488,7 @@ fn scan_inline(
         {
             let marker = bytes[i];
             if let Some(end) = find_closing_double(bytes, i + 2, marker) {
-                let ms = marker_style(colors.bold_fg);
+                let ms = marker_style(colors.bold_marker);
                 highlights.push((offset + i..offset + i + 2, ms));
                 highlights.push((
                     offset + i + 2..offset + end,
@@ -480,7 +535,7 @@ fn scan_inline(
                 continue;
             }
             if let Some(end) = find_closing_single(bytes, i + 1, marker) {
-                let ms = marker_style(colors.italic_fg);
+                let ms = marker_style(colors.italic_marker);
                 highlights.push((offset + i..offset + i + 1, ms));
                 highlights.push((
                     offset + i + 1..offset + end,
@@ -500,7 +555,7 @@ fn scan_inline(
             let count = count_backticks(bytes, i);
             if let Some(end) = find_closing_backticks(bytes, i + count, count) {
                 let ms = HighlightStyle {
-                    color: Some(colors.code_fg),
+                    color: Some(colors.code_marker),
                     background_color: Some(colors.code_bg),
                     fade_out: Some(0.4),
                     ..Default::default()
@@ -560,13 +615,18 @@ fn scan_inline(
         if bytes[i] == b'$'
             && let Some(end) = find_closing_single(bytes, i + 1, b'$')
         {
-            let ms = marker_style(colors.math_fg);
+            let ms = HighlightStyle {
+                color: Some(colors.math_marker),
+                background_color: Some(colors.math_bg),
+                fade_out: Some(0.4),
+                ..Default::default()
+            };
             highlights.push((offset + i..offset + i + 1, ms));
             highlights.push((
                 offset + i + 1..offset + end,
                 HighlightStyle {
                     color: Some(colors.math_fg),
-                    font_style: Some(FontStyle::Italic),
+                    background_color: Some(colors.math_bg),
                     ..Default::default()
                 },
             ));
@@ -664,17 +724,15 @@ fn parse_link(bytes: &[u8], start: usize) -> Option<usize> {
 
 /// Parse "#RRGGBB" hex color to Hsla.
 pub fn parse_hex(hex: &str) -> Hsla {
-    let (r, g, b) = EditorColors::parse_hex(hex);
-    rgba((r as u32) << 24 | (g as u32) << 16 | (b as u32) << 8 | 0xFF).into()
+    crate::theme::try_parse_hex(hex).unwrap_or(rgba(0xFFFFFFFF).into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zelkova_config::{EditorColors, UiColors};
 
     fn colors() -> ResolvedColors {
-        ResolvedColors::new(&EditorColors::default(), &UiColors::default())
+        ResolvedColors::default()
     }
 
     #[test]

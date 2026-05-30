@@ -4,11 +4,13 @@ use gpui::{
     App, Context, FocusHandle, Focusable, HighlightStyle, Hsla, IntoElement, Render, ScrollHandle,
     SharedString, StyledText, Window, div, img, prelude::*, px,
 };
+use gpui_component::ActiveTheme;
 use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
-use zelkova_config::{EditorColors, UiColors};
 use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
 use zelkova_math_render::MathRenderer;
+
+use crate::theme::{ResolvedMarkdownColors, hsla_to_hex};
 
 /// GPUI `text_sm()` = 0.875rem = 14px at default 16px root.
 const PREVIEW_TEXT_SIZE: f32 = 14.0;
@@ -17,8 +19,6 @@ const BLOCK_MATH_SCALE: f32 = 1.8;
 
 pub struct Preview {
     doc: MarkdownDoc,
-    theme: EditorColors,
-    ui: UiColors,
     focus_handle: FocusHandle,
     file_path: Option<PathBuf>,
     math_renderer: MathRenderer,
@@ -29,16 +29,13 @@ pub struct Preview {
 impl Preview {
     #[allow(dead_code)]
     pub fn new(cx: &mut App) -> Self {
-        let theme = EditorColors::default();
-        let ui = UiColors::default();
-        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
+        let fg_hex = hsla_to_hex(gpui_component::Theme::global(cx).foreground);
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &fg_hex);
         Self {
             doc: MarkdownDoc {
                 frontmatter: None,
                 blocks: Vec::new(),
             },
-            theme,
-            ui,
             focus_handle: cx.focus_handle(),
             file_path: None,
             math_renderer,
@@ -48,14 +45,11 @@ impl Preview {
     }
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
-        let theme = EditorColors::default();
-        let ui = UiColors::default();
-        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &theme.math_fg);
+        let fg_hex = hsla_to_hex(gpui_component::Theme::global(cx).foreground);
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &fg_hex);
         let doc = parse(text);
         let mut preview = Self {
             doc,
-            theme,
-            ui,
             focus_handle: cx.focus_handle(),
             file_path,
             math_renderer,
@@ -64,12 +58,6 @@ impl Preview {
         };
         preview.prerender_math();
         preview
-    }
-
-    #[allow(dead_code)]
-    pub fn set_theme(&mut self, theme: EditorColors) {
-        self.math_renderer.set_text_color(&theme.math_fg);
-        self.theme = theme;
     }
 
     pub fn set_wrap(&mut self, wrap: bool) {
@@ -145,9 +133,8 @@ impl Preview {
     }
 }
 
-/// Resolved preview colors derived from EditorColors + UiColors.
-struct PreviewColors<'a> {
-    editor_colors: &'a EditorColors,
+/// Resolved preview colors derived from Theme + MarkdownColors.
+struct PreviewColors {
     text: Hsla,
     heading_fg: Hsla,
     code_bg: Hsla,
@@ -156,30 +143,31 @@ struct PreviewColors<'a> {
     list_marker: Hsla,
     link_fg: Hsla,
     strikethrough_fg: Hsla,
-    math_fallback: Hsla,
     quote_fg: Hsla,
     quote_border: Hsla,
     comment_fg: Hsla,
     border: Hsla,
+    math_color: Hsla,
+    math_bg: Hsla,
 }
 
-impl<'a> PreviewColors<'a> {
-    fn new(theme: &'a EditorColors, ui: &UiColors) -> Self {
+impl PreviewColors {
+    fn new(theme: &gpui_component::Theme, md: &ResolvedMarkdownColors) -> Self {
         Self {
-            editor_colors: theme,
-            text: crate::editor::parse_hex(&ui.text),
-            heading_fg: crate::editor::parse_hex(&theme.heading_fg),
-            code_bg: crate::editor::parse_hex(&theme.code_bg),
-            code_fg: crate::editor::parse_hex(&theme.code_fg),
-            text_dim: crate::editor::parse_hex(&theme.text_dim),
-            list_marker: crate::editor::parse_hex(&theme.list_marker),
-            link_fg: crate::editor::parse_hex(&theme.link_fg),
-            strikethrough_fg: crate::editor::parse_hex(&theme.strikethrough_fg),
-            math_fallback: crate::editor::parse_hex(&theme.code_keyword),
-            quote_fg: crate::editor::parse_hex(&theme.quote_fg),
-            quote_border: crate::editor::parse_hex(&theme.quote_border),
-            comment_fg: crate::editor::parse_hex(&theme.code_comment),
-            border: crate::editor::parse_hex(&ui.border),
+            text: theme.foreground,
+            heading_fg: md.heading,
+            code_bg: md.code_bg,
+            code_fg: md.code_fg,
+            text_dim: theme.muted_foreground,
+            list_marker: md.list_marker,
+            link_fg: md.link,
+            strikethrough_fg: theme.muted_foreground,
+            quote_fg: md.quote,
+            quote_border: md.quote_border,
+            comment_fg: theme.muted_foreground,
+            border: theme.border,
+            math_color: theme.foreground,
+            math_bg: md.math_bg,
         }
     }
 }
@@ -191,8 +179,10 @@ impl Focusable for Preview {
 }
 
 impl Render for Preview {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = PreviewColors::new(&self.theme, &self.ui);
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let md = ResolvedMarkdownColors::global(cx);
+        let colors = PreviewColors::new(&theme, md);
         let file_path = self.file_path.clone();
         let math_renderer = &self.math_renderer;
         let text = colors.text;
@@ -288,7 +278,7 @@ fn render_block(
 
             let highlights = match language.as_deref() {
                 Some(lang) if !lang.is_empty() => {
-                    let code_theme = CodeTheme::from_editor_colors(colors.editor_colors);
+                    let code_theme = CodeTheme::default();
                     build_code_highlights(code, lang, &code_theme)
                 }
                 _ => Vec::new(),
@@ -356,7 +346,7 @@ fn render_block(
                         math_renderer.font_size() * BLOCK_MATH_SCALE * math_img.em_height;
                     div()
                         .mb(px(8.0))
-                        .bg(colors.code_bg)
+                        .bg(colors.math_bg)
                         .rounded(px(4.0))
                         .p(px(8.0))
                         .flex()
@@ -370,10 +360,10 @@ fn render_block(
                 }
                 None => div()
                     .mb(px(8.0))
-                    .bg(colors.code_bg)
+                    .bg(colors.math_bg)
                     .rounded(px(4.0))
                     .p(px(8.0))
-                    .text_color(colors.math_fallback)
+                    .text_color(colors.math_color)
                     .child(content.clone())
                     .into_any_element(),
             }
@@ -578,7 +568,7 @@ fn render_inline(
                     )
                     .into_any_element(),
                 None => div()
-                    .text_color(colors.math_fallback)
+                    .text_color(colors.math_color)
                     .child(content.clone())
                     .into_any_element(),
             }
