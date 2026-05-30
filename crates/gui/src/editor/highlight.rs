@@ -615,7 +615,6 @@ fn scan_inline(
                 HighlightStyle {
                     color: Some(colors.math_fg),
                     background_color: Some(colors.math_bg),
-                    font_style: Some(FontStyle::Italic),
                     ..Default::default()
                 },
             ));
