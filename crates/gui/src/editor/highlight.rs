@@ -603,7 +603,12 @@ fn scan_inline(
         if bytes[i] == b'$'
             && let Some(end) = find_closing_single(bytes, i + 1, b'$')
         {
-            let ms = marker_style(colors.math_fg);
+            let ms = HighlightStyle {
+                color: Some(colors.math_fg),
+                background_color: Some(colors.math_bg),
+                fade_out: Some(0.4),
+                ..Default::default()
+            };
             highlights.push((offset + i..offset + i + 1, ms));
             highlights.push((
                 offset + i + 1..offset + end,
