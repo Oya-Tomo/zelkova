@@ -186,11 +186,12 @@ impl Render for Preview {
         let file_path = self.file_path.clone();
         let math_renderer = &self.math_renderer;
         let text = colors.text;
+        let wrap = self.wrap;
         let children: Vec<_> = self
             .doc
             .blocks
             .iter()
-            .map(|block| render_block(block, &colors, file_path.as_deref(), math_renderer))
+            .map(|block| render_block(block, &colors, file_path.as_deref(), math_renderer, wrap))
             .collect();
 
         // Inner div takes natural height from children, allowing the outer
@@ -199,7 +200,6 @@ impl Render for Preview {
             .flex()
             .flex_col()
             .flex_shrink_0()
-            .when(!self.wrap, |el| el.whitespace_nowrap())
             .children(children);
 
         let scrollbar_axis = if self.wrap {
@@ -260,6 +260,7 @@ fn render_block(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     match block {
         Block::Heading { level, children } => {
@@ -278,16 +279,18 @@ fn render_block(
                 .text_size(px(font_size))
                 .text_color(colors.heading_fg)
                 .font_weight(gpui::FontWeight::BOLD)
+                .when(!wrap, |el| el.whitespace_nowrap())
                 .child(text)
                 .into_any_element()
         }
         Block::Paragraph(inlines) => {
-            let rendered = render_inlines(inlines, colors, note_path, math_renderer);
+            let rendered = render_inlines(inlines, colors, note_path, math_renderer, wrap);
             div()
                 .mb(px(8.0))
                 .flex()
                 .flex_row()
-                .flex_wrap()
+                .when(wrap, |el| el.flex_wrap())
+                .when(!wrap, |el| el.flex_nowrap())
                 .children(rendered)
                 .into_any_element()
         }
@@ -308,6 +311,7 @@ fn render_block(
                 .bg(colors.code_bg)
                 .rounded(px(4.0))
                 .p(px(8.0))
+                .when(!wrap, |el| el.whitespace_nowrap())
                 .child(
                     div()
                         .text_xs()
@@ -321,7 +325,7 @@ fn render_block(
         Block::List { items } => {
             let children: Vec<_> = items
                 .iter()
-                .map(|item| render_list_item(item, 0, colors, note_path, math_renderer))
+                .map(|item| render_list_item(item, 0, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -333,7 +337,7 @@ fn render_block(
         Block::BlockQuote(blocks) => {
             let children: Vec<_> = blocks
                 .iter()
-                .map(|b| render_block(b, colors, note_path, math_renderer))
+                .map(|b| render_block(b, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(8.0))
@@ -350,7 +354,7 @@ fn render_block(
             headers,
             aligns,
             rows,
-        } => render_table(headers, aligns, rows, colors),
+        } => render_table(headers, aligns, rows, colors, wrap),
         Block::ThematicBreak => div()
             .my(px(12.0))
             .w_full()
@@ -390,12 +394,13 @@ fn render_block(
         Block::HtmlBlock { content } => div()
             .mb(px(8.0))
             .text_color(colors.text_dim)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(content.clone())
             .into_any_element(),
         Block::FootnoteDefinition { label, content } => {
             let blocks: Vec<_> = content
                 .iter()
-                .map(|b| render_block(b, colors, note_path, math_renderer))
+                .map(|b| render_block(b, colors, note_path, math_renderer, wrap))
                 .collect();
             div()
                 .mb(px(4.0))
@@ -418,6 +423,7 @@ fn render_list_item(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     let marker_text = match &item.marker {
         ListMarker::Dash => "- ".to_string(),
@@ -426,11 +432,11 @@ fn render_list_item(
         ListMarker::Number(n) => format!("{n}. "),
     };
 
-    let inline = render_inlines(&item.children, colors, note_path, math_renderer);
+    let inline = render_inlines(&item.children, colors, note_path, math_renderer, wrap);
     let sub_children: Vec<_> = item
         .sub_items
         .iter()
-        .map(|sub| render_list_item(sub, depth + 1, colors, note_path, math_renderer))
+        .map(|sub| render_list_item(sub, depth + 1, colors, note_path, math_renderer, wrap))
         .collect();
 
     div()
@@ -441,6 +447,8 @@ fn render_list_item(
             div()
                 .flex()
                 .flex_row()
+                .when(wrap, |el| el.flex_wrap())
+                .when(!wrap, |el| el.flex_nowrap())
                 .child(div().text_color(colors.list_marker).child(marker_text))
                 .children(inline),
         )
@@ -453,6 +461,7 @@ fn render_table(
     _aligns: &[Option<TableAlign>],
     rows: &[Vec<Vec<Inline>>],
     colors: &PreviewColors,
+    wrap: bool,
 ) -> gpui::AnyElement {
     let col_count = headers.len().max(1);
 
@@ -462,7 +471,8 @@ fn render_table(
         .flex_col()
         .border_1()
         .border_color(colors.border)
-        .rounded(px(4.0));
+        .rounded(px(4.0))
+        .when(!wrap, |el| el.whitespace_nowrap());
 
     // Header row
     let header_cells: Vec<_> = headers
@@ -476,6 +486,7 @@ fn render_table(
                 .bg(colors.code_bg)
                 .font_weight(gpui::FontWeight::BOLD)
                 .text_color(colors.text)
+                .when(!wrap, |el| el.whitespace_nowrap())
                 .child(text)
         })
         .collect();
@@ -496,6 +507,7 @@ fn render_table(
                     .border_t_1()
                     .border_color(colors.border)
                     .text_color(colors.text)
+                    .when(!wrap, |el| el.whitespace_nowrap())
                     .child(text)
             })
             .collect();
@@ -510,10 +522,11 @@ fn render_inlines(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> Vec<gpui::AnyElement> {
     inlines
         .iter()
-        .map(|inline| render_inline(inline, colors, note_path, math_renderer))
+        .map(|inline| render_inline(inline, colors, note_path, math_renderer, wrap))
         .collect()
 }
 
@@ -522,33 +535,42 @@ fn render_inline(
     colors: &PreviewColors,
     note_path: Option<&std::path::Path>,
     math_renderer: &MathRenderer,
+    wrap: bool,
 ) -> gpui::AnyElement {
     match inline {
-        Inline::Text(t) => div().child(t.clone()).into_any_element(),
+        Inline::Text(t) => div()
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .child(t.clone())
+            .into_any_element(),
         Inline::Bold(children) => div()
             .font_weight(gpui::FontWeight::BOLD)
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(children, colors, note_path, math_renderer, wrap))
             .into_any_element(),
         Inline::Italic(children) => div()
             .italic()
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(children, colors, note_path, math_renderer, wrap))
             .into_any_element(),
         Inline::Strikethrough(children) => div()
             .line_through()
             .text_color(colors.strikethrough_fg)
-            .children(render_inlines(children, colors, note_path, math_renderer))
+            .when(!wrap, |el| el.whitespace_nowrap())
+            .children(render_inlines(children, colors, note_path, math_renderer, wrap))
             .into_any_element(),
         Inline::Code(code) => div()
             .bg(colors.code_bg)
             .rounded(px(3.0))
             .px(px(4.0))
             .text_color(colors.code_fg)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(code.clone())
             .into_any_element(),
         Inline::Link { text, url: _, .. } => div()
             .text_color(colors.link_fg)
             .underline()
             .cursor(gpui::CursorStyle::PointingHand)
+            .when(!wrap, |el| el.whitespace_nowrap())
             .child(inline_to_string(text))
             .into_any_element(),
         Inline::Image { alt, url, .. } => {
