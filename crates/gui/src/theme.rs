@@ -67,8 +67,16 @@ pub struct MarkdownColors {
     pub math_bg: String,
     pub strikethrough: MarkdownColorEntry,
     pub bold: MarkdownColorEntry,
+    #[serde(rename = "bold.marker")]
+    pub bold_marker: MarkdownColorEntry,
     pub italic: MarkdownColorEntry,
+    #[serde(rename = "italic.marker")]
+    pub italic_marker: MarkdownColorEntry,
     pub tag: MarkdownColorEntry,
+    #[serde(rename = "code.marker")]
+    pub code_marker: MarkdownColorEntry,
+    #[serde(rename = "math.marker")]
+    pub math_marker: MarkdownColorEntry,
 }
 
 impl Default for MarkdownColors {
@@ -105,10 +113,22 @@ impl Default for MarkdownColors {
             bold: MarkdownColorEntry {
                 color: String::new(),
             },
+            bold_marker: MarkdownColorEntry {
+                color: String::new(),
+            },
             italic: MarkdownColorEntry {
                 color: String::new(),
             },
+            italic_marker: MarkdownColorEntry {
+                color: String::new(),
+            },
             tag: MarkdownColorEntry {
+                color: String::new(),
+            },
+            code_marker: MarkdownColorEntry {
+                color: String::new(),
+            },
+            math_marker: MarkdownColorEntry {
                 color: String::new(),
             },
         }
@@ -132,8 +152,12 @@ pub struct ResolvedMarkdownColors {
     pub math_bg: Hsla,
     pub strikethrough: Hsla,
     pub bold: Hsla,
+    pub bold_marker: Hsla,
     pub italic: Hsla,
+    pub italic_marker: Hsla,
     pub tag: Hsla,
+    pub code_marker: Hsla,
+    pub math_marker: Hsla,
 }
 
 impl Default for ResolvedMarkdownColors {
@@ -154,8 +178,12 @@ impl Default for ResolvedMarkdownColors {
             math_bg: gray,
             strikethrough: rgba(0xFF888888).into(),
             bold: white,
+            bold_marker: white,
             italic: white,
+            italic_marker: white,
             tag: white,
+            code_marker: white,
+            math_marker: white,
         }
     }
 }
@@ -180,6 +208,7 @@ pub fn load_theme(
     cx: &mut App,
 ) -> Result<ResolvedMarkdownColors> {
     // 1. Load bundled theme JSON
+    tracing::info!("Loading theme: name={theme_name}, mode={mode}");
     let raw_json = BUNDLED_THEME_JSON
         .iter()
         .find(|(name, _)| *name == theme_name)
@@ -222,7 +251,17 @@ pub fn load_theme(
 
     // 4. Apply to gpui-component Theme system
     let theme_config = std::rc::Rc::new(variant.clone());
+    tracing::info!(
+        "Applying theme variant: {} (mode={:?})",
+        variant.name,
+        variant.mode,
+    );
     Theme::global_mut(cx).apply_config(&theme_config);
+    tracing::info!(
+        "After apply_config: bg={:?}, fg={:?}",
+        Theme::global(cx).background,
+        Theme::global(cx).foreground,
+    );
 
     // 5. Extract and resolve markdown colors
     let markdown_raw = extract_markdown_from_json(&theme_set, &variant.name.to_string());
@@ -261,7 +300,7 @@ fn extract_markdown_from_json(theme_set: &serde_json::Value, variant_name: &str)
 /// Resolve markdown colors, applying fallbacks for missing fields.
 fn resolve_markdown_colors(raw: &MarkdownColors, theme: &Theme) -> ResolvedMarkdownColors {
     let code_bg = resolve_or(raw.code_bg.as_str(), theme.muted);
-    ResolvedMarkdownColors {
+    let mut resolved = ResolvedMarkdownColors {
         heading: resolve_or(raw.heading.color.as_str(), theme.foreground),
         heading_marker: resolve_or(raw.heading_marker.color.as_str(), theme.foreground),
         list_marker: resolve_or(raw.list_marker.color.as_str(), theme.foreground),
@@ -275,9 +314,22 @@ fn resolve_markdown_colors(raw: &MarkdownColors, theme: &Theme) -> ResolvedMarkd
         math_bg: resolve_or(raw.math_bg.as_str(), code_bg),
         strikethrough: resolve_or(raw.strikethrough.color.as_str(), theme.muted_foreground),
         bold: resolve_or(raw.bold.color.as_str(), theme.foreground),
+        bold_marker: theme.foreground,
         italic: resolve_or(raw.italic.color.as_str(), theme.foreground),
+        italic_marker: theme.foreground,
         tag: resolve_or(raw.tag.color.as_str(), theme.primary),
-    }
+        code_marker: theme.foreground,
+        math_marker: theme.foreground,
+    };
+    let bold_color = resolved.bold;
+    let italic_color = resolved.italic;
+    let code_fg_color = resolved.code_fg;
+    let math_fg_color = resolved.math_fg;
+    resolved.bold_marker = resolve_or(raw.bold_marker.color.as_str(), bold_color);
+    resolved.italic_marker = resolve_or(raw.italic_marker.color.as_str(), italic_color);
+    resolved.code_marker = resolve_or(raw.code_marker.color.as_str(), code_fg_color);
+    resolved.math_marker = resolve_or(raw.math_marker.color.as_str(), math_fg_color);
+    resolved
 }
 
 fn resolve_or(hex: &str, fallback: Hsla) -> Hsla {

@@ -22,14 +22,18 @@ pub struct ResolvedColors {
     pub quote_fg: Hsla,
     pub text_dim: Hsla,
     pub bold_fg: Hsla,
+    pub bold_marker: Hsla,
     pub italic_fg: Hsla,
+    pub italic_marker: Hsla,
     pub strikethrough_fg: Hsla,
     pub image_marker: Hsla,
     pub link_fg: Hsla,
     pub math_fg: Hsla,
+    pub math_marker: Hsla,
     pub math_bg: Hsla,
     pub code_bg: Hsla,
     pub code_fg: Hsla,
+    pub code_marker: Hsla,
     pub tag_fg: Hsla,
     code_syntax: [Hsla; 12],
 }
@@ -48,14 +52,18 @@ impl ResolvedColors {
             quote_fg: md.quote,
             text_dim: theme.muted_foreground,
             bold_fg: md.bold,
+            bold_marker: md.bold_marker,
             italic_fg: md.italic,
+            italic_marker: md.italic_marker,
             strikethrough_fg: md.strikethrough,
             image_marker: md.image_marker,
             link_fg: md.link,
             math_fg: md.math_fg,
+            math_marker: md.math_marker,
             math_bg: md.math_bg,
             code_bg: md.code_bg,
             code_fg: md.code_fg,
+            code_marker: md.code_marker,
             tag_fg: md.tag,
             code_syntax: extract_syntax_colors(theme),
         }
@@ -82,14 +90,18 @@ impl Default for ResolvedColors {
             quote_fg: white,
             text_dim: white,
             bold_fg: white,
+            bold_marker: white,
             italic_fg: white,
+            italic_marker: white,
             strikethrough_fg: white,
             image_marker: white,
             link_fg: white,
             math_fg: white,
+            math_marker: white,
             math_bg: gray,
             code_bg: gray,
             code_fg: white,
+            code_marker: white,
             tag_fg: white,
             code_syntax: [white; 12],
         }
@@ -476,7 +488,7 @@ fn scan_inline(
         {
             let marker = bytes[i];
             if let Some(end) = find_closing_double(bytes, i + 2, marker) {
-                let ms = marker_style(colors.bold_fg);
+                let ms = marker_style(colors.bold_marker);
                 highlights.push((offset + i..offset + i + 2, ms));
                 highlights.push((
                     offset + i + 2..offset + end,
@@ -523,7 +535,7 @@ fn scan_inline(
                 continue;
             }
             if let Some(end) = find_closing_single(bytes, i + 1, marker) {
-                let ms = marker_style(colors.italic_fg);
+                let ms = marker_style(colors.italic_marker);
                 highlights.push((offset + i..offset + i + 1, ms));
                 highlights.push((
                     offset + i + 1..offset + end,
@@ -543,7 +555,7 @@ fn scan_inline(
             let count = count_backticks(bytes, i);
             if let Some(end) = find_closing_backticks(bytes, i + count, count) {
                 let ms = HighlightStyle {
-                    color: Some(colors.code_fg),
+                    color: Some(colors.code_marker),
                     background_color: Some(colors.code_bg),
                     fade_out: Some(0.4),
                     ..Default::default()
@@ -604,7 +616,7 @@ fn scan_inline(
             && let Some(end) = find_closing_single(bytes, i + 1, b'$')
         {
             let ms = HighlightStyle {
-                color: Some(colors.math_fg),
+                color: Some(colors.math_marker),
                 background_color: Some(colors.math_bg),
                 fade_out: Some(0.4),
                 ..Default::default()

@@ -399,12 +399,12 @@ impl Editor {
 }
 
 /// Style a math block delimiter line ($$).
-pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla, math_bg: gpui::Hsla) -> HighlightedLine {
+pub(super) fn math_delim_line(line: &str, math_marker: gpui::Hsla, math_bg: gpui::Hsla) -> HighlightedLine {
     let dollar_count = line.bytes().take_while(|&b| b == b'$').count();
     let mut highlights = vec![(
         0..dollar_count,
         HighlightStyle {
-            color: Some(math_fg),
+            color: Some(math_marker),
             background_color: Some(math_bg),
             fade_out: Some(0.4),
             ..Default::default()
@@ -414,7 +414,7 @@ pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla, math_bg: gpui::Hs
         highlights.push((
             dollar_count..line.len(),
             HighlightStyle {
-                color: Some(math_fg),
+                color: Some(math_marker),
                 background_color: Some(math_bg),
                 ..Default::default()
             },
@@ -509,7 +509,8 @@ pub(super) fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec
         } else if line.trim_start().starts_with("$$") {
             let math_fg = colors.math_fg;
             let math_bg = colors.math_bg;
-            result.push(math_delim_line(line, math_fg, math_bg));
+            let math_marker = colors.math_marker;
+            result.push(math_delim_line(line, math_marker, math_bg));
             i += 1;
 
             while i < lines.len() {
@@ -531,7 +532,7 @@ pub(super) fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec
                     i += 1;
                     break;
                 } else if lines[i].trim() == "$$" {
-                    result.push(math_delim_line(&lines[i], math_fg, math_bg));
+                    result.push(math_delim_line(&lines[i], math_marker, math_bg));
                     i += 1;
                     break;
                 } else {
