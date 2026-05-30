@@ -399,12 +399,13 @@ impl Editor {
 }
 
 /// Style a math block delimiter line ($$).
-pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla) -> HighlightedLine {
+pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla, math_bg: gpui::Hsla) -> HighlightedLine {
     let dollar_count = line.bytes().take_while(|&b| b == b'$').count();
     let mut highlights = vec![(
         0..dollar_count,
         HighlightStyle {
             color: Some(math_fg),
+            background_color: Some(math_bg),
             fade_out: Some(0.4),
             ..Default::default()
         },
@@ -414,6 +415,7 @@ pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla) -> HighlightedLin
             dollar_count..line.len(),
             HighlightStyle {
                 color: Some(math_fg),
+                background_color: Some(math_bg),
                 ..Default::default()
             },
         ));
@@ -423,7 +425,7 @@ pub(super) fn math_delim_line(line: &str, math_fg: gpui::Hsla) -> HighlightedLin
         image_urls: Vec::new(),
         line_height: 22.0,
         heading_level: None,
-        line_bg: None,
+        line_bg: Some(math_bg),
     }
 }
 
@@ -506,7 +508,8 @@ pub(super) fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec
             }
         } else if line.trim_start().starts_with("$$") {
             let math_fg = colors.math_fg;
-            result.push(math_delim_line(line, math_fg));
+            let math_bg = colors.math_bg;
+            result.push(math_delim_line(line, math_fg, math_bg));
             i += 1;
 
             while i < lines.len() {
@@ -523,12 +526,12 @@ pub(super) fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec
                         image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
-                        line_bg: None,
+                        line_bg: Some(math_bg),
                     });
                     i += 1;
                     break;
                 } else if lines[i].trim() == "$$" {
-                    result.push(math_delim_line(&lines[i], math_fg));
+                    result.push(math_delim_line(&lines[i], math_fg, math_bg));
                     i += 1;
                     break;
                 } else {
@@ -543,7 +546,7 @@ pub(super) fn build_highlights(lines: &[String], colors: &ResolvedColors) -> Vec
                         image_urls: Vec::new(),
                         line_height: 22.0,
                         heading_level: None,
-                        line_bg: None,
+                        line_bg: Some(math_bg),
                     });
                     i += 1;
                 }
