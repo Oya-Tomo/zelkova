@@ -27,6 +27,7 @@ pub struct ResolvedColors {
     pub image_marker: Hsla,
     pub link_fg: Hsla,
     pub math_fg: Hsla,
+    pub math_bg: Hsla,
     pub code_bg: Hsla,
     pub code_fg: Hsla,
     pub tag_fg: Hsla,
@@ -51,7 +52,8 @@ impl ResolvedColors {
             strikethrough_fg: md.strikethrough,
             image_marker: md.image_marker,
             link_fg: md.link,
-            math_fg: md.math_color,
+            math_fg: md.math_fg,
+            math_bg: md.math_bg,
             code_bg: md.code_bg,
             code_fg: md.code_fg,
             tag_fg: md.tag,
@@ -85,6 +87,7 @@ impl Default for ResolvedColors {
             image_marker: white,
             link_fg: white,
             math_fg: white,
+            math_bg: gray,
             code_bg: gray,
             code_fg: white,
             tag_fg: white,
@@ -606,6 +609,7 @@ fn scan_inline(
                 offset + i + 1..offset + end,
                 HighlightStyle {
                     color: Some(colors.math_fg),
+                    background_color: Some(colors.math_bg),
                     font_style: Some(FontStyle::Italic),
                     ..Default::default()
                 },

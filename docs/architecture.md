@@ -78,8 +78,7 @@ The daemon detects file changes via polling at 2-second intervals and automatica
 
 ## Configuration
 
-- **App config**: `~/.config/zelkova/config.toml` (vault path, daemon socket)
+- **App config**: `~/.config/zelkova/config.toml` (vault path, daemon socket, theme)
 - **Keymap**: `~/.config/zelkova/keymap.toml` (leader key, custom bindings)
-- **Theme**: `~/.config/zelkova/theme.toml` (UI colors, editor colors, 12 code syntax colors)
 
 All configuration fields are filled in with serde defaults, so partial TOML files work correctly.

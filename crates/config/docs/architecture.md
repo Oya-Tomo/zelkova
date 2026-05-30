@@ -95,77 +95,30 @@ struct BindingConfig {
 - `load()` — Reads `keymap.toml`; returns defaults if the file does not exist
 - `resolved_bindings()` — Replaces `"leader"` strings in bindings with the actual leader key
 
-### ThemeConfig (theme.rs)
+### UiConfig (lib.rs — `[ui]` section in config.toml)
 
-UI and editor color theme settings. Loaded from `~/.config/zelkova/theme.toml`. Defaults are based on Catppuccin Mocha.
+Theme settings loaded from the `[ui]` section of `~/.config/zelkova/config.toml`. Defaults are Catppuccin Mocha.
 
 ```rust
-struct ThemeConfig {
-    ui: UiColors,
-    editor: EditorColors,
+struct UiConfig {
+    theme: String,          // bundled theme name (e.g. "catppuccin")
+    mode: String,           // "dark" or "light"
+    override_path: Option<String>,  // optional override JSON
 }
 ```
 
-### UiColors (5 fields)
-
-| Field | Default | Purpose |
-|---|---|---|
-| `bg` | `#1e1e2e` | Main background |
-| `sidebar_bg` | `#181825` | Sidebar background |
-| `border` | `#313244` | Border |
-| `text` | `#cdd6f4` | Main text |
-| `text_dim` | `#a6adc8` | Secondary text |
-
-### EditorColors (27 fields)
-
-**Markdown colors:**
-
-| Field | Default | Purpose |
-|---|---|---|
-| `heading_fg` | `#89b4fa` | Heading text |
-| `heading_marker` | `#89b4fa` | `#` marker |
-| `list_marker` | `#f9e2af` | List marker |
-| `code_bg` | `#313244` | Code block background |
-| `code_fg` | `#a6e3a1` | Code block text |
-| `link_fg` | `#89b4fa` | Link |
-| `image_marker` | `#7f849c` | Image marker |
-| `quote_fg` | `#9399b2` | Blockquote text |
-| `quote_border` | `#585b70` | Blockquote border |
-| `math_fg` | `#cba6f7` | Math expression |
-| `strikethrough_fg` | `#7f849c` | Strikethrough |
-| `bold_fg` | `#f9e2af` | Bold text |
-| `italic_fg` | `#f5c2e7` | Italic text |
-| `bold_weight` | `700` | Bold weight |
-| `text_dim` | `#a6adc8` | Secondary text |
-
-**Syntax highlighting colors (12 fields):**
-
-| Field | Default | Tree-sitter class |
-|---|---|---|
-| `code_keyword` | `#cba6f7` | keyword |
-| `code_function` | `#89b4fa` | function |
-| `code_string` | `#a6e3a1` | string |
-| `code_number` | `#fab387` | number |
-| `code_comment` | `#6c7086` | comment |
-| `code_type` | `#f9e2af` | type |
-| `code_constant` | `#fab387` | constant |
-| `code_operator` | `#89dceb` | operator |
-| `code_property` | `#89b4fa` | property |
-| `code_tag` | `#f38ba8` | tag |
-| `code_punctuation` | `#6c7086` | punctuation |
-| `code_attribute` | `#f9e2af` | attribute |
-
-**Helper methods:**
-- `EditorColors::parse_hex(hex)` — Parses `"#RRGGBB"` into `(u8, u8, u8)`
-- `UiColors::parse_hex(hex)` — Delegates to `EditorColors::parse_hex` internally
+Colors are resolved at runtime from bundled theme JSONs (see `crates/gui/themes/`).
+The `override_path` can point to a user-provided JSON that merges on top of the base theme.
+Markdown rendering colors come from the `"markdown"` section of each theme JSON, with
+automatic fallbacks derived from syntax and UI colors when absent.
 
 ## Data Flow
 
 ```
 ~/.config/zelkova/
-├── config.toml     → AppConfig::load()    → NoteConfig, DaemonConfig, McpConfig
+├── config.toml     → AppConfig::load()    → NoteConfig, DaemonConfig, McpConfig, UiConfig
 ├── keymap.toml     → KeymapConfig::load() → BindingConfig[]
-└── theme.toml      → ThemeConfig::load()  → UiColors, EditorColors
+└── themes/         → User-provided override JSONs (optional)
 
 Each load():
   File exists? ──No──> Return default values
@@ -190,6 +143,5 @@ vault_path = "/tmp/test-vault"
 
 | File | Path | Corresponding struct |
 |---|---|---|
-| `config.toml` | `~/.config/zelkova/config.toml` | `AppConfig` |
+| `config.toml` | `~/.config/zelkova/config.toml` | `AppConfig` (includes `UiConfig`) |
 | `keymap.toml` | `~/.config/zelkova/keymap.toml` | `KeymapConfig` |
-| `theme.toml` | `~/.config/zelkova/theme.toml` | `ThemeConfig` |

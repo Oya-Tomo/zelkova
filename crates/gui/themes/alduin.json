@@ -167,13 +167,11 @@
         },
         "code.background": "#262626",
         "code.foreground": "#76BA53",
-        "math.color": "#9E9E9E",
         "strikethrough": {
           "color": "#878787"
         },
         "bold": {
-          "color": "#E19773",
-          "font_weight": 700
+          "color": "#E19773"
         },
         "italic": {
           "color": "#af8787"
@@ -181,7 +179,8 @@
         "tag": {
           "color": "#b5af9a"
         },
-        "math.background": "#262626"
+        "math.background": "#262626",
+        "math.foreground": "#9E9E9E"
       }
     }
   ]

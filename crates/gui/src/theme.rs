@@ -41,8 +41,6 @@ const BUNDLED_THEME_JSON: &[(&str, &str)] = &[
 #[serde(default)]
 pub struct MarkdownColorEntry {
     pub color: String,
-    #[serde(default)]
-    pub font_weight: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,8 +61,8 @@ pub struct MarkdownColors {
     pub code_bg: String,
     #[serde(rename = "code.foreground")]
     pub code_fg: String,
-    #[serde(rename = "math.color")]
-    pub math_color: String,
+    #[serde(rename = "math.foreground")]
+    pub math_fg: String,
     #[serde(rename = "math.background")]
     pub math_bg: String,
     pub strikethrough: MarkdownColorEntry,
@@ -78,51 +76,40 @@ impl Default for MarkdownColors {
         Self {
             heading: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             heading_marker: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             list_marker: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             link: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             image_marker: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             quote: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             quote_border: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             code_bg: String::new(),
             code_fg: String::new(),
-            math_color: String::new(),
+            math_fg: String::new(),
             math_bg: String::new(),
             strikethrough: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             bold: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: Some(700),
             },
             italic: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
             tag: MarkdownColorEntry {
                 color: String::new(),
-                font_weight: None,
             },
         }
     }
@@ -141,11 +128,10 @@ pub struct ResolvedMarkdownColors {
     pub quote_border: Hsla,
     pub code_bg: Hsla,
     pub code_fg: Hsla,
-    pub math_color: Hsla,
+    pub math_fg: Hsla,
     pub math_bg: Hsla,
     pub strikethrough: Hsla,
     pub bold: Hsla,
-    pub bold_weight: u32,
     pub italic: Hsla,
     pub tag: Hsla,
 }
@@ -164,11 +150,10 @@ impl Default for ResolvedMarkdownColors {
             quote_border: white,
             code_bg: gray,
             code_fg: white,
-            math_color: white,
+            math_fg: white,
             math_bg: gray,
             strikethrough: rgba(0xFF888888).into(),
             bold: white,
-            bold_weight: 700,
             italic: white,
             tag: white,
         }
@@ -286,11 +271,10 @@ fn resolve_markdown_colors(raw: &MarkdownColors, theme: &Theme) -> ResolvedMarkd
         quote_border: resolve_or(raw.quote_border.color.as_str(), theme.border),
         code_bg,
         code_fg: resolve_or(raw.code_fg.as_str(), theme.foreground),
-        math_color: resolve_or(raw.math_color.as_str(), theme.foreground),
+        math_fg: resolve_or(raw.math_fg.as_str(), theme.foreground),
         math_bg: resolve_or(raw.math_bg.as_str(), code_bg),
         strikethrough: resolve_or(raw.strikethrough.color.as_str(), theme.muted_foreground),
         bold: resolve_or(raw.bold.color.as_str(), theme.foreground),
-        bold_weight: raw.bold.font_weight.unwrap_or(700),
         italic: resolve_or(raw.italic.color.as_str(), theme.foreground),
         tag: resolve_or(raw.tag.color.as_str(), theme.primary),
     }
@@ -307,6 +291,15 @@ pub fn try_parse_hex(hex: &str) -> Option<Hsla> {
     }
     let rgba = gpui::Rgba::try_from(hex).ok()?;
     Some(rgba.into())
+}
+
+/// Convert an Hsla color to a "#RRGGBB" hex string.
+pub fn hsla_to_hex(color: Hsla) -> String {
+    let rgba: gpui::Rgba = color.into();
+    let r = (rgba.r * 255.0) as u8;
+    let g = (rgba.g * 255.0) as u8;
+    let b = (rgba.b * 255.0) as u8;
+    format!("#{r:02X}{g:02X}{b:02X}")
 }
 
 /// Merge override JSON into base theme set (shallow merge at top level).

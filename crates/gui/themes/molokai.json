@@ -165,13 +165,11 @@
         },
         "code.background": "#f1eded",
         "code.foreground": "#269D69",
-        "math.color": "#0a0a0a",
         "strikethrough": {
           "color": "#767676"
         },
         "bold": {
-          "color": "#e14775",
-          "font_weight": 700
+          "color": "#e14775"
         },
         "italic": {
           "color": "#7058be"
@@ -179,7 +177,8 @@
         "tag": {
           "color": "#e14775"
         },
-        "math.background": "#f1eded"
+        "math.background": "#f1eded",
+        "math.foreground": "#0a0a0a"
       }
     },
     {
@@ -342,13 +341,11 @@
         },
         "code.background": "#232526",
         "code.foreground": "#76BA53",
-        "math.color": "#f8f8f2",
         "strikethrough": {
           "color": "#5b5a54"
         },
         "bold": {
-          "color": "#E19773",
-          "font_weight": 700
+          "color": "#E19773"
         },
         "italic": {
           "color": "#800780"
@@ -356,7 +353,8 @@
         "tag": {
           "color": "#b5af9a"
         },
-        "math.background": "#232526"
+        "math.background": "#232526",
+        "math.foreground": "#f8f8f2"
       }
     }
   ]

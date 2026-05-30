@@ -10,7 +10,7 @@ use zelkova_highlight::{CodeTheme, highlight_code, resolve_language};
 use zelkova_markdown::{Block, Inline, ListMarker, MarkdownDoc, TableAlign, parse};
 use zelkova_math_render::MathRenderer;
 
-use crate::theme::ResolvedMarkdownColors;
+use crate::theme::{ResolvedMarkdownColors, hsla_to_hex};
 
 /// GPUI `text_sm()` = 0.875rem = 14px at default 16px root.
 const PREVIEW_TEXT_SIZE: f32 = 14.0;
@@ -29,7 +29,8 @@ pub struct Preview {
 impl Preview {
     #[allow(dead_code)]
     pub fn new(cx: &mut App) -> Self {
-        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, "#cdd6f4");
+        let fg_hex = hsla_to_hex(gpui_component::Theme::global(cx).foreground);
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &fg_hex);
         Self {
             doc: MarkdownDoc {
                 frontmatter: None,
@@ -44,7 +45,8 @@ impl Preview {
     }
 
     pub fn from_markdown(text: &str, file_path: Option<PathBuf>, cx: &mut App) -> Self {
-        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, "#cdd6f4");
+        let fg_hex = hsla_to_hex(gpui_component::Theme::global(cx).foreground);
+        let math_renderer = MathRenderer::new(PREVIEW_TEXT_SIZE, &fg_hex);
         let doc = parse(text);
         let mut preview = Self {
             doc,
@@ -146,6 +148,7 @@ struct PreviewColors {
     comment_fg: Hsla,
     border: Hsla,
     math_color: Hsla,
+    math_bg: Hsla,
 }
 
 impl PreviewColors {
@@ -164,6 +167,7 @@ impl PreviewColors {
             comment_fg: theme.muted_foreground,
             border: theme.border,
             math_color: theme.foreground,
+            math_bg: md.math_bg,
         }
     }
 }
@@ -342,7 +346,7 @@ fn render_block(
                         math_renderer.font_size() * BLOCK_MATH_SCALE * math_img.em_height;
                     div()
                         .mb(px(8.0))
-                        .bg(colors.code_bg)
+                        .bg(colors.math_bg)
                         .rounded(px(4.0))
                         .p(px(8.0))
                         .flex()
@@ -356,7 +360,7 @@ fn render_block(
                 }
                 None => div()
                     .mb(px(8.0))
-                    .bg(colors.code_bg)
+                    .bg(colors.math_bg)
                     .rounded(px(4.0))
                     .p(px(8.0))
                     .text_color(colors.math_color)
