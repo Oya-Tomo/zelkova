@@ -342,39 +342,39 @@
       },
       "markdown": {
         "heading": {
-          "color": "#A76D3B"
+          "color": "#e8c66a"
         },
         "heading.marker": {
-          "color": "#A76D3B"
+          "color": "#e8c66a"
         },
         "list.marker": {
-          "color": "#E19773"
+          "color": "#c86d8c"
         },
         "link": {
-          "color": "#A86D3B"
+          "color": "#7fb5e1"
         },
         "image.marker": {
           "color": "#717192"
         },
         "quote": {
-          "color": "#9E9E9E"
+          "color": "#717192"
         },
         "quote.border": {
           "color": "#333150"
         },
         "code.background": "#29274a",
-        "code.foreground": "#76BA53",
+        "code.foreground": "#76ba53",
         "strikethrough": {
           "color": "#717192"
         },
         "bold": {
-          "color": "#E19773"
+          "color": "#c86d8c"
         },
         "italic": {
-          "color": "#665993"
+          "color": "#b296c6"
         },
         "tag": {
-          "color": "#b5af9a"
+          "color": "#e19773"
         },
         "math.background": "#29274a",
         "math.foreground": "#C7C7D4"

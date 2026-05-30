@@ -334,7 +334,7 @@
           "color": "#9D9D9D"
         },
         "quote": {
-          "color": "#9E9E9E"
+          "color": "#9D9D9D"
         },
         "quote.border": {
           "color": "#303030"
@@ -351,7 +351,7 @@
           "color": "#A550A7"
         },
         "tag": {
-          "color": "#b5af9a"
+          "color": "#fdd888"
         },
         "math.background": "#202020",
         "math.foreground": "#DEDEDE"
