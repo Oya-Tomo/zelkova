@@ -292,7 +292,7 @@ impl Editor {
 
         // Apply line-level background (e.g. code block bg extending to right edge)
         if let Some(bg) = highlighted.line_bg {
-            line_div = line_div.bg(bg);
+            line_div = line_div.bg(bg).w_full();
         }
 
         // Merge selection background using deterministic overlay
