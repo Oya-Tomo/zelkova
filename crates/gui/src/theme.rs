@@ -7,30 +7,27 @@ use serde::Deserialize;
 // Bundled themes — compiled into binary via include_str!
 // ---------------------------------------------------------------------------
 
-const BUNDLED_THEME_JSON: &[(&str, &str)] = &[
-    ("adventure", include_str!("../themes/adventure.json")),
-    ("alduin", include_str!("../themes/alduin.json")),
-    ("asciinema", include_str!("../themes/asciinema.json")),
-    ("ayu", include_str!("../themes/ayu.json")),
-    ("catppuccin", include_str!("../themes/catppuccin.json")),
-    ("everforest", include_str!("../themes/everforest.json")),
-    ("fahrenheit", include_str!("../themes/fahrenheit.json")),
-    ("gruvbox", include_str!("../themes/gruvbox.json")),
-    ("harper", include_str!("../themes/harper.json")),
-    ("hybrid", include_str!("../themes/hybrid.json")),
-    ("jellybeans", include_str!("../themes/jellybeans.json")),
-    ("kibble", include_str!("../themes/kibble.json")),
-    (
-        "macos-classic",
-        include_str!("../themes/macos-classic.json"),
-    ),
-    ("matrix", include_str!("../themes/matrix.json")),
-    ("mellifluous", include_str!("../themes/mellifluous.json")),
-    ("molokai", include_str!("../themes/molokai.json")),
-    ("solarized", include_str!("../themes/solarized.json")),
-    ("spaceduck", include_str!("../themes/spaceduck.json")),
-    ("tokyonight", include_str!("../themes/tokyonight.json")),
-    ("twilight", include_str!("../themes/twilight.json")),
+const BUNDLED_THEME_JSON: &[&str] = &[
+    include_str!("../themes/adventure.json"),
+    include_str!("../themes/alduin.json"),
+    include_str!("../themes/asciinema.json"),
+    include_str!("../themes/ayu.json"),
+    include_str!("../themes/catppuccin.json"),
+    include_str!("../themes/everforest.json"),
+    include_str!("../themes/fahrenheit.json"),
+    include_str!("../themes/gruvbox.json"),
+    include_str!("../themes/harper.json"),
+    include_str!("../themes/hybrid.json"),
+    include_str!("../themes/jellybeans.json"),
+    include_str!("../themes/kibble.json"),
+    include_str!("../themes/macos-classic.json"),
+    include_str!("../themes/matrix.json"),
+    include_str!("../themes/mellifluous.json"),
+    include_str!("../themes/molokai.json"),
+    include_str!("../themes/solarized.json"),
+    include_str!("../themes/spaceduck.json"),
+    include_str!("../themes/tokyonight.json"),
+    include_str!("../themes/twilight.json"),
 ];
 
 // ---------------------------------------------------------------------------
@@ -207,16 +204,32 @@ pub fn load_theme(
     override_path: Option<&str>,
     cx: &mut App,
 ) -> Result<ResolvedMarkdownColors> {
-    // 1. Load bundled theme JSON
+    // 1. Find bundled theme by matching config value against variant names in each JSON
     tracing::info!("Loading theme: name={theme_name}, mode={mode}");
-    let raw_json = BUNDLED_THEME_JSON
-        .iter()
-        .find(|(name, _)| *name == theme_name)
-        .map(|(_, json)| *json)
-        .ok_or_else(|| anyhow::anyhow!("unknown theme: {theme_name}"))?;
+    let mut raw_json: Option<serde_json::Value> = None;
+    let theme_lower = theme_name.to_lowercase();
 
-    let mut theme_set: serde_json::Value = serde_json::from_str(raw_json)
-        .with_context(|| format!("failed to parse bundled theme: {theme_name}"))?;
+    for json_str in BUNDLED_THEME_JSON {
+        let val: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if let Some(themes) = val.get("themes").and_then(|t| t.as_array()) {
+            for variant in themes {
+                if let Some(name) = variant.get("name").and_then(|n| n.as_str())
+                    && (name == theme_name || name.to_lowercase() == theme_lower)
+                {
+                    raw_json = Some(val);
+                    break;
+                }
+            }
+        }
+        if raw_json.is_some() {
+            break;
+        }
+    }
+
+    let mut theme_set = raw_json.ok_or_else(|| anyhow::anyhow!("unknown theme: {theme_name}"))?;
 
     // 2. Apply override if specified
     if let Some(rel_path) = override_path {
