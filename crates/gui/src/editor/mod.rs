@@ -19,9 +19,11 @@ use gpui::{
     App, Context, ElementInputHandler, FocusHandle, Focusable, IntoElement, Render, ScrollHandle,
     SharedString, StyledText, Window, canvas, div, prelude::*, px,
 };
+use gpui_component::ActiveTheme;
 use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
-use zelkova_config::{EditorColors, UiColors};
 use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
+
+use crate::theme::ResolvedMarkdownColors;
 
 use crate::{
     Backspace, InsertNewline, MoveDown, MoveLeft, MoveRight, MoveUp, Redo, SaveNote, SelectAll,
@@ -75,7 +77,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: None,
             socket_path: None,
-            resolved_colors: ResolvedColors::new(&EditorColors::default(), &UiColors::default()),
+            resolved_colors: ResolvedColors::default(),
             dirty: false,
             frontmatter: None,
             tag_input: String::new(),
@@ -112,7 +114,7 @@ impl Editor {
             ime_state: ImeState::new(),
             file_path: Some(path),
             socket_path: None,
-            resolved_colors: ResolvedColors::new(&EditorColors::default(), &UiColors::default()),
+            resolved_colors: ResolvedColors::default(),
             dirty: false,
             frontmatter,
             tag_input: String::new(),
@@ -133,8 +135,10 @@ impl Editor {
     }
 
     #[allow(dead_code)]
-    pub fn set_theme(&mut self, theme: EditorColors, ui: &UiColors) {
-        self.resolved_colors = ResolvedColors::new(&theme, ui);
+    pub fn set_theme(&mut self, cx: &App) {
+        let theme = cx.theme();
+        let md = ResolvedMarkdownColors::global(cx);
+        self.resolved_colors = ResolvedColors::from_theme(&theme, md);
         self.highlights_dirty = true;
     }
 

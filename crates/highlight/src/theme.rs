@@ -54,24 +54,6 @@ impl Default for CodeTheme {
 }
 
 impl CodeTheme {
-    /// Construct from EditorColors code-specific fields.
-    pub fn from_editor_colors(colors: &zelkova_config::EditorColors) -> Self {
-        Self {
-            attribute: colors.code_attribute.clone(),
-            comment: colors.code_comment.clone(),
-            constant: colors.code_constant.clone(),
-            function: colors.code_function.clone(),
-            keyword: colors.code_keyword.clone(),
-            number: colors.code_number.clone(),
-            operator: colors.code_operator.clone(),
-            property: colors.code_property.clone(),
-            punctuation: colors.code_punctuation.clone(),
-            string: colors.code_string.clone(),
-            tag: colors.code_tag.clone(),
-            r#type: colors.code_type.clone(),
-        }
-    }
-
     /// Get color string by highlight index.
     pub fn color_by_index(&self, index: usize) -> Option<&str> {
         match index {

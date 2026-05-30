@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod keymap;
-pub mod theme;
 pub use keymap::{BindingConfig, KeymapConfig};
-pub use theme::{EditorColors, ThemeConfig, UiColors};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -19,6 +17,17 @@ pub struct AppConfig {
     pub editor: EditorBehavior,
     #[serde(default)]
     pub preview: PreviewBehavior,
+    #[serde(default)]
+    pub ui: UiConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiConfig {
+    pub theme: String,
+    #[serde(default = "default_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub override_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +82,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_mode() -> String {
+    "dark".to_string()
+}
+
 impl Default for NoteConfig {
     fn default() -> Self {
         Self {
@@ -106,6 +119,16 @@ impl Default for EditorBehavior {
 impl Default for PreviewBehavior {
     fn default() -> Self {
         Self { wrap: true }
+    }
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            theme: "catppuccin".to_string(),
+            mode: default_mode(),
+            override_path: None,
+        }
     }
 }
 
@@ -145,6 +168,8 @@ mod tests {
         assert!(config.mcp.enabled);
         assert!(config.editor.wrap);
         assert!(config.preview.wrap);
+        assert_eq!(config.ui.theme, "catppuccin");
+        assert_eq!(config.ui.mode, "dark");
     }
 
     #[test]
@@ -166,11 +191,26 @@ vault_path = "/tmp/test-vault"
     }
 
     #[test]
+    fn parse_ui_section() {
+        let toml = r#"
+[ui]
+theme = "tokyonight"
+mode = "light"
+override_path = "my-theme.json"
+"#;
+        let config: AppConfig = toml::from_str(toml).expect("valid TOML in test");
+        assert_eq!(config.ui.theme, "tokyonight");
+        assert_eq!(config.ui.mode, "light");
+        assert_eq!(config.ui.override_path, Some("my-theme.json".to_string()));
+    }
+
+    #[test]
     fn roundtrip_default() {
         let config = AppConfig::default();
         let toml_str = toml::to_string_pretty(&config).expect("default config serializes");
         let parsed: AppConfig = toml::from_str(&toml_str).expect("roundtrip TOML parses");
         assert_eq!(config.note.vault_path, parsed.note.vault_path);
         assert_eq!(config.daemon.socket_path, parsed.daemon.socket_path);
+        assert_eq!(config.ui.theme, parsed.ui.theme);
     }
 }

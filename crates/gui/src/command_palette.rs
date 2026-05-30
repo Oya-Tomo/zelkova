@@ -2,7 +2,7 @@ use gpui::{
     App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
     div, prelude::*, px,
 };
-use zelkova_config::UiColors;
+use gpui_component::ActiveTheme;
 
 // ---------------------------------------------------------------------------
 // Arg type system
@@ -72,7 +72,6 @@ enum Phase {
 pub struct CommandPalette {
     phase: Phase,
     commands: Vec<CommandSpec>,
-    ui: UiColors,
 
     // SelectCommand state
     query: String,
@@ -95,7 +94,6 @@ impl CommandPalette {
         Self {
             phase: Phase::SelectCommand,
             commands,
-            ui: UiColors::default(),
             query: String::new(),
             query_cursor: 0,
             filtered,
@@ -372,11 +370,12 @@ impl Render for CommandPalette {
             );
         }
 
-        let dim_color = crate::editor::parse_hex(&self.ui.text_dim);
-        let text_color = crate::editor::parse_hex(&self.ui.text);
-        let bg_color = crate::editor::parse_hex(&self.ui.border);
-        let selection_bg = crate::editor::parse_hex(&self.ui.selection_bg);
-        let separator_color = crate::editor::parse_hex(&self.ui.border_dim);
+        let theme = cx.theme();
+        let dim_color = theme.muted_foreground;
+        let text_color = theme.foreground;
+        let bg_color = theme.border;
+        let selection_bg = theme.selection;
+        let separator_color = theme.border;
 
         let make_cursor = || div().w(px(1.0)).h(px(14.0)).bg(text_color).flex_shrink_0();
 

@@ -145,7 +145,7 @@ impl Editor {
                             .py(px(2.0))
                             .rounded_md()
                             .border_1()
-                            .border_color(colors.border_dim)
+                            .border_color(colors.border)
                             .bg(colors.bg)
                             .text_xs()
                             .flex()
