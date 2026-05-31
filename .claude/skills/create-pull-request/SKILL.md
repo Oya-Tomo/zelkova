@@ -73,6 +73,12 @@ git push -u origin <branch-name>
 gh pr create --base develop --title "<title>" --body "<body>"
 ```
 
-## Step 5: Verify
+## Step 5: Monitor CI
 
-After creation, run `gh pr checks <pr-number>` to confirm CI status on the remote. Report the PR URL to the user.
+After creation, launch a monitor to watch CI checks until all pass or any fails:
+
+```bash
+gh pr checks <pr-number> --watch
+```
+
+Report the PR URL to the user. If any check fails, attempt auto-fix (see Step 1 "On failure"), push the fix, and re-monitor.
