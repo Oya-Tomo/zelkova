@@ -318,7 +318,9 @@ mod tests {
 
     #[test]
     fn parse_table_alignments() {
-        let doc = parse("| Left | Center | Default | Right |\n|:-----|:------:|---------|------:|\n| a | b | c | d |");
+        let doc = parse(
+            "| Left | Center | Default | Right |\n|:-----|:------:|---------|------:|\n| a | b | c | d |",
+        );
         assert_eq!(doc.blocks.len(), 1);
         if let Block::Table { aligns, .. } = &doc.blocks[0] {
             assert_eq!(aligns.len(), 4);

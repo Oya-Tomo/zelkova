@@ -399,7 +399,9 @@ mod tests {
 
     #[test]
     fn is_table_separator_alignments() {
-        assert!(is_table_separator("|:--------|:-------:|---------|--------:|"));
+        assert!(is_table_separator(
+            "|:--------|:-------:|---------|--------:|"
+        ));
         assert!(is_table_separator("|:---|:--:|---|--:|"));
         assert!(is_table_separator("| --- | --- |"));
         assert!(!is_table_separator("| a | b |"));
