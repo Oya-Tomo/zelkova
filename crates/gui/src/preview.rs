@@ -527,9 +527,17 @@ fn render_list_item(
         .into_any_element()
 }
 
+fn apply_cell_alignment(el: gpui::Div, align: Option<TableAlign>) -> gpui::Div {
+    match align {
+        Some(TableAlign::Center) => el.justify_center(),
+        Some(TableAlign::Right) => el.justify_end(),
+        Some(TableAlign::Left) | None => el.justify_start(),
+    }
+}
+
 fn render_table(
     headers: &[Vec<Inline>],
-    _aligns: &[Option<TableAlign>],
+    aligns: &[Option<TableAlign>],
     rows: &[Vec<Vec<Inline>>],
     colors: &PreviewColors,
     wrap: bool,
@@ -548,17 +556,22 @@ fn render_table(
     // Header row
     let header_cells: Vec<_> = headers
         .iter()
-        .map(|h| {
+        .enumerate()
+        .map(|(col, h)| {
             let text = inline_to_string(h);
-            div()
-                .flex()
-                .flex_1()
-                .p(px(6.0))
-                .bg(colors.code_bg)
-                .font_weight(gpui::FontWeight::BOLD)
-                .text_color(colors.text)
-                .when(!wrap, |el| el.whitespace_nowrap())
-                .child(text)
+            let align = aligns.get(col).copied().flatten();
+            apply_cell_alignment(
+                div()
+                    .flex()
+                    .flex_1()
+                    .p(px(6.0))
+                    .bg(colors.code_bg)
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .text_color(colors.text)
+                    .when(!wrap, |el| el.whitespace_nowrap()),
+                align,
+            )
+            .child(text)
         })
         .collect();
     table_div = table_div.child(div().flex().flex_row().w_full().children(header_cells));
@@ -571,15 +584,19 @@ fn render_table(
                     .get(col)
                     .map(|inline| inline_to_string(inline))
                     .unwrap_or_default();
-                div()
-                    .flex()
-                    .flex_1()
-                    .p(px(6.0))
-                    .border_t_1()
-                    .border_color(colors.border)
-                    .text_color(colors.text)
-                    .when(!wrap, |el| el.whitespace_nowrap())
-                    .child(text)
+                let align = aligns.get(col).copied().flatten();
+                apply_cell_alignment(
+                    div()
+                        .flex()
+                        .flex_1()
+                        .p(px(6.0))
+                        .border_t_1()
+                        .border_color(colors.border)
+                        .text_color(colors.text)
+                        .when(!wrap, |el| el.whitespace_nowrap()),
+                    align,
+                )
+                .child(text)
             })
             .collect();
         table_div = table_div.child(div().flex().flex_row().w_full().children(cells));
