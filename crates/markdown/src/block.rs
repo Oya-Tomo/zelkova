@@ -296,11 +296,10 @@ fn is_table_separator(line: &str) -> bool {
         if cell.is_empty() {
             return true;
         }
-        cell == ":"
-            || cell == "-:"
-            || cell == ":-:"
-            || cell == ":-"
-            || cell.chars().all(|c| c == '-')
+        // Optional leading ':', one or more '-', optional trailing ':'
+        let s = cell.strip_prefix(':').unwrap_or(cell);
+        let s = s.strip_suffix(':').unwrap_or(s);
+        !s.is_empty() && s.chars().all(|c| c == '-')
     })
 }
 
@@ -384,6 +383,26 @@ mod tests {
         let slices = detect_blocks(&lines);
         assert_eq!(slices.len(), 1);
         assert!(matches!(slices[0].kind, BlockKind::Table));
+    }
+
+    #[test]
+    fn detect_table_with_alignment() {
+        let lines = vec![
+            "| Left | Center | Default | Right |",
+            "|:-----|:------:|---------|------:|",
+            "| a    | b      | c       | d     |",
+        ];
+        let slices = detect_blocks(&lines);
+        assert_eq!(slices.len(), 1);
+        assert!(matches!(slices[0].kind, BlockKind::Table));
+    }
+
+    #[test]
+    fn is_table_separator_alignments() {
+        assert!(is_table_separator("|:--------|:-------:|---------|--------:|"));
+        assert!(is_table_separator("|:---|:--:|---|--:|"));
+        assert!(is_table_separator("| --- | --- |"));
+        assert!(!is_table_separator("| a | b |"));
     }
 
     #[test]

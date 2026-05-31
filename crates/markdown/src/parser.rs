@@ -317,6 +317,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_table_alignments() {
+        let doc = parse("| Left | Center | Default | Right |\n|:-----|:------:|---------|------:|\n| a | b | c | d |");
+        assert_eq!(doc.blocks.len(), 1);
+        if let Block::Table { aligns, .. } = &doc.blocks[0] {
+            assert_eq!(aligns.len(), 4);
+            assert_eq!(aligns[0], Some(TableAlign::Left));
+            assert_eq!(aligns[1], Some(TableAlign::Center));
+            assert_eq!(aligns[2], None);
+            assert_eq!(aligns[3], Some(TableAlign::Right));
+        }
+    }
+
+    #[test]
     fn parse_math_block() {
         let doc = parse("$$\nE = mc^2\n$$");
         assert_eq!(doc.blocks.len(), 1);
