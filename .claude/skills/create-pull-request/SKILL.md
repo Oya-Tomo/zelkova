@@ -5,6 +5,8 @@ description: Create a pull request with enforced full CI. Auto-generates PR titl
 
 Create a pull request for the current branch. Follow every step below in order.
 
+**Important**: Unless the user explicitly specifies otherwise, always target `develop` as the base branch. Never target `main`.
+
 ## Step 1: Run full CI
 
 Execute all four CI checks sequentially. These are mandatory — do not skip.

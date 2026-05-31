@@ -62,6 +62,8 @@ After the user approves the plan:
    - Prefix: `feat`, `fix`, `refactor`, `docs`, `chore` (based on issue type)
    - Description: short kebab-case summary
 
+**Important**: Unless the user explicitly specifies otherwise, always branch from `develop` and target `develop` for PRs. Never branch from or target `main`.
+
 ## Step 5: Implement
 
 Implement the changes according to the plan. After each meaningful unit of work:
