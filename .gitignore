@@ -2,6 +2,7 @@
 /result
 .direnv
 .claude
+!.claude/skills/
 
 # Secrets
 .env
