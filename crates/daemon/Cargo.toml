@@ -13,6 +13,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
 zelkova-config = { path = "../config" }
 zelkova-note-core = { path = "../note_core" }
 zelkova-search = { path = "../search" }

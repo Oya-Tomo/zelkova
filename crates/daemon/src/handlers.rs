@@ -20,6 +20,8 @@ pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcRe
         METHOD_NOTE_UPDATED => handle_note_updated(&request, state),
         METHOD_DELETE_NOTE => handle_delete_note(&request, state),
         METHOD_RENAME_NOTE => handle_rename_note(&request, state),
+        METHOD_READ_NOTE => handle_read_note(&request, state),
+        METHOD_WRITE_NOTE => handle_write_note(&request, state),
         _ => Err(JsonRpcError::not_found(format!(
             "unknown method: {}",
             request.method
@@ -129,6 +131,17 @@ fn handle_create_note(
         .vault
         .create_note(params.title.as_deref(), tags)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+
+    // Persist directory structure so the new note has a mapping entry
+    {
+        let mut directory = state
+            .directory
+            .lock()
+            .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+        directory
+            .save(&state.vault.vault_path)
+            .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    }
 
     let result = CreateNoteResult {
         id: note.frontmatter.id,
@@ -330,6 +343,66 @@ fn handle_rename_folder(
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
         .map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_read_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    let params: ReadNoteParams = parse_params(request)?;
+    let relative = params
+        .path
+        .strip_prefix(&state.vault.vault_path)
+        .unwrap_or(&params.path);
+    let note = state
+        .vault
+        .get_note(relative)
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?
+        .ok_or_else(|| JsonRpcError::not_found("note not found"))?;
+
+    let result = ReadNoteResult {
+        id: note.frontmatter.id,
+        title: note.frontmatter.title,
+        tags: note.frontmatter.tags.into_iter().collect(),
+        content: note.content,
+        created: note.frontmatter.created.to_rfc3339(),
+        updated: note.frontmatter.updated.to_rfc3339(),
+    };
+    serde_json::to_value(result).map_err(|e| JsonRpcError::internal(e.to_string()))
+}
+
+fn handle_write_note(
+    request: &JsonRpcRequest,
+    state: &DaemonState,
+) -> Result<serde_json::Value, JsonRpcError> {
+    use std::collections::HashSet as StdHashSet;
+    let params: WriteNoteParams = parse_params(request)?;
+
+    let notes = state
+        .vault
+        .list_notes()
+        .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    let note = notes
+        .into_iter()
+        .find(|n| n.path == params.path)
+        .ok_or_else(|| JsonRpcError::not_found("note not found"))?;
+
+    let mut frontmatter = note.frontmatter;
+    frontmatter.title = params.title;
+    frontmatter.tags = params.tags.into_iter().collect::<StdHashSet<String>>();
+    frontmatter.updated = chrono::Utc::now();
+
+    let content = zelkova_note_core::format_note_file(&frontmatter, &params.content);
+    std::fs::write(&note.path, &content)
+        .map_err(|e| JsonRpcError::internal(format!("failed to write note: {e}")))?;
+
+    // Re-index the note
+    if let Err(e) = crate::indexer::reindex_note(&note.path, state) {
+        eprintln!("warning: failed to reindex note after write: {e}");
+    }
+
+    let result = WriteNoteResult { path: note.path };
+    serde_json::to_value(result).map_err(|e| JsonRpcError::internal(e.to_string()))
 }
 
 fn parse_params<T: serde::de::DeserializeOwned>(

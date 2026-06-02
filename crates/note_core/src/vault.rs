@@ -104,7 +104,7 @@ impl Vault {
                 }
                 self.collect_notes(&path, notes)?;
             } else if path.extension().is_some_and(|e| e == "md") {
-                match self.parse_note_file(&path) {
+                match self.parse_or_import_note(&path) {
                     Ok(note) => notes.push(note),
                     Err(e) => eprintln!("warning: failed to parse {}: {e}", path.display()),
                 }
@@ -113,10 +113,56 @@ impl Vault {
         Ok(())
     }
 
+    /// Parse a note file, tolerating missing frontmatter.
+    /// If frontmatter is absent, auto-generates it and writes it back to disk.
+    fn parse_or_import_note(&self, path: &Path) -> Result<Note> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+
+        let (frontmatter, body) = parse_frontmatter(&content);
+
+        let frontmatter = match frontmatter {
+            Some(fm) => fm,
+            None => {
+                let fm = self.generate_frontmatter(path, &body);
+                let file_content = format_note_file(&fm, &body);
+                fs::write(path, &file_content)
+                    .with_context(|| format!("failed to write imported note {}", path.display()))?;
+                fm
+            }
+        };
+
+        Ok(Note {
+            frontmatter,
+            content: body,
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Generate frontmatter for a plain .md file imported into the vault.
+    fn generate_frontmatter(&self, path: &Path, body: &str) -> Frontmatter {
+        let title = extract_title_from_body(body).unwrap_or_else(|| {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string()
+        });
+        let now = Utc::now();
+        Frontmatter {
+            id: Uuid::new_v4(),
+            title,
+            tags: HashSet::new(),
+            created: now,
+            updated: now,
+        }
+    }
+
     fn parse_note_file(&self, path: &Path) -> Result<Note> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        let (frontmatter, body) = parse_frontmatter(&content)?;
+        let (frontmatter, body) = parse_frontmatter(&content);
+        let frontmatter = frontmatter
+            .ok_or_else(|| anyhow::anyhow!("note at {} has no frontmatter", path.display()))?;
 
         Ok(Note {
             frontmatter,
@@ -126,24 +172,39 @@ impl Vault {
     }
 }
 
-fn parse_frontmatter(content: &str) -> Result<(Frontmatter, String)> {
+fn parse_frontmatter(content: &str) -> (Option<Frontmatter>, String) {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
-        anyhow::bail!("note does not start with YAML frontmatter");
+        return (None, content.to_string());
     }
 
     let rest = &trimmed[3..];
     let Some(end_idx) = rest.find("---") else {
-        anyhow::bail!("unclosed YAML frontmatter");
+        return (None, content.to_string());
     };
 
     let yaml_str = &rest[..end_idx];
     let body = rest[end_idx + 3..].trim_start().to_string();
 
-    let frontmatter: Frontmatter =
-        serde_yaml::from_str(yaml_str).context("failed to parse YAML frontmatter")?;
+    let frontmatter: Frontmatter = match serde_yaml::from_str(yaml_str) {
+        Ok(fm) => fm,
+        Err(_) => return (None, content.to_string()),
+    };
+    (Some(frontmatter), body)
+}
 
-    Ok((frontmatter, body))
+/// Extract a title from the first Markdown heading in the body.
+fn extract_title_from_body(body: &str) -> Option<String> {
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("# ") {
+            return Some(trimmed[2..].trim().to_string());
+        }
+        if trimmed.starts_with("## ") {
+            return Some(trimmed[3..].trim().to_string());
+        }
+    }
+    None
 }
 
 /// Parse optional YAML frontmatter from raw note content.
@@ -216,16 +277,60 @@ mod tests {
     #[test]
     fn parse_frontmatter_basic() {
         let content = "---\nid: \"00000000-0000-0000-0000-000000000001\"\ntitle: Test\ntags:\n  - rust\ncreated: 2025-01-01T00:00:00Z\nupdated: 2025-01-01T00:00:00Z\n---\nHello world\n";
-        let (fm, body) = parse_frontmatter(content).expect("parse frontmatter");
+        let (fm, body) = parse_frontmatter(content);
+        let fm = fm.expect("frontmatter should parse");
         assert_eq!(fm.title, "Test");
         assert!(fm.tags.contains("rust"));
         assert_eq!(body, "Hello world\n");
     }
 
     #[test]
-    fn parse_frontmatter_missing() {
+    fn parse_frontmatter_missing_returns_none() {
         let content = "just text";
-        assert!(parse_frontmatter(content).is_err());
+        let (fm, body) = parse_frontmatter(content);
+        assert!(fm.is_none());
+        assert_eq!(body, "just text");
+    }
+
+    #[test]
+    fn parse_frontmatter_unclosed_returns_none() {
+        let content = "---\nid: broken\nHello world\n";
+        let (fm, body) = parse_frontmatter(content);
+        assert!(fm.is_none());
+        assert_eq!(body, content);
+    }
+
+    #[test]
+    fn extract_title_from_heading() {
+        assert_eq!(
+            extract_title_from_body("# My Title\nSome text"),
+            Some("My Title".to_string())
+        );
+        assert_eq!(
+            extract_title_from_body("## Sub Title\n"),
+            Some("Sub Title".to_string())
+        );
+        assert_eq!(extract_title_from_body("No heading here"), None);
+    }
+
+    #[test]
+    fn vault_import_plain_md() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        // Write a plain .md file without frontmatter
+        let plain_path = tmp.path().join("my-note.md");
+        fs::write(&plain_path, "# Hello World\nThis is my note.\n").expect("write plain file");
+
+        let notes = vault.list_notes().expect("list notes");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].frontmatter.title, "Hello World");
+        assert!(notes[0].frontmatter.id != Uuid::nil());
+
+        // File should now have frontmatter written back
+        let raw = fs::read_to_string(&plain_path).expect("read back");
+        assert!(raw.starts_with("---"));
+        assert!(raw.contains("Hello World"));
     }
 
     #[test]
