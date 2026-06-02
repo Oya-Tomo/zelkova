@@ -141,13 +141,12 @@ impl Vault {
 
     /// Generate frontmatter for a plain .md file imported into the vault.
     fn generate_frontmatter(&self, path: &Path, body: &str) -> Frontmatter {
-        let title = extract_title_from_body(body)
-            .unwrap_or_else(|| {
-                path.file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Untitled")
-                    .to_string()
-            });
+        let title = extract_title_from_body(body).unwrap_or_else(|| {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string()
+        });
         let now = Utc::now();
         Frontmatter {
             id: Uuid::new_v4(),

@@ -96,11 +96,9 @@ impl Editor {
     }
 
     pub fn load(path: PathBuf, cx: &mut App) -> anyhow::Result<Self> {
-        let raw = std::fs::read_to_string(&path)?;
-        let (frontmatter, body) = match parse_note_content(&raw) {
-            (Some(fm), body) => (Some(fm), body),
-            (None, _) => (None, raw),
-        };
+        // Try RPC first; fall back to direct file read if daemon is unavailable
+        let (frontmatter, body) = Self::read_note_via_rpc_or_fs(&path);
+
         let cached_lines = split_lines(&body);
         let edit_zone = match &frontmatter {
             Some(fm) if fm.title.is_empty() => EditZone::Title,
@@ -824,29 +822,74 @@ impl Editor {
 
     pub fn save_to_disk(&mut self) {
         if let Some(path) = &self.file_path {
-            let content = if let Some(fm) = &mut self.frontmatter {
+            if let Some(fm) = &mut self.frontmatter {
                 fm.updated = Utc::now();
-                format_note_file(fm, &self.cached_text)
-            } else {
-                self.cached_text.clone()
-            };
-            if std::fs::write(path, content).is_ok() {
+            }
+            if self.write_note_via_rpc_or_fs(path) {
                 self.dirty = false;
-                self.notify_daemon();
             }
         }
     }
 
-    fn notify_daemon(&self) {
-        if let (Some(socket), Some(path)) = (&self.socket_path, &self.file_path) {
-            if !socket.exists() {
-                return;
-            }
-            let client = zelkova_rpc::client::RpcClient::new(socket);
-            if let Err(e) = client.note_updated(path) {
-                eprintln!("warning: failed to notify daemon of note update: {e}");
+    fn read_note_via_rpc_or_fs(path: &PathBuf) -> (Option<Frontmatter>, String) {
+        // Try daemon RPC first
+        if let Ok(client) = Self::rpc_client_for(path) {
+            if let Ok(result) = client.read_note(path) {
+                let fm = Frontmatter {
+                    id: result.id,
+                    title: result.title,
+                    tags: result.tags.into_iter().collect(),
+                    created: result.created.parse().unwrap_or_else(|_| Utc::now()),
+                    updated: result.updated.parse().unwrap_or_else(|_| Utc::now()),
+                };
+                return (Some(fm), result.content);
             }
         }
+        // Fallback: direct file read
+        match std::fs::read_to_string(path) {
+            Ok(raw) => parse_note_content(&raw),
+            Err(_) => (None, String::new()),
+        }
+    }
+
+    fn write_note_via_rpc_or_fs(&self, path: &PathBuf) -> bool {
+        let title = self
+            .frontmatter
+            .as_ref()
+            .map(|f| f.title.as_str())
+            .unwrap_or("");
+        let tags: Vec<String> = self
+            .frontmatter
+            .as_ref()
+            .map(|f| f.tags.iter().cloned().collect())
+            .unwrap_or_default();
+
+        // Try daemon RPC first
+        if let Ok(client) = Self::rpc_client_for(path) {
+            if client
+                .write_note(path, title, &tags, &self.cached_text)
+                .is_ok()
+            {
+                return true;
+            }
+        }
+        // Fallback: direct file write
+        let content = if let Some(fm) = &self.frontmatter {
+            format_note_file(fm, &self.cached_text)
+        } else {
+            self.cached_text.clone()
+        };
+        std::fs::write(path, content).is_ok()
+    }
+
+    fn rpc_client_for(_path: &PathBuf) -> anyhow::Result<zelkova_rpc::client::RpcClient> {
+        // Socket path is not stored per-editor, so we check the config default location
+        let config = zelkova_config::AppConfig::load()?;
+        let socket = &config.daemon.socket_path;
+        if !socket.exists() {
+            anyhow::bail!("daemon socket not found");
+        }
+        Ok(zelkova_rpc::client::RpcClient::new(socket))
     }
 }
 
