@@ -132,6 +132,17 @@ fn handle_create_note(
         .create_note(params.title.as_deref(), tags)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
+    // Persist directory structure so the new note has a mapping entry
+    {
+        let mut directory = state
+            .directory
+            .lock()
+            .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
+        directory
+            .save(&state.vault.vault_path)
+            .map_err(|e| JsonRpcError::internal(e.to_string()))?;
+    }
+
     let result = CreateNoteResult {
         id: note.frontmatter.id,
         title: note.frontmatter.title,
