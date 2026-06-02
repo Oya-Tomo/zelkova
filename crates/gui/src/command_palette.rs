@@ -1,6 +1,6 @@
 use gpui::{
     App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, StyledText, Window,
-    div, prelude::*, px,
+    canvas, div, prelude::*, px,
 };
 use gpui_component::ActiveTheme;
 
@@ -362,14 +362,6 @@ impl Render for CommandPalette {
             self.focus_handle.focus(window);
         }
 
-        if self.focus_handle.is_focused(window) {
-            window.handle_input(
-                &self.focus_handle,
-                gpui::ElementInputHandler::new(gpui::Bounds::default(), cx.entity()),
-                cx,
-            );
-        }
-
         let theme = cx.theme();
         let dim_color = theme.muted_foreground;
         let text_color = theme.foreground;
@@ -407,7 +399,7 @@ impl Render for CommandPalette {
                     Some(
                         StyledText::new(SharedString::from("Type to search commands..."))
                             .with_highlights(vec![(
-                                0..27,
+                                0..26,
                                 gpui::HighlightStyle {
                                     color: Some(dim_color),
                                     ..Default::default()
@@ -554,6 +546,9 @@ impl Render for CommandPalette {
             }
         };
 
+        let focus_handle = self.focus_handle.clone();
+        let entity = cx.entity();
+
         div()
             .absolute()
             .top(px(200.0))
@@ -570,6 +565,28 @@ impl Render for CommandPalette {
             .text_color(text_color)
             .track_focus(&self.focus_handle)
             .child(content)
+            .child(
+                canvas(
+                    move |_bounds, _window, _cx| {},
+                    move |_bounds, _state, window, cx| {
+                        if focus_handle.is_focused(window) {
+                            window.handle_input(
+                                &focus_handle,
+                                gpui::ElementInputHandler::new(
+                                    gpui::Bounds::default(),
+                                    entity.clone(),
+                                ),
+                                cx,
+                            );
+                        }
+                    },
+                )
+                .absolute()
+                .left(px(0.))
+                .top(px(0.))
+                .w(px(0.))
+                .h(px(0.)),
+            )
     }
 }
 
