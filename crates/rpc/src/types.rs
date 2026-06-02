@@ -236,6 +236,8 @@ pub const METHOD_NOTE_UPDATED: &str = "note_updated";
 pub const METHOD_DELETE_NOTE: &str = "delete_note";
 pub const METHOD_RENAME_NOTE: &str = "rename_note";
 pub const METHOD_MOVE_FOLDER: &str = "move_folder";
+pub const METHOD_READ_NOTE: &str = "read_note";
+pub const METHOD_WRITE_NOTE: &str = "write_note";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteUpdatedParams {
@@ -271,4 +273,32 @@ pub struct MoveFolderParams {
     pub folder_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub new_parent: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadNoteParams {
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadNoteResult {
+    pub id: Uuid,
+    pub title: String,
+    pub tags: Vec<String>,
+    pub content: String,
+    pub created: String,
+    pub updated: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WriteNoteParams {
+    pub path: PathBuf,
+    pub title: String,
+    pub tags: Vec<String>,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WriteNoteResult {
+    pub path: PathBuf,
 }

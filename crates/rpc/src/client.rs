@@ -289,6 +289,53 @@ impl RpcClient {
 
         Ok(())
     }
+
+    pub fn read_note(&self, path: &std::path::Path) -> Result<ReadNoteResult> {
+        let params = ReadNoteParams {
+            path: path.to_path_buf(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_READ_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("read_note error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse read_note result")
+    }
+
+    pub fn write_note(
+        &self,
+        path: &std::path::Path,
+        title: &str,
+        tags: &[String],
+        content: &str,
+    ) -> Result<WriteNoteResult> {
+        let params = WriteNoteParams {
+            path: path.to_path_buf(),
+            title: title.to_string(),
+            tags: tags.to_vec(),
+            content: content.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            next_id(),
+            METHOD_WRITE_NOTE,
+            Some(serde_json::to_value(params)?),
+        );
+        let response = self.send_request(&request)?;
+
+        if let Some(error) = response.error {
+            anyhow::bail!("write_note error: {} ({})", error.message, error.code);
+        }
+
+        let result = response.result.context("no result in response")?;
+        serde_json::from_value(result).context("failed to parse write_note result")
+    }
 }
 
 fn next_id() -> u64 {
