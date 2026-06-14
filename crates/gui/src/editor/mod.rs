@@ -798,7 +798,9 @@ impl Editor {
         if self.edit_zone == EditZone::TagInput {
             self.commit_tag_input();
         }
-        self.save_to_disk();
+        if !self.save_to_disk() {
+            tracing::warn!("handle_save: save_to_disk failed; dirty flag retained");
+        }
         cx.notify();
     }
 
@@ -822,20 +824,18 @@ impl Editor {
         }
     }
 
-    pub fn save_to_disk(&mut self) {
-        if let Some(path) = &self.file_path {
-            if self.write_note_via_rpc(path) {
-                if let Some(fm) = &mut self.frontmatter {
-                    fm.updated = Utc::now();
-                }
-                self.dirty = false;
-            } else {
-                tracing::warn!(
-                    "save_to_disk failed: daemon RPC unavailable for path {:?}; keeping dirty flag",
-                    path
-                );
-            }
+    pub fn save_to_disk(&mut self) -> bool {
+        let Some(path) = &self.file_path else {
+            return false;
+        };
+        if !self.write_note_via_rpc(path) {
+            return false;
         }
+        if let Some(fm) = &mut self.frontmatter {
+            fm.updated = Utc::now();
+        }
+        self.dirty = false;
+        true
     }
 
     fn read_note_via_rpc(
@@ -845,7 +845,7 @@ impl Editor {
         let client = match Self::rpc_client_for(socket_path) {
             Ok(c) => c,
             Err(err) => {
-                tracing::warn!("rpc_client_for failed for read: {}", err);
+                tracing::warn!("rpc_client_for failed: {}", err);
                 return None;
             }
         };
@@ -861,7 +861,7 @@ impl Editor {
                 Some((fm, result.content))
             }
             Err(err) => {
-                tracing::warn!("read_note RPC failed for {:?}: {}", path, err);
+                tracing::warn!("read_note RPC failed for {}: {}", path.display(), err);
                 None
             }
         }
@@ -883,7 +883,7 @@ impl Editor {
         match client.write_note(path, title, &tags, &self.cached_text) {
             Ok(_) => true,
             Err(err) => {
-                tracing::warn!("write_note RPC failed for {:?}: {}", path, err);
+                tracing::warn!("write_note RPC failed for {}: {}", path.display(), err);
                 false
             }
         }

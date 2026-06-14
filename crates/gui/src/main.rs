@@ -806,24 +806,7 @@ fn main() {
     let config = AppConfig::load().unwrap_or_default();
     let keymap_config = zelkova_config::KeymapConfig::load().unwrap_or_default();
 
-    // Per ADR-0001, the daemon is the single source of truth for vault access.
-    // Refuse to launch the GUI if the daemon is unreachable — otherwise the
-    // user could edit notes silently and lose work when save_to_disk fails.
-    let socket = &config.daemon.socket_path;
-    if !socket.exists() {
-        eprintln!("Error: zelkovad socket not found at {}", socket.display());
-        eprintln!("Hint: Start the daemon with `zelkovad` and try again.");
-        std::process::exit(1);
-    }
-    let probe = zelkova_rpc::client::RpcClient::new(socket);
-    if probe.list_notes(None).is_err() {
-        eprintln!(
-            "Error: Cannot reach zelkovad at {} (RPC probe failed)",
-            socket.display()
-        );
-        eprintln!("Hint: Verify the daemon is running and the socket is not stale.");
-        std::process::exit(1);
-    }
+    ensure_daemon_reachable(&config.daemon.socket_path);
 
     Application::new()
         .with_assets(gpui_component_assets::Assets)
@@ -886,4 +869,26 @@ fn main() {
             .expect("window creation is infallible on supported platforms");
             cx.activate(true);
         });
+}
+
+/// Refuse to launch the GUI if the daemon socket is missing or unresponsive.
+///
+/// Per ADR-0001, the daemon is the single source of truth for vault access.
+/// Without it, the GUI could edit notes silently and lose work when
+/// `save_to_disk` fails. Fail fast with a stderr hint and exit code 1 instead.
+fn ensure_daemon_reachable(socket: &std::path::Path) {
+    if !socket.exists() {
+        eprintln!("Error: zelkovad socket not found at {}", socket.display());
+        eprintln!("Hint: Start the daemon with `zelkovad` and try again.");
+        std::process::exit(1);
+    }
+    let probe = zelkova_rpc::client::RpcClient::new(socket);
+    if probe.list_notes(None).is_err() {
+        eprintln!(
+            "Error: Cannot reach zelkovad at {} (RPC probe failed)",
+            socket.display()
+        );
+        eprintln!("Hint: Verify the daemon is running and the socket is not stale.");
+        std::process::exit(1);
+    }
 }
