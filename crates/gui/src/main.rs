@@ -183,7 +183,7 @@ impl ZelkovaApp {
     fn handle_open_command_palette(
         &mut self,
         _: &OpenCommandPalette,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.command_palette.is_none() {
@@ -201,7 +201,6 @@ impl ZelkovaApp {
                 .collect();
             let palette =
                 cx.new(|cx| command_palette::CommandPalette::new(&folder_names, &note_titles, cx));
-            palette.update(cx, |_, cx| cx.focus_handle()).focus(window);
             self.command_palette = Some(palette);
             cx.notify();
         }
@@ -321,19 +320,19 @@ impl ZelkovaApp {
     fn handle_insert_newline(
         &mut self,
         _: &InsertNewline,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.command_palette.is_some() {
-            self.handle_confirm(&Confirm, window, cx);
+            self.handle_confirm(&Confirm, _window, cx);
         }
     }
 
-    fn handle_confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_confirm(&mut self, _: &Confirm, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref palette) = self.command_palette {
             let result = palette.update(cx, |p, _| p.handle_confirm());
             if let Some((label, args)) = result {
-                self.execute_command(&label, &args, window, cx);
+                self.execute_command(&label, &args, _window, cx);
                 self.command_palette = None;
             }
             cx.notify();
@@ -360,7 +359,7 @@ impl ZelkovaApp {
         &mut self,
         label: &str,
         args: &[Option<String>],
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match label {
@@ -500,41 +499,41 @@ impl ZelkovaApp {
             }
             "Toggle View Mode" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_toggle_view(&ToggleViewMode, window, cx);
+                    tm.handle_toggle_view(&ToggleViewMode, _window, cx);
                 });
             }
             "Split Pane Right" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_split_right(&SplitPaneRight, window, cx);
+                    tm.handle_split_right(&SplitPaneRight, _window, cx);
                 });
             }
             "Split Pane Down" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_split_down(&SplitPaneDown, window, cx);
+                    tm.handle_split_down(&SplitPaneDown, _window, cx);
                 });
             }
             "Close Pane" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_close_pane(&ClosePane, window, cx);
+                    tm.handle_close_pane(&ClosePane, _window, cx);
                 });
             }
             "New Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_new_tab(&NewTab, window, cx);
+                    tm.handle_new_tab(&NewTab, _window, cx);
                 });
             }
             "Next Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_next_tab(&NextTab, window, cx);
+                    tm.handle_next_tab(&NextTab, _window, cx);
                 });
             }
             "Prev Tab" => {
                 self.tab_manager.update(cx, |tm, cx| {
-                    tm.handle_prev_tab(&PrevTab, window, cx);
+                    tm.handle_prev_tab(&PrevTab, _window, cx);
                 });
             }
             "Save Note" => {
-                self.handle_save(&SaveNote, window, cx);
+                self.handle_save(&SaveNote, _window, cx);
             }
             "Quit" => {
                 cx.quit();
