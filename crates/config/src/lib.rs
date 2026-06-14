@@ -1,3 +1,7 @@
+// Config TOML read/write is this crate's purpose. FS access here touches
+// GUI/CLI-owned config files (~/.config/zelkova/*), never vault files.
+#![allow(clippy::disallowed_methods)]
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

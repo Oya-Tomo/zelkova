@@ -1,0 +1,11 @@
+# Clippy configuration. Picked up automatically by `cargo clippy`.
+#
+# Enforces ADR-0001: vault file I/O must go through daemon RPC, not std::fs.
+# The `disallowed_methods = "warn"` lint in Cargo.toml turns these on at the
+# workspace level; the entries below tell clippy which methods are banned.
+disallowed-methods = [
+    { path = "std::fs::read_to_string", reason = "Vault file reads must go through daemon RPC (ADR-0001). Allow only for GUI-owned config or daemon PID files." },
+    { path = "std::fs::write", reason = "Vault file writes must go through daemon RPC (ADR-0001)." },
+    { path = "std::fs::File::open", reason = "Vault file reads must go through daemon RPC (ADR-0001)." },
+    { path = "std::fs::File::create", reason = "Vault file writes must go through daemon RPC (ADR-0001)." },
+]

@@ -4,7 +4,7 @@ Date: 2026-06-02
 
 ## Status
 
-Proposed
+Accepted (core scope — see Confirmation)
 
 ## Context and Problem Statement
 
@@ -105,13 +105,16 @@ Chosen: **Option C — Daemon as centralized API gateway**.
 
 ## Confirmation
 
-- [ ] GUI Editor no longer calls `std::fs` directly for vault files — all file I/O goes through RPC.
-- [ ] CLI uses `rpc` crate exclusively for vault operations.
-- [ ] `note_core` is only a dependency of the `daemon` crate (verify via `Cargo.toml`).
-- [ ] Integration tests cover the full RPC round-trip: create note → read note → update note → list notes → delete note.
+- [x] GUI Editor no longer calls `std::fs` directly for vault files — all file I/O goes through RPC. (Issue #152)
+- [x] GUI refuses to launch when the daemon socket is missing or unresponsive. (Issue #152)
+- [ ] CLI uses `rpc` crate exclusively for vault operations. (CLI already uses RPC for vault ops; only reads daemon PID file from FS — tracked as follow-up)
+- [ ] `note_core` is only a dependency of the `daemon` crate (verify via `Cargo.toml`). Currently `gui` and `cli` still import `note_core::Frontmatter` directly — tracked as follow-up
+- [ ] Integration tests cover the full RPC round-trip: create note → read note → update note → list notes → delete note. (Future work)
 
 ## More Information
 
-- Related Issue: #142 (fix(note_core): tolerate existing markdown files without frontmatter and refactor vault access)
+- Related Issues:
+  - #142 — Introduced RPC-based file I/O with the original FS fallback
+  - #152 — Removed the FS fallback; GUI now refuses to launch without a reachable daemon
 - Reference: `docs/architecture.md` for current crate graph and workspace members.
 - ADR template: [MADR](https://adr.github.io/adr-templates/)

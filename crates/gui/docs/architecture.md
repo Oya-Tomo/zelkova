@@ -8,26 +8,48 @@ GPUI 0.2-based GUI application. Provides Markdown editing, syntax highlighting, 
 
 ```
 src/
-├── main.rs              ZelkovaApp, actions! macro, entry point
+├── main.rs              ZelkovaApp, actions! macro, entry point, daemon-reachability check
 ├── keymap.rs            KeyBinding construction, action name mapping
 ├── pane.rs              PaneManager (tabs, ViewMode switching)
 ├── command_palette.rs   CommandPalette (fuzzy match)
 ├── preview.rs           Markdown preview (zelkova-markdown AST → GPUI elements)
 └── editor/
-    ├── mod.rs           Editor body, action handlers, EntityInputHandler, Render
+    ├── mod.rs           Editor body, action handlers, EntityInputHandler, Render, RPC I/O
     ├── highlight.rs     ResolvedColors, line-level highlighting, inline scanning
-    └── ime.rs           IME state management
+    ├── ime.rs           IME state management
+    ├── input.rs         ElementInputHandler implementation
+    └── render.rs        Rendering helpers (image rows, etc.)
 ```
 
 ## Dependencies
 
 - `gpui 0.2` — UI framework
 - `zelkova-config` — Theme and keymap configuration
-- `zelkova-note-core` — Frontmatter struct
-- `zelkova-rpc` — Daemon communication
+- `zelkova-note-core` — `Frontmatter` struct (TODO(#152 follow-up): re-export via `zelkova-rpc` so GUI depends only on rpc, not on `note_core` directly)
+- `zelkova-rpc` — Daemon communication (all vault file I/O)
 - `zelkova-rope` — Text buffer (with undo/redo)
 - `zelkova-markdown` — Parser for preview
 - `zelkova-highlight` — Tree-sitter code highlighting
+
+## Daemon Dependency (per ADR-0001)
+
+All vault file I/O goes through the daemon. The GUI never reads or writes
+`.md` files via `std::fs` — every save and load is an RPC call.
+
+- **Launch guard**: `main()` calls `ensure_daemon_reachable(socket)` before
+  starting the GPUI `Application`. If the socket is missing or a `list_notes`
+  probe fails, the process exits with code 1 and a stderr hint. There is no
+  graceful offline mode.
+- **Reads**: `Editor::read_note_via_rpc` returns `Option<(Frontmatter, String)>`.
+  `None` causes `Editor::load` to initialize an empty editor with no frontmatter.
+- **Writes**: `Editor::save_to_disk` returns `bool`. On RPC failure the `dirty`
+  flag is retained and the failure is logged via `tracing::warn!`. Callers
+  (`auto_save_focused`, `handle_close_pane`, `Editor::handle_save`) propagate
+  the failure to logs with context.
+- **Image rendering**: exception — vault images are still read via GPUI's
+  `img(Path)` API directly from the filesystem, by explicit decision.
+- **Config / theme files**: out of scope; these are GUI-owned and read via
+  `std::fs` (e.g., theme overrides in `theme.rs`).
 
 ## Key Components
 

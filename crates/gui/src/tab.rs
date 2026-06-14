@@ -139,7 +139,13 @@ impl TabManager {
         if let Some(leaf) = tab.root.find_leaf(tab.focused) {
             if leaf.file_path.is_some() && leaf.editor.read(cx).is_dirty() {
                 let editor = leaf.editor.clone();
-                editor.update(cx, |ed, _| ed.save_to_disk());
+                let saved = editor.update(cx, |ed, _| ed.save_to_disk());
+                if !saved {
+                    tracing::warn!(
+                        "auto_save_focused failed for {}; dirty flag retained",
+                        fmt_path(&leaf.file_path)
+                    );
+                }
             }
         }
     }
@@ -175,10 +181,12 @@ impl TabManager {
             .expect("file_stem is valid because PathBuf came from a valid file path")
             .to_string();
 
-        let editor = cx.new(|cx| match Editor::load(path.clone(), cx) {
-            Ok(e) => e,
-            Err(_) => Editor::new(cx),
-        });
+        let editor = cx.new(
+            |cx| match Editor::load(path.clone(), self.socket_path.clone(), cx) {
+                Ok(e) => e,
+                Err(_) => Editor::new(cx),
+            },
+        );
         if let Some(ref socket) = self.socket_path {
             editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
         }
@@ -357,7 +365,13 @@ impl TabManager {
                 let tab = &mut self.tabs[0];
                 if let PaneNode::Leaf(leaf) = &mut tab.root {
                     if leaf.editor.read(cx).is_dirty() {
-                        leaf.editor.update(cx, |ed, _| ed.save_to_disk());
+                        let saved = leaf.editor.update(cx, |ed, _| ed.save_to_disk());
+                        if !saved {
+                            tracing::warn!(
+                                "handle_close_pane: auto-save failed for {}; dirty flag retained",
+                                fmt_path(&leaf.file_path)
+                            );
+                        }
                     }
                     leaf.file_path = None;
                     leaf.title = String::new();
@@ -694,4 +708,10 @@ impl Render for TabManager {
             .on_action(cx.listener(TabManager::handle_next_tab))
             .on_action(cx.listener(TabManager::handle_prev_tab))
     }
+}
+
+fn fmt_path(path: &Option<PathBuf>) -> String {
+    path.as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "<unknown>".into())
 }

@@ -28,3 +28,4 @@ tracing = "0.1"
 [workspace.lints.clippy]
 unwrap_used = "deny"
 let_underscore_untyped = "warn"
+disallowed_methods = "warn"
