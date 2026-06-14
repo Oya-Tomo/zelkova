@@ -10,9 +10,7 @@ use std::sync::{Arc, Mutex};
 use zelkova_config::AppConfig;
 use zelkova_rpc::server::RpcServer;
 use zelkova_search::SearchIndex;
-use zelkova_vault::{
-    DirectoryStructure, Vault, load_directory_structure, save_directory_structure,
-};
+use zelkova_vault::{DirectoryStructure, Vault, load_directory_structure};
 
 struct DaemonState {
     vault: Vault,

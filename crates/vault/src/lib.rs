@@ -14,4 +14,4 @@ pub use vault::Vault;
 // instead of pulling in a second dependency. Front-end crates should still
 // import them through `zelkova_rpc` so they have no direct dependency on
 // this FS-touching crate.
-pub use zelkova_notes::{DirectoryStructure, Folder, FolderTree, NoteMapping};
+pub use zelkova_notes::{DirectoryStructure, Folder, FolderTree, Frontmatter, Note, NoteMapping};

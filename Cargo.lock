@@ -8588,7 +8588,6 @@ dependencies = [
  "tantivy",
  "tempfile",
  "uuid",
- "zelkova-notes",
 ]
 
 [[package]]
