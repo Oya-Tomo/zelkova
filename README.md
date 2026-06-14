@@ -56,28 +56,38 @@ A Markdown note-taking application built with [GPUI](https://github.com/zed-indu
 - Linux (GPUI requirement)
 - A font that supports Japanese (optional, for CJK text editing)
 
-### Build
+### Install
 
 ```bash
 git clone https://github.com/oyatomo/zelkova.git
 cd zelkova
-cargo build --release
+./install.sh
 ```
+
+This installs the three binaries to `~/.cargo/bin/` via standard `cargo install --path`. Make sure `~/.cargo/bin` is on your PATH.
 
 ### Run
 
 ```bash
 # Start the daemon (background)
-./target/release/zelkovad &
+zelkovad &
 
 # Launch the GUI
-./target/release/zelkova
+zelkova
 
 # Or use the CLI
-./target/release/zelkova-cli search "query"
-./target/release/zelkova-cli list
-./target/release/zelkova-cli create "My Note"
+zelkova-cli search "query"
+zelkova-cli list
+zelkova-cli create "My Note"
 ```
+
+### Uninstall
+
+```bash
+cargo uninstall zelkova zelkovad zelkova-cli
+```
+
+This removes the three binaries from `~/.cargo/bin/`. Your vault data under `~/Notes/` and config under `~/.config/zelkova/` are left untouched — remove those manually if you want a full cleanup.
 
 ## Configuration
 
