@@ -6,6 +6,8 @@ members = [
     "crates/markdown",
     "crates/search",
     "crates/note_core",
+    "crates/notes",
+    "crates/vault",
     "crates/rpc",
     "crates/config",
     "crates/rope",

@@ -1,0 +1,288 @@
+use anyhow::{Context, Result};
+use chrono::Utc;
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+use zelkova_notes::{
+    Frontmatter, Note, extract_title_from_body, format_note_file, parse_frontmatter,
+};
+
+pub struct Vault {
+    pub vault_path: PathBuf,
+}
+
+impl Vault {
+    pub fn new(vault_path: PathBuf) -> Result<Self> {
+        fs::create_dir_all(&vault_path).with_context(|| {
+            format!(
+                "failed to create vault directory at {}",
+                vault_path.display()
+            )
+        })?;
+        Ok(Self { vault_path })
+    }
+
+    pub fn list_notes(&self) -> Result<Vec<Note>> {
+        let mut notes = Vec::new();
+        self.collect_notes(&self.vault_path, &mut notes)?;
+        Ok(notes)
+    }
+
+    pub fn get_note(&self, relative_path: &Path) -> Result<Option<Note>> {
+        let full_path = self.vault_path.join(relative_path);
+        if !full_path.exists() {
+            return Ok(None);
+        }
+        Ok(Some(self.parse_note_file(&full_path)?))
+    }
+
+    pub fn create_note(&self, title: Option<&str>, tags: HashSet<String>) -> Result<Note> {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let frontmatter = Frontmatter {
+            id,
+            title: title.unwrap_or("").to_string(),
+            tags,
+            created: now,
+            updated: now,
+        };
+
+        let filename = format!("{id}.md");
+        let path = self.vault_path.join(&filename);
+        let content = format_note_file(&frontmatter, "");
+        fs::write(&path, &content)
+            .with_context(|| format!("failed to write note to {}", path.display()))?;
+
+        Ok(Note {
+            frontmatter,
+            content: String::new(),
+            path,
+        })
+    }
+
+    pub fn delete_note(&self, relative_path: &Path) -> Result<()> {
+        let full_path = self.vault_path.join(relative_path);
+        if full_path.exists() {
+            fs::remove_file(&full_path)
+                .with_context(|| format!("failed to delete note at {}", full_path.display()))?;
+        }
+        Ok(())
+    }
+
+    pub fn rename_note(&self, note_id: Uuid, new_title: &str) -> Result<()> {
+        let notes = self.list_notes()?;
+        let note = notes
+            .into_iter()
+            .find(|n| n.frontmatter.id == note_id)
+            .ok_or_else(|| anyhow::anyhow!("note not found"))?;
+        let mut frontmatter = note.frontmatter;
+        frontmatter.title = new_title.to_string();
+        frontmatter.updated = Utc::now();
+        let content = format_note_file(&frontmatter, &note.content);
+        fs::write(&note.path, &content)
+            .with_context(|| format!("failed to write note at {}", note.path.display()))?;
+        Ok(())
+    }
+
+    pub fn all_tags(&self) -> Result<HashSet<String>> {
+        let notes = self.list_notes()?;
+        Ok(notes.into_iter().flat_map(|n| n.frontmatter.tags).collect())
+    }
+
+    fn collect_notes(&self, dir: &Path, notes: &mut Vec<Note>) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                // skip hidden directories like .zelkova
+                if let Some(name) = path.file_name()
+                    && name.to_string_lossy().starts_with('.')
+                {
+                    continue;
+                }
+                self.collect_notes(&path, notes)?;
+            } else if path.extension().is_some_and(|e| e == "md") {
+                match self.parse_or_import_note(&path) {
+                    Ok(note) => notes.push(note),
+                    Err(e) => eprintln!("warning: failed to parse {}: {e}", path.display()),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Parse a note file, tolerating missing frontmatter.
+    /// If frontmatter is absent, auto-generates it and writes it back to disk.
+    fn parse_or_import_note(&self, path: &Path) -> Result<Note> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+
+        let (frontmatter, body) = parse_frontmatter(&content);
+
+        let frontmatter = match frontmatter {
+            Some(fm) => fm,
+            None => {
+                let fm = self.generate_frontmatter(path, &body);
+                let file_content = format_note_file(&fm, &body);
+                fs::write(path, &file_content)
+                    .with_context(|| format!("failed to write imported note {}", path.display()))?;
+                fm
+            }
+        };
+
+        Ok(Note {
+            frontmatter,
+            content: body,
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Generate frontmatter for a plain .md file imported into the vault.
+    fn generate_frontmatter(&self, path: &Path, body: &str) -> Frontmatter {
+        let title = extract_title_from_body(body).unwrap_or_else(|| {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string()
+        });
+        let now = Utc::now();
+        Frontmatter {
+            id: Uuid::new_v4(),
+            title,
+            tags: HashSet::new(),
+            created: now,
+            updated: now,
+        }
+    }
+
+    fn parse_note_file(&self, path: &Path) -> Result<Note> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let (frontmatter, body) = parse_frontmatter(&content);
+        let frontmatter = frontmatter
+            .ok_or_else(|| anyhow::anyhow!("note at {} has no frontmatter", path.display()))?;
+
+        Ok(Note {
+            frontmatter,
+            content: body,
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn vault_create_with_empty_title() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        let note = vault
+            .create_note(None, HashSet::new())
+            .expect("create note");
+        assert!(note.path.exists());
+        assert_eq!(note.frontmatter.title, "");
+
+        let notes = vault.list_notes().expect("list notes");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].frontmatter.title, "");
+    }
+
+    #[test]
+    fn vault_create_no_duplicate_filenames() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        let note1 = vault
+            .create_note(Some("Same Title"), HashSet::new())
+            .expect("create note1");
+        let note2 = vault
+            .create_note(Some("Same Title"), HashSet::new())
+            .expect("create note2");
+
+        assert_ne!(note1.path, note2.path, "UUID filenames must differ");
+        assert!(note1.path.exists());
+        assert!(note2.path.exists());
+
+        let notes = vault.list_notes().expect("list notes");
+        assert_eq!(notes.len(), 2);
+    }
+
+    #[test]
+    fn vault_import_plain_md() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        // Write a plain .md file without frontmatter
+        let plain_path = tmp.path().join("my-note.md");
+        fs::write(&plain_path, "# Hello World\nThis is my note.\n").expect("write plain file");
+
+        let notes = vault.list_notes().expect("list notes");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].frontmatter.title, "Hello World");
+        assert!(notes[0].frontmatter.id != Uuid::nil());
+
+        // File should now have frontmatter written back
+        let raw = fs::read_to_string(&plain_path).expect("read back");
+        assert!(raw.starts_with("---"));
+        assert!(raw.contains("Hello World"));
+    }
+
+    #[test]
+    fn vault_create_and_list() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        let mut tags = HashSet::new();
+        tags.insert("demo".to_string());
+        let note = vault
+            .create_note(Some("Test Note"), tags)
+            .expect("create note");
+
+        assert!(note.path.exists());
+        assert!(
+            note.path
+                .file_name()
+                .expect("path has filename")
+                .to_string_lossy()
+                .ends_with(".md")
+        );
+        assert_ne!(
+            note.path.file_stem().expect("path has stem"),
+            "Test Note",
+            "filename should be UUID, not title"
+        );
+
+        let notes = vault.list_notes().expect("list notes");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].frontmatter.title, "Test Note");
+
+        let all_tags = vault.all_tags().expect("get tags");
+        assert!(all_tags.contains("demo"));
+    }
+
+    #[test]
+    fn vault_delete_note() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
+
+        let note = vault
+            .create_note(Some("To Delete"), HashSet::new())
+            .expect("create note");
+        let rel = note
+            .path
+            .strip_prefix(&vault.vault_path)
+            .expect("strip prefix")
+            .to_path_buf();
+
+        vault.delete_note(&rel).expect("delete note");
+        assert!(!note.path.exists());
+    }
+}
