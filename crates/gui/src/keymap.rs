@@ -152,7 +152,6 @@ pub fn all_command_specs(
     let note_options: Vec<String> = note_titles.to_vec();
 
     vec![
-        CommandSpec::no_arg("Open Command Palette"),
         CommandSpec::no_arg("Search Notes"),
         CommandSpec::with_args(
             "Create Note",
