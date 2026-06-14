@@ -8462,7 +8462,6 @@ dependencies = [
  "tokio",
  "uuid",
  "zelkova-config",
- "zelkova-note-core",
  "zelkova-rpc",
 ]
 
@@ -8488,9 +8487,10 @@ dependencies = [
  "tokio",
  "uuid",
  "zelkova-config",
- "zelkova-note-core",
+ "zelkova-notes",
  "zelkova-rpc",
  "zelkova-search",
+ "zelkova-vault",
 ]
 
 [[package]]
@@ -8513,7 +8513,6 @@ dependencies = [
  "zelkova-highlight",
  "zelkova-markdown",
  "zelkova-math-render",
- "zelkova-note-core",
  "zelkova-rope",
  "zelkova-rpc",
 ]
@@ -8552,14 +8551,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "zelkova-note-core"
+name = "zelkova-notes"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
  "serde",
  "serde_yaml",
- "tempfile",
  "thiserror 2.0.18",
  "toml 0.8.23",
  "uuid",
@@ -8578,7 +8576,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
- "zelkova-note-core",
+ "zelkova-notes",
 ]
 
 [[package]]
@@ -8590,7 +8588,21 @@ dependencies = [
  "tantivy",
  "tempfile",
  "uuid",
- "zelkova-note-core",
+]
+
+[[package]]
+name = "zelkova-vault"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "uuid",
+ "zelkova-notes",
 ]
 
 [[package]]

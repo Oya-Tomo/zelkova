@@ -1,10 +1,12 @@
-use crate::note::{Frontmatter, Note};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+use zelkova_notes::{
+    Frontmatter, Note, extract_title_from_body, format_note_file, parse_frontmatter,
+};
 
 pub struct Vault {
     pub vault_path: PathBuf,
@@ -76,7 +78,7 @@ impl Vault {
             .ok_or_else(|| anyhow::anyhow!("note not found"))?;
         let mut frontmatter = note.frontmatter;
         frontmatter.title = new_title.to_string();
-        frontmatter.updated = chrono::Utc::now();
+        frontmatter.updated = Utc::now();
         let content = format_note_file(&frontmatter, &note.content);
         fs::write(&note.path, &content)
             .with_context(|| format!("failed to write note at {}", note.path.display()))?;
@@ -172,67 +174,6 @@ impl Vault {
     }
 }
 
-fn parse_frontmatter(content: &str) -> (Option<Frontmatter>, String) {
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return (None, content.to_string());
-    }
-
-    let rest = &trimmed[3..];
-    let Some(end_idx) = rest.find("---") else {
-        return (None, content.to_string());
-    };
-
-    let yaml_str = &rest[..end_idx];
-    let body = rest[end_idx + 3..].trim_start().to_string();
-
-    let frontmatter: Frontmatter = match serde_yaml::from_str(yaml_str) {
-        Ok(fm) => fm,
-        Err(_) => return (None, content.to_string()),
-    };
-    (Some(frontmatter), body)
-}
-
-/// Extract a title from the first Markdown heading in the body.
-fn extract_title_from_body(body: &str) -> Option<String> {
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("# ") {
-            return Some(trimmed[2..].trim().to_string());
-        }
-        if trimmed.starts_with("## ") {
-            return Some(trimmed[3..].trim().to_string());
-        }
-    }
-    None
-}
-
-/// Parse optional YAML frontmatter from raw note content.
-/// Returns `(frontmatter_or_None, body_text)`.
-/// Unlike `parse_frontmatter`, this tolerates notes without frontmatter.
-pub fn parse_note_content(raw: &str) -> (Option<Frontmatter>, String) {
-    let trimmed = raw.trim_start();
-    if !trimmed.starts_with("---") {
-        return (None, raw.to_string());
-    }
-    let rest = &trimmed[3..];
-    let Some(end_idx) = rest.find("---") else {
-        return (None, raw.to_string());
-    };
-    let yaml_str = &rest[..end_idx];
-    let body = rest[end_idx + 3..].trim_start().to_string();
-    let frontmatter: Frontmatter = match serde_yaml::from_str(yaml_str) {
-        Ok(fm) => fm,
-        Err(_) => return (None, raw.to_string()),
-    };
-    (Some(frontmatter), body)
-}
-
-pub fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
-    let yaml = serde_yaml::to_string(frontmatter).unwrap_or_default();
-    format!("---\n{yaml}---\n{body}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,45 +216,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_frontmatter_basic() {
-        let content = "---\nid: \"00000000-0000-0000-0000-000000000001\"\ntitle: Test\ntags:\n  - rust\ncreated: 2025-01-01T00:00:00Z\nupdated: 2025-01-01T00:00:00Z\n---\nHello world\n";
-        let (fm, body) = parse_frontmatter(content);
-        let fm = fm.expect("frontmatter should parse");
-        assert_eq!(fm.title, "Test");
-        assert!(fm.tags.contains("rust"));
-        assert_eq!(body, "Hello world\n");
-    }
-
-    #[test]
-    fn parse_frontmatter_missing_returns_none() {
-        let content = "just text";
-        let (fm, body) = parse_frontmatter(content);
-        assert!(fm.is_none());
-        assert_eq!(body, "just text");
-    }
-
-    #[test]
-    fn parse_frontmatter_unclosed_returns_none() {
-        let content = "---\nid: broken\nHello world\n";
-        let (fm, body) = parse_frontmatter(content);
-        assert!(fm.is_none());
-        assert_eq!(body, content);
-    }
-
-    #[test]
-    fn extract_title_from_heading() {
-        assert_eq!(
-            extract_title_from_body("# My Title\nSome text"),
-            Some("My Title".to_string())
-        );
-        assert_eq!(
-            extract_title_from_body("## Sub Title\n"),
-            Some("Sub Title".to_string())
-        );
-        assert_eq!(extract_title_from_body("No heading here"), None);
-    }
-
-    #[test]
     fn vault_import_plain_md() {
         let tmp = tempfile::tempdir().expect("create temp dir");
         let vault = Vault::new(tmp.path().to_path_buf()).expect("create vault");
@@ -331,27 +233,6 @@ mod tests {
         let raw = fs::read_to_string(&plain_path).expect("read back");
         assert!(raw.starts_with("---"));
         assert!(raw.contains("Hello World"));
-    }
-
-    #[test]
-    fn format_roundtrip() {
-        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
-        let now = "2025-01-01T00:00:00Z".parse().expect("valid timestamp");
-        let mut tags = HashSet::new();
-        tags.insert("test".to_string());
-
-        let fm = Frontmatter {
-            id,
-            title: "Round".to_string(),
-            tags,
-            created: now,
-            updated: now,
-        };
-
-        let s = format_note_file(&fm, "body text");
-        assert!(s.starts_with("---"));
-        assert!(s.contains("title: Round"));
-        assert!(s.contains("body text"));
     }
 
     #[test]

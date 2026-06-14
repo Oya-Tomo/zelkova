@@ -107,8 +107,8 @@ Chosen: **Option C — Daemon as centralized API gateway**.
 
 - [x] GUI Editor no longer calls `std::fs` directly for vault files — all file I/O goes through RPC. (Issue #152)
 - [x] GUI refuses to launch when the daemon socket is missing or unresponsive. (Issue #152)
-- [ ] CLI uses `rpc` crate exclusively for vault operations. (CLI already uses RPC for vault ops; only reads daemon PID file from FS — tracked as follow-up)
-- [ ] `note_core` is only a dependency of the `daemon` crate (verify via `Cargo.toml`). Currently `gui` and `cli` still import `note_core::Frontmatter` directly — tracked as follow-up
+- [x] CLI uses `rpc` crate exclusively for vault operations. (CLI source already used rpc types only; the leftover `note_core` dep was removed in #156. CLI still reads the daemon PID file from FS as an explicit `#[allow]` exception.)
+- [x] `note_core` is only a dependency of the `daemon` crate (verify via `Cargo.toml`). (Issue #156: split into `zelkova-notes` (pure model, importable by anyone) and `zelkova-vault` (FS layer, daemon-only). `gui`/`cli` reach the model types via `zelkova-rpc` re-exports.)
 - [ ] Integration tests cover the full RPC round-trip: create note → read note → update note → list notes → delete note. (Future work)
 
 ## More Information
@@ -116,5 +116,6 @@ Chosen: **Option C — Daemon as centralized API gateway**.
 - Related Issues:
   - #142 — Introduced RPC-based file I/O with the original FS fallback
   - #152 — Removed the FS fallback; GUI now refuses to launch without a reachable daemon
+  - #156 — Split `note_core` into `zelkova-notes` (pure model) and `zelkova-vault` (FS layer); front-end crates now reach model types through `zelkova-rpc` re-exports
 - Reference: `docs/architecture.md` for current crate graph and workspace members.
 - ADR template: [MADR](https://adr.github.io/adr-templates/)

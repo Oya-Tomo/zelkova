@@ -1,7 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,28 +32,6 @@ pub struct FolderTree {
 }
 
 impl DirectoryStructure {
-    pub fn load(vault_path: &Path) -> Result<Self> {
-        let structure_path = vault_path.join(".zelkova").join("structure.toml");
-        if !structure_path.exists() {
-            return Ok(Self::default());
-        }
-        let content = fs::read_to_string(&structure_path)
-            .with_context(|| format!("failed to read {}", structure_path.display()))?;
-        toml::from_str(&content)
-            .with_context(|| format!("failed to parse {}", structure_path.display()))
-    }
-
-    pub fn save(&self, vault_path: &Path) -> Result<()> {
-        let zelkova_dir = vault_path.join(".zelkova");
-        fs::create_dir_all(&zelkova_dir)
-            .with_context(|| format!("failed to create {}", zelkova_dir.display()))?;
-        let structure_path = zelkova_dir.join("structure.toml");
-        let content =
-            toml::to_string_pretty(self).context("failed to serialize directory structure")?;
-        fs::write(&structure_path, &content)
-            .with_context(|| format!("failed to write {}", structure_path.display()))
-    }
-
     pub fn create_folder(&mut self, name: &str, parent: Option<Uuid>) -> Folder {
         let folder = Folder {
             id: Uuid::new_v4(),
@@ -135,7 +111,7 @@ impl DirectoryStructure {
     pub fn delete_folder(&mut self, folder_id: Uuid) -> Result<Vec<Uuid>> {
         // Check folder exists
         if !self.folders.iter().any(|f| f.id == folder_id) {
-            anyhow::bail!("folder not found");
+            return Err(anyhow!("folder not found"));
         }
 
         // Collect note IDs in this folder before removing mappings
@@ -246,7 +222,7 @@ mod tests {
     fn build_tree_nested() {
         let mut ds = DirectoryStructure::default();
         let work = ds.create_folder("Work", None);
-        let personal = ds.create_folder("Personal", None);
+        let _personal = ds.create_folder("Personal", None);
         let projects = ds.create_folder("Projects", Some(work.id));
 
         let note1 = Uuid::new_v4();
@@ -264,33 +240,6 @@ mod tests {
         assert_eq!(work_tree.notes, vec![note1]);
         assert_eq!(work_tree.children.len(), 1);
         assert_eq!(work_tree.children[0].notes, vec![note2]);
-    }
-
-    #[test]
-    fn save_and_load() {
-        let tmp = tempfile::tempdir().expect("create temp dir");
-        let vault_path = tmp.path().to_path_buf();
-
-        let mut ds = DirectoryStructure::default();
-        let folder = ds.create_folder("Work", None);
-        let note_id = Uuid::new_v4();
-        ds.move_note_to_folder(note_id, Some(folder.id));
-        ds.save(&vault_path).expect("save directory structure");
-
-        let loaded = DirectoryStructure::load(&vault_path).expect("load directory structure");
-        assert_eq!(loaded.folders.len(), 1);
-        assert_eq!(loaded.folders[0].name, "Work");
-        assert_eq!(loaded.mappings.len(), 1);
-        assert_eq!(loaded.mappings[0].note, note_id);
-    }
-
-    #[test]
-    fn load_missing_file_returns_default() {
-        let tmp = tempfile::tempdir().expect("create temp dir");
-        let vault_path = tmp.path().to_path_buf();
-        let ds = DirectoryStructure::load(&vault_path).expect("load returns default");
-        assert!(ds.folders.is_empty());
-        assert!(ds.mappings.is_empty());
     }
 
     #[test]
@@ -320,7 +269,7 @@ mod tests {
     fn delete_folder_moves_subfolders_to_parent() {
         let mut ds = DirectoryStructure::default();
         let work = ds.create_folder("Work", None);
-        let projects = ds.create_folder("Projects", Some(work.id));
+        let _projects = ds.create_folder("Projects", Some(work.id));
 
         ds.delete_folder(work.id).expect("delete folder in test");
         assert_eq!(ds.folders.len(), 1);

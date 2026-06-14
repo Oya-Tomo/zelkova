@@ -1,9 +1,10 @@
 [package]
-name = "zelkova-note-core"
+name = "zelkova-vault"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+zelkova-notes = { path = "../notes" }
 serde = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

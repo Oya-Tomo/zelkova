@@ -25,7 +25,7 @@ src/
 
 - `gpui 0.2` — UI framework
 - `zelkova-config` — Theme and keymap configuration
-- `zelkova-note-core` — `Frontmatter` struct (TODO(#152 follow-up): re-export via `zelkova-rpc` so GUI depends only on rpc, not on `note_core` directly)
+- `zelkova-rpc` — Daemon communication; re-exports pure model types (`Frontmatter`, `Note`, etc.) from `zelkova-notes`. GUI never depends on `notes` or `vault` directly (ADR-0001).
 - `zelkova-rpc` — Daemon communication (all vault file I/O)
 - `zelkova-rope` — Text buffer (with undo/redo)
 - `zelkova-markdown` — Parser for preview
