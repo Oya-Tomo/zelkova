@@ -10,4 +10,4 @@ pub mod parse;
 
 pub use directory::{DirectoryStructure, Folder, FolderTree, NoteMapping};
 pub use note::{Frontmatter, Note};
-pub use parse::{extract_title_from_body, format_note_file, parse_frontmatter, parse_note_content};
+pub use parse::{extract_title_from_body, format_note_file, parse_frontmatter};
