@@ -17,7 +17,8 @@ src/
 ## Dependencies
 
 - `zelkova-config` — Configuration loading
-- `zelkova-note-core` — Vault, Note, Frontmatter
+- `zelkova-notes` — Pure note data model (Frontmatter, Note, parse/format functions)
+- `zelkova-vault` — Vault struct + directory I/O (daemon is the sole consumer per ADR-0001)
 - `zelkova-rpc` — RPC types and server
 - `zelkova-search` — Search index
 - `anyhow` — Error handling

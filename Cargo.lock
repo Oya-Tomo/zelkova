@@ -8551,20 +8551,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zelkova-note-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "serde",
- "serde_yaml",
- "tempfile",
- "thiserror 2.0.18",
- "toml 0.8.23",
- "uuid",
-]
-
-[[package]]
 name = "zelkova-notes"
 version = "0.1.0"
 dependencies = [

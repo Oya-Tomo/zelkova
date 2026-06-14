@@ -13,27 +13,32 @@ zelkova-cli    ──socket──>  zelkovad
 
 ```
 config ──────────┐
-note_core ───────┤
+notes ───────────┤  (via rpc re-export)
 rope ────────────┤
 markdown ────────┤
 highlight ───────┤──► gui (GPUI 0.2 binary)
 rpc ─────────────┘
               │
 config ───────┤
-note_core ────┤──► cli (clap binary)
-rpc ──────────┘
-              │
-note_core ────┐
-config ───────┤
+rpc ──────────┤──► cli (clap binary)
+
+config ───────┐
+notes ────────┤
+vault ────────┤
 search ───────┤──► daemon (binary)
 rpc ──────────┘
-              │
-note_core ────┐──► search (Tantivy backend)
+
+notes ─────────┐──► vault (FS layer; daemon-only)
               │
 highlight ────┘──► (config only dependency)
 ```
 
-## Workspace Members (10 crates)
+Per ADR-0001:
+- `zelkova-notes` (pure data model) is importable by any crate.
+- `zelkova-vault` (FS layer) is a daemon-only dependency.
+- `zelkova-rpc` re-exports the model types so gui/cli don't need a direct dep on `notes`.
+
+## Workspace Members (12 crates)
 
 | Crate | Binary | Role |
 |---|---|---|
@@ -41,12 +46,14 @@ highlight ────┘──► (config only dependency)
 | `daemon` | `zelkovad` | Background note indexing, RPC server |
 | `cli` | `zelkova-cli` | Terminal commands: search, list, create |
 | `config` | — | App/keymap/theme TOML configuration |
-| `note_core` | — | Note data model, vault CRUD, frontmatter |
+| `notes` | — | Pure note data model (Frontmatter, Note, DirectoryStructure, parsers) |
+| `vault` | — | Vault FS operations (daemon-only); depends on `notes` |
 | `markdown` | — | Markdown parser (AST: Block/Inline enums) |
 | `highlight` | — | Tree-sitter code block syntax highlighting |
 | `rope` | — | B-tree text buffer with undo/redo |
-| `rpc` | — | JSON-RPC 2.0 over Unix sockets |
+| `rpc` | — | JSON-RPC 2.0 over Unix sockets; re-exports `notes` model types |
 | `search` | — | Full-text search (Tantivy backend) |
+| `math_render` | — | LaTeX math rendering (RaTeX) |
 
 ## Key Design Decisions
 
