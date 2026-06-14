@@ -1,3 +1,6 @@
+// The daemon is the legitimate owner of vault FS access per ADR-0001.
+#![allow(clippy::disallowed_methods)]
+
 mod handlers;
 mod indexer;
 mod watcher;

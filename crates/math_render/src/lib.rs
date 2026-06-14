@@ -1,3 +1,7 @@
+// Math render caches SVG output to a temp file before GPUI picks it up.
+// This is GUI-owned cache, not vault content.
+#![allow(clippy::disallowed_methods)]
+
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
