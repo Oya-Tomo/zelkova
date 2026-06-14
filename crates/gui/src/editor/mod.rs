@@ -117,7 +117,7 @@ impl Editor {
             selection: None,
             ime_state: ImeState::new(),
             file_path: Some(path),
-            socket_path: None,
+            socket_path,
             resolved_colors: ResolvedColors::from_theme(&theme, md),
             dirty: false,
             frontmatter,
@@ -824,10 +824,10 @@ impl Editor {
 
     pub fn save_to_disk(&mut self) {
         if let Some(path) = &self.file_path {
-            if let Some(fm) = &mut self.frontmatter {
-                fm.updated = Utc::now();
-            }
             if self.write_note_via_rpc(path) {
+                if let Some(fm) = &mut self.frontmatter {
+                    fm.updated = Utc::now();
+                }
                 self.dirty = false;
             } else {
                 tracing::warn!(
@@ -842,7 +842,13 @@ impl Editor {
         path: &PathBuf,
         socket_path: Option<&PathBuf>,
     ) -> Option<(Frontmatter, String)> {
-        let client = Self::rpc_client_for(socket_path).ok()?;
+        let client = match Self::rpc_client_for(socket_path) {
+            Ok(c) => c,
+            Err(err) => {
+                tracing::warn!("rpc_client_for failed for read: {}", err);
+                return None;
+            }
+        };
         match client.read_note(path) {
             Ok(result) => {
                 let fm = Frontmatter {
@@ -862,16 +868,10 @@ impl Editor {
     }
 
     fn write_note_via_rpc(&self, path: &PathBuf) -> bool {
-        let title = self
-            .frontmatter
-            .as_ref()
-            .map(|f| f.title.as_str())
-            .unwrap_or("");
-        let tags: Vec<String> = self
-            .frontmatter
-            .as_ref()
-            .map(|f| f.tags.iter().cloned().collect())
-            .unwrap_or_default();
+        let (title, tags): (&str, Vec<String>) = match &self.frontmatter {
+            Some(f) => (f.title.as_str(), f.tags.iter().cloned().collect()),
+            None => ("", Vec::new()),
+        };
 
         let client = match Self::rpc_client_for(self.socket_path.as_ref()) {
             Ok(c) => c,
