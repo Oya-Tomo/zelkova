@@ -10,8 +10,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use gpui::{
-    App, Application, Bounds, Context, Entity, SharedString, Subscription, Window, WindowBounds,
-    WindowOptions, actions, div, prelude::*, px, size,
+    App, Application, Bounds, Context, Entity, FocusHandle, SharedString, Subscription, Window,
+    WindowBounds, WindowOptions, actions, div, prelude::*, px, size,
 };
 use gpui_component::Icon;
 use gpui_component::Root;
@@ -75,6 +75,7 @@ struct ZelkovaApp {
     sidebar_resize_state: Entity<ResizableState>,
     sidebar_width: gpui::Pixels,
     config: AppConfig,
+    focus_handle: FocusHandle,
     _tab_subscription: Option<Subscription>,
 }
 
@@ -174,6 +175,7 @@ impl ZelkovaApp {
             sidebar_resize_state,
             sidebar_width: px(220.0),
             config,
+            focus_handle: cx.focus_handle(),
             _tab_subscription: None,
         }
     }
@@ -674,7 +676,11 @@ fn resolve_folder_id(folders: &[FolderEntry], name: Option<&str>) -> Option<uuid
 }
 
 impl Render for ZelkovaApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.focus_handle.contains_focused(window, cx) {
+            self.focus_handle.focus(window);
+        }
+
         let tab_mgr = self.tab_manager.clone();
 
         let sidebar_items = build_sidebar_items(
@@ -735,6 +741,7 @@ impl Render for ZelkovaApp {
             .flex_row()
             .size_full()
             .key_context("ZelkovaApp")
+            .track_focus(&self.focus_handle)
             .on_action(cx.listener(ZelkovaApp::handle_open_command_palette))
             .on_action(cx.listener(ZelkovaApp::handle_toggle_sidebar))
             .on_action(cx.listener(ZelkovaApp::handle_resize_sidebar_left))
