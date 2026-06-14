@@ -81,6 +81,14 @@ zelkova-cli list
 zelkova-cli create "My Note"
 ```
 
+### Uninstall
+
+```bash
+cargo uninstall zelkova zelkovad zelkova-cli
+```
+
+This removes the three binaries from `~/.cargo/bin/`. Your vault data under `~/Notes/` and config under `~/.config/zelkova/` are left untouched — remove those manually if you want a full cleanup.
+
 ## Configuration
 
 All configuration lives under `~/.config/zelkova/`:
