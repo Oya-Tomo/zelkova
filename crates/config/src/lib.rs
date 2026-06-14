@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod keymap;
 pub use keymap::{BindingConfig, KeymapConfig};
@@ -144,8 +144,9 @@ impl AppConfig {
         }
         let content = std::fs::read_to_string(&config_path)
             .with_context(|| format!("failed to read config from {}", config_path.display()))?;
-        let config: Self = toml::from_str(&content)
+        let mut config: Self = toml::from_str(&content)
             .with_context(|| format!("failed to parse config at {}", config_path.display()))?;
+        config.expand_paths();
         Ok(config)
     }
 
@@ -153,11 +154,60 @@ impl AppConfig {
         let config_dir = dirs::config_dir().context("cannot determine XDG config directory")?;
         Ok(config_dir.join("zelkova").join("config.toml"))
     }
+
+    /// Expand `~` / `~/foo` in every PathBuf field that may legitimately
+    /// carry a user-facing path. Rust's `PathBuf` does not perform tilde
+    /// expansion the way a POSIX shell does, so without this any `~/...`
+    /// value in the TOML gets treated as relative to the current working
+    /// directory — which then quietly creates `./~/...` directories on
+    /// whatever directory the user happened to launch the binary from.
+    fn expand_paths(&mut self) {
+        let home = dirs::home_dir();
+        self.note.vault_path = expand_tilde_with(&self.note.vault_path, home.as_deref());
+        self.daemon.socket_path = expand_tilde_with(&self.daemon.socket_path, home.as_deref());
+        if let Some(p) = self.ui.override_path.take() {
+            self.ui.override_path = expand_tilde_str(&p, home.as_deref());
+        }
+    }
+}
+
+/// Expand a leading `~` or `~/...` to `home`. Leaves every other shape
+/// (absolute paths, relative paths, empty paths, `~user`) untouched.
+///
+/// `home = None` is treated as "no home directory known": the path is
+/// returned unchanged. This is the safe behaviour when `$HOME` is unset
+/// (CI sandboxes, certain container runtimes) — expanding `~` to nothing
+/// would silently break user config.
+fn expand_tilde_with(path: &Path, home: Option<&Path>) -> PathBuf {
+    let Some(home) = home else {
+        return path.to_path_buf();
+    };
+    // We need byte-level access to detect the `~` prefix. Paths that aren't
+    // valid UTF-8 fall through unchanged.
+    let Some(s) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if s == "~" {
+        return home.to_path_buf();
+    }
+    if let Some(rest) = s.strip_prefix("~/") {
+        return home.join(rest);
+    }
+    path.to_path_buf()
+}
+
+/// Same as [`expand_tilde_with`], but for `String` fields that store a path
+/// the user typed in config (e.g. theme override_path).
+fn expand_tilde_str(s: &str, home: Option<&Path>) -> Option<String> {
+    let path = PathBuf::from(s);
+    let expanded = expand_tilde_with(&path, home);
+    expanded.to_str().map(|s| s.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn default_config_is_valid() {
@@ -216,5 +266,138 @@ override_path = "my-theme.json"
         assert_eq!(config.note.vault_path, parsed.note.vault_path);
         assert_eq!(config.daemon.socket_path, parsed.daemon.socket_path);
         assert_eq!(config.ui.theme, parsed.ui.theme);
+    }
+
+    // --- expand_tilde_with coverage ---
+
+    #[test]
+    fn expand_tilde_bare() {
+        let home = Path::new("/home/test");
+        assert_eq!(expand_tilde_with(Path::new("~"), Some(home)), home);
+    }
+
+    #[test]
+    fn expand_tilde_single_segment() {
+        let home = Path::new("/home/test");
+        assert_eq!(
+            expand_tilde_with(Path::new("~/Notes"), Some(home)),
+            Path::new("/home/test/Notes")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_nested() {
+        let home = Path::new("/Users/alice");
+        assert_eq!(
+            expand_tilde_with(Path::new("~/Documents/Notes/2024"), Some(home)),
+            Path::new("/Users/alice/Documents/Notes/2024")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_absolute_unchanged() {
+        let home = Path::new("/home/test");
+        assert_eq!(
+            expand_tilde_with(Path::new("/tmp/zelkova.sock"), Some(home)),
+            Path::new("/tmp/zelkova.sock")
+        );
+        assert_eq!(
+            expand_tilde_with(Path::new("/home/oyatomo/Notes"), Some(home)),
+            Path::new("/home/oyatomo/Notes")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_relative_unchanged() {
+        let home = Path::new("/home/test");
+        // Bare names, ./foo, ../bar — none of these start with `~`, so they must
+        // stay relative. Otherwise we'd reintroduce the very bug we're fixing.
+        assert_eq!(
+            expand_tilde_with(Path::new("Notes"), Some(home)),
+            Path::new("Notes")
+        );
+        assert_eq!(
+            expand_tilde_with(Path::new("./Notes"), Some(home)),
+            Path::new("./Notes")
+        );
+        assert_eq!(
+            expand_tilde_with(Path::new("../Notes"), Some(home)),
+            Path::new("../Notes")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_empty_unchanged() {
+        let home = Path::new("/home/test");
+        assert_eq!(expand_tilde_with(Path::new(""), Some(home)), Path::new(""));
+    }
+
+    #[test]
+    fn expand_tilde_no_home_unchanged() {
+        // When $HOME can't be determined (rare: CI sandboxes, chroot, etc.),
+        // expanding `~` would silently produce a broken path. Better to leave
+        // it alone and let the caller's fs operation fail loudly.
+        assert_eq!(
+            expand_tilde_with(Path::new("~/Notes"), None),
+            Path::new("~/Notes")
+        );
+        assert_eq!(expand_tilde_with(Path::new("~"), None), Path::new("~"));
+    }
+
+    #[test]
+    fn expand_tilde_other_user_unchanged() {
+        // `~alice` is POSIX shell tilde-expansion for alice's home dir.
+        // We deliberately don't support this (would require passwd lookup);
+        // leave the path alone so the user sees a clear "directory not found".
+        let home = Path::new("/home/test");
+        assert_eq!(
+            expand_tilde_with(Path::new("~alice/Notes"), Some(home)),
+            Path::new("~alice/Notes")
+        );
+    }
+
+    // --- AppConfig::expand_paths integration ---
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn expand_paths_expands_vault_and_socket_and_override() {
+        let mut config = AppConfig::default();
+        config.note.vault_path = PathBuf::from("~/Notes");
+        config.daemon.socket_path = PathBuf::from("~/run/zelkova.sock");
+        config.ui.override_path = Some("~/theme.json".to_string());
+
+        // We can't easily mock dirs::home_dir in a unit test, so the assertion
+        // is conditional: if $HOME is set, the expansion must land there; if
+        // not, the values are unchanged. Both outcomes are correct.
+        if let Some(home) = dirs::home_dir() {
+            config.expand_paths();
+            assert_eq!(config.note.vault_path, home.join("Notes"));
+            assert_eq!(config.daemon.socket_path, home.join("run/zelkova.sock"));
+            assert_eq!(
+                config.ui.override_path,
+                Some(home.join("theme.json").to_string_lossy().to_string())
+            );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn expand_paths_leaves_absolute_unchanged() {
+        let mut config = AppConfig::default();
+        config.note.vault_path = PathBuf::from("/var/lib/zelkova");
+        config.daemon.socket_path = PathBuf::from("/tmp/zelkova.sock");
+        config.ui.override_path = Some("/etc/zelkova/theme.json".to_string());
+
+        config.expand_paths();
+
+        assert_eq!(config.note.vault_path, PathBuf::from("/var/lib/zelkova"));
+        assert_eq!(
+            config.daemon.socket_path,
+            PathBuf::from("/tmp/zelkova.sock")
+        );
+        assert_eq!(
+            config.ui.override_path,
+            Some("/etc/zelkova/theme.json".to_string())
+        );
     }
 }
