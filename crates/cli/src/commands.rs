@@ -80,6 +80,8 @@ pub fn daemon_status(config: &AppConfig) -> Result<()> {
     let pid_path = config.note.vault_path.join(".zelkova").join("daemon.pid");
     let socket = &config.daemon.socket_path;
 
+    // daemon PID file (<vault>/.zelkova/daemon.pid), not a vault note.
+    #[allow(clippy::disallowed_methods)]
     if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
         let pid: u32 = pid_str.trim().parse().context("invalid PID")?;
         // check if process is running
@@ -118,6 +120,8 @@ pub fn daemon_start(_config: &AppConfig) -> Result<()> {
 pub fn daemon_stop(config: &AppConfig) -> Result<()> {
     let pid_path = config.note.vault_path.join(".zelkova").join("daemon.pid");
 
+    // daemon PID file (<vault>/.zelkova/daemon.pid), not a vault note.
+    #[allow(clippy::disallowed_methods)]
     let pid_str = std::fs::read_to_string(&pid_path).context("daemon PID file not found")?;
     let pid: u32 = pid_str.trim().parse().context("invalid PID")?;
 

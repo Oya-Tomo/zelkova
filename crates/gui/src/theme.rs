@@ -236,6 +236,8 @@ pub fn load_theme(
         let config_dir = dirs::config_dir().context("cannot determine XDG config directory")?;
         let override_full = config_dir.join("zelkova").join(rel_path);
         if override_full.exists() {
+            // GUI-owned config file (~/.config/zelkova/*), not a vault file.
+            #[allow(clippy::disallowed_methods)]
             let override_content = std::fs::read_to_string(&override_full)
                 .with_context(|| format!("failed to read override: {}", override_full.display()))?;
             let override_set: serde_json::Value = serde_json::from_str(&override_content)
