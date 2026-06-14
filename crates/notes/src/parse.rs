@@ -26,15 +26,6 @@ pub fn parse_frontmatter(content: &str) -> (Option<Frontmatter>, String) {
     (Some(frontmatter), body)
 }
 
-/// Parse optional YAML frontmatter from raw note content.
-///
-/// Functionally equivalent to [`parse_frontmatter`]; both are kept because
-/// historical callers referred to each by name. Prefer `parse_note_content`
-/// in new code — the name documents intent more clearly.
-pub fn parse_note_content(raw: &str) -> (Option<Frontmatter>, String) {
-    parse_frontmatter(raw)
-}
-
 /// Serialize a frontmatter + body pair back into the on-disk note format.
 pub fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
     let yaml = serde_yaml::to_string(frontmatter).unwrap_or_default();
