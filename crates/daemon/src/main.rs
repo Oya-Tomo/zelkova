@@ -8,9 +8,11 @@ mod watcher;
 use anyhow::{Context, Result};
 use std::sync::{Arc, Mutex};
 use zelkova_config::AppConfig;
-use zelkova_note_core::{DirectoryStructure, Vault};
 use zelkova_rpc::server::RpcServer;
 use zelkova_search::SearchIndex;
+use zelkova_vault::{
+    DirectoryStructure, Vault, load_directory_structure, save_directory_structure,
+};
 
 struct DaemonState {
     vault: Vault,
@@ -28,7 +30,7 @@ fn main() -> Result<()> {
     let search_index =
         zelkova_search::default_search_index(&index_path).context("failed to open search index")?;
 
-    let directory = DirectoryStructure::load(&config.note.vault_path)
+    let directory = load_directory_structure(&config.note.vault_path)
         .context("failed to load directory structure")?;
 
     let state = Arc::new(DaemonState {

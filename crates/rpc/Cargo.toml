@@ -9,7 +9,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
 tokio = { workspace = true }
-zelkova-note-core = { path = "../note_core" }
+zelkova-notes = { path = "../notes" }
 
 [lints]
 workspace = true

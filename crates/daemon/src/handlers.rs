@@ -2,6 +2,7 @@ use crate::DaemonState;
 use std::collections::HashSet;
 use zelkova_rpc::*;
 use zelkova_search::SearchQuery;
+use zelkova_vault::save_directory_structure;
 
 pub fn handle_request(request: JsonRpcRequest, state: &DaemonState) -> JsonRpcResponse {
     let result = match request.method.as_str() {
@@ -138,8 +139,7 @@ fn handle_create_note(
             .directory
             .lock()
             .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
-        directory
-            .save(&state.vault.vault_path)
+        save_directory_structure(&directory, &state.vault.vault_path)
             .map_err(|e| JsonRpcError::internal(e.to_string()))?;
     }
 
@@ -198,8 +198,7 @@ fn handle_create_folder(
         .lock()
         .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
     let folder = directory.create_folder(&params.name, params.parent);
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     let result = CreateFolderResult {
@@ -220,8 +219,7 @@ fn handle_move_note(
         .lock()
         .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
     directory.move_note_to_folder(params.note_id, params.folder_id);
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
@@ -243,8 +241,7 @@ fn handle_move_folder(
             "folder not found or would create cycle",
         ));
     }
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
@@ -293,8 +290,7 @@ fn handle_delete_folder(
     let removed_notes = directory
         .delete_folder(params.folder_id)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     // Cascade: delete note files from vault
@@ -337,8 +333,7 @@ fn handle_rename_folder(
     if !directory.rename_folder(params.folder_id, &params.new_name) {
         return Err(JsonRpcError::not_found("folder not found"));
     }
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
 
     serde_json::to_value(serde_json::json!({"status": "ok"}))
@@ -392,7 +387,7 @@ fn handle_write_note(
     frontmatter.tags = params.tags.into_iter().collect::<StdHashSet<String>>();
     frontmatter.updated = chrono::Utc::now();
 
-    let content = zelkova_note_core::format_note_file(&frontmatter, &params.content);
+    let content = zelkova_notes::format_note_file(&frontmatter, &params.content);
     std::fs::write(&note.path, &content)
         .map_err(|e| JsonRpcError::internal(format!("failed to write note: {e}")))?;
 
@@ -428,8 +423,7 @@ fn handle_delete_note(
         .lock()
         .map_err(|e| JsonRpcError::internal(format!("lock error: {e}")))?;
     directory.mappings.retain(|m| m.note != params.note_id);
-    directory
-        .save(&state.vault.vault_path)
+    save_directory_structure(&directory, &state.vault.vault_path)
         .map_err(|e| JsonRpcError::internal(e.to_string()))?;
     drop(directory);
 

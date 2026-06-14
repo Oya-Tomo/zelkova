@@ -15,7 +15,8 @@ tokio = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 zelkova-config = { path = "../config" }
-zelkova-note-core = { path = "../note_core" }
+zelkova-notes = { path = "../notes" }
+zelkova-vault = { path = "../vault" }
 zelkova-search = { path = "../search" }
 zelkova-rpc = { path = "../rpc" }
 

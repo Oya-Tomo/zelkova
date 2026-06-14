@@ -11,7 +11,7 @@ tantivy = ["dep:tantivy"]
 serde = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
-zelkova-note-core = { path = "../note_core" }
+zelkova-notes = { path = "../notes" }
 tantivy = { version = "0.25", optional = true }
 
 [dev-dependencies]

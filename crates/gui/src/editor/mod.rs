@@ -21,7 +21,7 @@ use gpui::{
 };
 use gpui_component::ActiveTheme;
 use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
-use zelkova_note_core::Frontmatter;
+use zelkova_rpc::Frontmatter;
 
 use crate::theme::ResolvedMarkdownColors;
 
