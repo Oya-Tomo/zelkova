@@ -21,7 +21,7 @@ use gpui::{
 };
 use gpui_component::ActiveTheme;
 use gpui_component::scroll::{Scrollbar, ScrollbarAxis};
-use zelkova_note_core::{Frontmatter, format_note_file, parse_note_content};
+use zelkova_note_core::Frontmatter;
 
 use crate::theme::ResolvedMarkdownColors;
 
@@ -95,9 +95,11 @@ impl Editor {
         }
     }
 
-    pub fn load(path: PathBuf, cx: &mut App) -> anyhow::Result<Self> {
-        // Try RPC first; fall back to direct file read if daemon is unavailable
-        let (frontmatter, body) = Self::read_note_via_rpc_or_fs(&path);
+    pub fn load(path: PathBuf, socket_path: Option<PathBuf>, cx: &mut App) -> anyhow::Result<Self> {
+        let (frontmatter, body) = match Self::read_note_via_rpc(&path, socket_path.as_ref()) {
+            Some((fm, body)) => (Some(fm), body),
+            None => (None, String::new()),
+        };
 
         let cached_lines = split_lines(&body);
         let edit_zone = match &frontmatter {
@@ -825,16 +827,24 @@ impl Editor {
             if let Some(fm) = &mut self.frontmatter {
                 fm.updated = Utc::now();
             }
-            if self.write_note_via_rpc_or_fs(path) {
+            if self.write_note_via_rpc(path) {
                 self.dirty = false;
+            } else {
+                tracing::warn!(
+                    "save_to_disk failed: daemon RPC unavailable for path {:?}; keeping dirty flag",
+                    path
+                );
             }
         }
     }
 
-    fn read_note_via_rpc_or_fs(path: &PathBuf) -> (Option<Frontmatter>, String) {
-        // Try daemon RPC first
-        if let Ok(client) = Self::rpc_client_for(path) {
-            if let Ok(result) = client.read_note(path) {
+    fn read_note_via_rpc(
+        path: &PathBuf,
+        socket_path: Option<&PathBuf>,
+    ) -> Option<(Frontmatter, String)> {
+        let client = Self::rpc_client_for(socket_path).ok()?;
+        match client.read_note(path) {
+            Ok(result) => {
                 let fm = Frontmatter {
                     id: result.id,
                     title: result.title,
@@ -842,17 +852,16 @@ impl Editor {
                     created: result.created.parse().unwrap_or_else(|_| Utc::now()),
                     updated: result.updated.parse().unwrap_or_else(|_| Utc::now()),
                 };
-                return (Some(fm), result.content);
+                Some((fm, result.content))
             }
-        }
-        // Fallback: direct file read
-        match std::fs::read_to_string(path) {
-            Ok(raw) => parse_note_content(&raw),
-            Err(_) => (None, String::new()),
+            Err(err) => {
+                tracing::warn!("read_note RPC failed for {:?}: {}", path, err);
+                None
+            }
         }
     }
 
-    fn write_note_via_rpc_or_fs(&self, path: &PathBuf) -> bool {
+    fn write_note_via_rpc(&self, path: &PathBuf) -> bool {
         let title = self
             .frontmatter
             .as_ref()
@@ -864,30 +873,28 @@ impl Editor {
             .map(|f| f.tags.iter().cloned().collect())
             .unwrap_or_default();
 
-        // Try daemon RPC first
-        if let Ok(client) = Self::rpc_client_for(path) {
-            if client
-                .write_note(path, title, &tags, &self.cached_text)
-                .is_ok()
-            {
-                return true;
+        let client = match Self::rpc_client_for(self.socket_path.as_ref()) {
+            Ok(c) => c,
+            Err(err) => {
+                tracing::warn!("rpc_client_for failed: {}", err);
+                return false;
+            }
+        };
+        match client.write_note(path, title, &tags, &self.cached_text) {
+            Ok(_) => true,
+            Err(err) => {
+                tracing::warn!("write_note RPC failed for {:?}: {}", path, err);
+                false
             }
         }
-        // Fallback: direct file write
-        let content = if let Some(fm) = &self.frontmatter {
-            format_note_file(fm, &self.cached_text)
-        } else {
-            self.cached_text.clone()
-        };
-        std::fs::write(path, content).is_ok()
     }
 
-    fn rpc_client_for(_path: &PathBuf) -> anyhow::Result<zelkova_rpc::client::RpcClient> {
-        // Socket path is not stored per-editor, so we check the config default location
-        let config = zelkova_config::AppConfig::load()?;
-        let socket = &config.daemon.socket_path;
+    fn rpc_client_for(
+        socket_path: Option<&PathBuf>,
+    ) -> anyhow::Result<zelkova_rpc::client::RpcClient> {
+        let socket = socket_path.ok_or_else(|| anyhow::anyhow!("socket path not configured"))?;
         if !socket.exists() {
-            anyhow::bail!("daemon socket not found");
+            anyhow::bail!("daemon socket not found at {:?}", socket);
         }
         Ok(zelkova_rpc::client::RpcClient::new(socket))
     }

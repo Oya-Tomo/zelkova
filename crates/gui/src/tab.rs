@@ -175,10 +175,12 @@ impl TabManager {
             .expect("file_stem is valid because PathBuf came from a valid file path")
             .to_string();
 
-        let editor = cx.new(|cx| match Editor::load(path.clone(), cx) {
-            Ok(e) => e,
-            Err(_) => Editor::new(cx),
-        });
+        let editor = cx.new(
+            |cx| match Editor::load(path.clone(), self.socket_path.clone(), cx) {
+                Ok(e) => e,
+                Err(_) => Editor::new(cx),
+            },
+        );
         if let Some(ref socket) = self.socket_path {
             editor.update(cx, |ed, _| ed.set_socket_path(socket.clone()));
         }
