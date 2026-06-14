@@ -45,11 +45,11 @@ pub fn format_note_file(frontmatter: &Frontmatter, body: &str) -> String {
 pub fn extract_title_from_body(body: &str) -> Option<String> {
     for line in body.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("# ") {
-            return Some(trimmed[2..].trim().to_string());
+        if let Some(rest) = trimmed.strip_prefix("# ") {
+            return Some(rest.trim().to_string());
         }
-        if trimmed.starts_with("## ") {
-            return Some(trimmed[3..].trim().to_string());
+        if let Some(rest) = trimmed.strip_prefix("## ") {
+            return Some(rest.trim().to_string());
         }
     }
     None

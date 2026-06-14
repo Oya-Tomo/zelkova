@@ -222,7 +222,7 @@ mod tests {
     fn build_tree_nested() {
         let mut ds = DirectoryStructure::default();
         let work = ds.create_folder("Work", None);
-        let personal = ds.create_folder("Personal", None);
+        let _personal = ds.create_folder("Personal", None);
         let projects = ds.create_folder("Projects", Some(work.id));
 
         let note1 = Uuid::new_v4();
