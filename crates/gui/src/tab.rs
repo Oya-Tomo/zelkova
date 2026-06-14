@@ -552,12 +552,16 @@ impl Render for TabManager {
         // Focus the active view
         let tab = self.active_tab();
         if let Some(leaf) = tab.root.find_leaf(tab.focused) {
-            match leaf.view_mode {
-                ViewMode::Editor => leaf.editor.focus_handle(cx).focus(window),
-                ViewMode::Preview => leaf.preview.focus_handle(cx).focus(window),
-                ViewMode::SplitHorizontal | ViewMode::SplitVertical => {
-                    leaf.editor.focus_handle(cx).focus(window)
+            if leaf.file_path.is_some() {
+                match leaf.view_mode {
+                    ViewMode::Editor => leaf.editor.focus_handle(cx).focus(window),
+                    ViewMode::Preview => leaf.preview.focus_handle(cx).focus(window),
+                    ViewMode::SplitHorizontal | ViewMode::SplitVertical => {
+                        leaf.editor.focus_handle(cx).focus(window)
+                    }
                 }
+            } else {
+                self.focus_handle.focus(window);
             }
         } else {
             self.focus_handle.focus(window);
