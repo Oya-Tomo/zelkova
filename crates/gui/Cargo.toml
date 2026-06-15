@@ -20,6 +20,7 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
+unicode-width = { workspace = true }
 zelkova-config = { path = "../config" }
 zelkova-rpc = { path = "../rpc" }
 zelkova-rope = { path = "../rope" }

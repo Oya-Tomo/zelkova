@@ -8508,6 +8508,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "tracing",
+ "unicode-width",
  "uuid",
  "zelkova-config",
  "zelkova-highlight",

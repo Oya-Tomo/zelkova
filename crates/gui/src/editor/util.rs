@@ -1,4 +1,143 @@
 use gpui::{HighlightStyle, Pixels};
+use unicode_width::UnicodeWidthChar;
+
+/// One visual row within a wrapped logical line.
+///
+/// `start_byte` / `end_byte` are UTF-8 byte offsets into the logical line's
+/// text. `end_byte` is exclusive. Together they identify the substring of
+/// the logical line that occupies this visual row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrapSegment {
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// Decide where a logical line should break into visual rows.
+///
+/// `x_for_index(i)` must return the pixel width from the start of the line
+/// up to (but not including) byte `i`. In production this comes from
+/// `ShapedLine::x_for_index`; in tests we can substitute a deterministic
+/// mock (e.g. each ASCII char = 1.0 px) and exercise the boundary logic
+/// without rendering.
+///
+/// Rules (per ADR-0002):
+/// - ASCII whitespace (`' '`, `'\t'`) creates a break opportunity **after**
+///   the whitespace.
+/// - CJK characters (Unicode ideographic / wide ranges) each create a break
+///   opportunity **after** themselves.
+/// - When `wrap_width` is exceeded and a break opportunity exists in the
+///   current row, break at the most recent one.
+/// - When no opportunity exists (a single token longer than `wrap_width`,
+///   e.g. a long URL with no whitespace), force-break at the byte where
+///   `x_for_index` first exceeds `wrap_width`. UTF-8 char boundaries are
+///   respected — never split a multi-byte char.
+/// - An empty input returns a single empty `WrapSegment` so callers always
+///   have at least one row.
+///
+/// Returns a non-empty `Vec<WrapSegment>` whose segments are contiguous and
+/// together cover the whole `text`.
+pub fn wrap_line_bytes<F>(text: &str, wrap_width: Pixels, mut x_for_index: F) -> Vec<WrapSegment>
+where
+    F: FnMut(usize) -> Pixels,
+{
+    let wrap = f32::from(wrap_width);
+    let mut segments = Vec::new();
+    let mut row_start = 0usize; // byte offset where the current visual row starts
+    let mut last_break = 0usize; // byte offset of the most recent break opportunity (exclusive: break lands *after* this byte)
+    let mut row_start_x = f32::from(x_for_index(0)); // pixel x at row_start
+
+    let bytes = text.as_bytes();
+    let mut byte_idx = 0usize;
+    while byte_idx < bytes.len() {
+        // Determine the length of the UTF-8 char starting at byte_idx so we
+        // advance a whole codepoint at a time and never split a multi-byte
+        // sequence. This is safe because `text` is a valid &str.
+        let ch_len = utf8_char_len(bytes[byte_idx]);
+        let next_byte_idx = byte_idx + ch_len;
+
+        // Pixel width of [row_start, next_byte_idx) — i.e. what the row's
+        // width would become if we appended this char.
+        let width_including = f32::from(x_for_index(next_byte_idx)) - row_start_x;
+
+        if width_including > wrap && byte_idx > row_start {
+            // Appending this char would overflow the row. Break BEFORE this
+            // char: prefer the most recent break opportunity (so ASCII lines
+            // break at word boundaries); fall back to a force-break at the
+            // char boundary (single long token, e.g. URL).
+            let break_at = if last_break > row_start {
+                last_break
+            } else {
+                byte_idx
+            };
+            segments.push(WrapSegment {
+                start_byte: row_start,
+                end_byte: break_at,
+            });
+            row_start = break_at;
+            row_start_x = f32::from(x_for_index(row_start));
+            // Reset last_break so we don't reuse a stale opportunity from
+            // before the wrap.
+            last_break = row_start;
+            // Re-process this char in the new row (don't advance byte_idx).
+            continue;
+        }
+
+        // Char stays in the current row. Update break opportunity AFTER
+        // deciding not to break: ASCII whitespace and CJK chars create a
+        // break opportunity that subsequent iterations can use.
+        let ch = &text[byte_idx..next_byte_idx];
+        if is_break_opportunity_after(ch) {
+            last_break = next_byte_idx;
+        }
+
+        byte_idx = next_byte_idx;
+    }
+
+    // Final row: from row_start to end of text.
+    segments.push(WrapSegment {
+        start_byte: row_start,
+        end_byte: bytes.len(),
+    });
+
+    segments
+}
+
+/// UTF-8 char length from the leading byte. Mirrors the standard bit pattern.
+fn utf8_char_len(first_byte: u8) -> usize {
+    if first_byte < 0x80 {
+        1
+    } else if first_byte >> 5 == 0b110 {
+        2
+    } else if first_byte >> 4 == 0b1110 {
+        3
+    } else if first_byte >> 3 == 0b11110 {
+        4
+    } else {
+        // Invalid UTF-8 leading byte — &str guarantees this can't happen,
+        // but fall back to 1 to avoid an infinite loop if it ever did.
+        1
+    }
+}
+
+/// Whether the given character (as a &str slice of length 1 char) creates a
+/// break opportunity *after* itself. ASCII whitespace and wide (CJK / emoji)
+/// characters both qualify.
+///
+/// Wide-character detection uses `unicode-width` so we follow the same
+/// Unicode tables as the rest of the Rust ecosystem, rather than
+/// hand-maintaining codepoint ranges.
+fn is_break_opportunity_after(ch: &str) -> bool {
+    if ch == " " || ch == "\t" {
+        return true;
+    }
+    if let Some(c) = ch.chars().next() {
+        // Width 2 = full-width / wide character (CJK ideographs, emoji, etc.).
+        // Per CJK typography these break after each character.
+        c.width() == Some(2)
+    } else {
+        false
+    }
+}
 
 pub fn split_lines(text: &str) -> Vec<String> {
     if text.is_empty() {
@@ -192,6 +331,7 @@ pub fn overlay_selection(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::px;
 
     #[test]
     fn parse_single_tag() {
@@ -431,5 +571,193 @@ mod tests {
         assert_eq!(byte_to_utf16(text, 1), 1); // "a"
         assert_eq!(byte_to_utf16(text, 5), 3); // "a" + 2 for surrogate
         assert_eq!(utf16_to_byte(text, 3), 5); // byte 5 = start of 'b'
+    }
+
+    // --- wrap_line_bytes tests ---
+
+    /// Mock pixel width function: each ASCII byte = 1.0px, CJK / wide char
+    /// = 2.0px (matches `UnicodeWidthChar::width`). Returns the width up to
+    /// the given byte index (exclusive end), as `x_for_index` requires.
+    fn mock_x(text: &str) -> impl Fn(usize) -> Pixels + '_ {
+        move |i: usize| {
+            let prefix = &text[..i.min(text.len())];
+            let w: f32 = prefix.chars().map(|c| c.width().unwrap_or(1) as f32).sum();
+            px(w)
+        }
+    }
+
+    #[test]
+    fn wrap_short_text_no_wrap() {
+        let text = "hello";
+        let segs = wrap_line_bytes(text, px(100.0), mock_x(text));
+        assert_eq!(
+            segs,
+            vec![WrapSegment {
+                start_byte: 0,
+                end_byte: 5
+            }]
+        );
+    }
+
+    #[test]
+    fn wrap_breaks_at_word_boundary() {
+        // "hello world foo" with width 7.0: "hello " (6px) fits, "hello w" (7px)
+        // fits exactly, "hello wo" (8px) overflows. Break after the space at
+        // byte 6 → first row is "hello " (0..6).
+        let text = "hello world foo";
+        let segs = wrap_line_bytes(text, px(7.0), mock_x(text));
+        assert_eq!(
+            segs,
+            vec![
+                WrapSegment {
+                    start_byte: 0,
+                    end_byte: 6
+                },
+                WrapSegment {
+                    start_byte: 6,
+                    end_byte: 12
+                },
+                WrapSegment {
+                    start_byte: 12,
+                    end_byte: 15
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn wrap_cjk_breaks_per_character() {
+        // 3 Japanese chars: each 2px wide. wrap_width = 3.0px → first row
+        // fits one char (2px), second char would push to 4px > 3.0, break.
+        let text = "こんにちは";
+        let segs = wrap_line_bytes(text, px(3.0), mock_x(text));
+        assert_eq!(
+            segs,
+            vec![
+                WrapSegment {
+                    start_byte: 0,
+                    end_byte: 3
+                },
+                WrapSegment {
+                    start_byte: 3,
+                    end_byte: 6
+                },
+                WrapSegment {
+                    start_byte: 6,
+                    end_byte: 9
+                },
+                WrapSegment {
+                    start_byte: 9,
+                    end_byte: 12
+                },
+                WrapSegment {
+                    start_byte: 12,
+                    end_byte: 15
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn wrap_long_word_force_break() {
+        // "abcdefghij" with width 4.0, no spaces — must force-break at the
+        // byte boundary that overflows (not at a non-existent opportunity).
+        let text = "abcdefghij";
+        let segs = wrap_line_bytes(text, px(4.0), mock_x(text));
+        // Each row is exactly 4 chars wide because there's no break
+        // opportunity and the algorithm force-breaks at char boundaries.
+        assert_eq!(
+            segs,
+            vec![
+                WrapSegment {
+                    start_byte: 0,
+                    end_byte: 4
+                },
+                WrapSegment {
+                    start_byte: 4,
+                    end_byte: 8
+                },
+                WrapSegment {
+                    start_byte: 8,
+                    end_byte: 10
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn wrap_empty_returns_single_empty_segment() {
+        let segs = wrap_line_bytes("", px(10.0), |_| px(0.0));
+        assert_eq!(
+            segs,
+            vec![WrapSegment {
+                start_byte: 0,
+                end_byte: 0
+            }]
+        );
+    }
+
+    #[test]
+    fn wrap_mixed_ascii_cjk() {
+        // "ab日本" — a, b = 1px each; 日, 本 = 2px each. width=3.0
+        // The algorithm prefers "don't exceed wrap_width" over "fill the
+        // row greedily", so the CJK chars each go on their own row:
+        //   "ab"   (2px) → fits, next char 日 would push to 4 > 3 → break.
+        //   "日"   (2px) → fits, next char 本 would push to 4 > 3 → break.
+        //   "本"   (2px) → final row.
+        let text = "ab日本";
+        let segs = wrap_line_bytes(text, px(3.0), mock_x(text));
+        assert_eq!(
+            segs,
+            vec![
+                WrapSegment {
+                    start_byte: 0,
+                    end_byte: 2
+                },
+                WrapSegment {
+                    start_byte: 2,
+                    end_byte: 5
+                },
+                WrapSegment {
+                    start_byte: 5,
+                    end_byte: 8
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn wrap_never_splits_multibyte_char() {
+        // "aあb" with width = 0.5px (impossibly narrow) — should still
+        // produce segments whose boundaries are all valid UTF-8 char starts.
+        let text = "aあb";
+        let segs = wrap_line_bytes(text, px(0.5), mock_x(text));
+        for seg in &segs {
+            // Every segment boundary must be a char boundary in the original text.
+            assert!(text.is_char_boundary(seg.start_byte));
+            assert!(text.is_char_boundary(seg.end_byte));
+        }
+        // Coverage: union of segments == full text.
+        let mut covered = 0;
+        for seg in &segs {
+            assert_eq!(seg.start_byte, covered);
+            covered = seg.end_byte;
+        }
+        assert_eq!(covered, text.len());
+    }
+
+    #[test]
+    fn wrap_whitespace_at_row_end_goes_to_that_row() {
+        // "foo bar baz" width=4: "foo " (4px) fits exactly, "foo b" (5) > 4.
+        // Break opportunity after the space (byte 4). First row = "foo " (0..4).
+        let text = "foo bar baz";
+        let segs = wrap_line_bytes(text, px(4.0), mock_x(text));
+        assert_eq!(
+            segs[0],
+            WrapSegment {
+                start_byte: 0,
+                end_byte: 4
+            }
+        );
     }
 }
