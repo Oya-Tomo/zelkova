@@ -1163,15 +1163,12 @@ impl Render for Editor {
                 // frame to know the wrap width. First frame after boot /
                 // resize has stale (or None) width — EditorLineElement
                 // renders without wrap that frame, then corrects.
-                canvas(
-                    |_bounds, _window, _cx| {},
-                    {
-                        let www_handle = self.cached_wrap_width.clone();
-                        move |bounds, _state, _window, _cx| {
-                            *www_handle.borrow_mut() = Some(bounds.size.width);
-                        }
-                    },
-                )
+                canvas(|_bounds, _window, _cx| {}, {
+                    let www_handle = self.cached_wrap_width.clone();
+                    move |bounds, _state, _window, _cx| {
+                        *www_handle.borrow_mut() = Some(bounds.size.width);
+                    }
+                })
                 .w_full()
                 .h(px(0.0)),
             );
