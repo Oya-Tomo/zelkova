@@ -12,6 +12,69 @@ pub struct WrapSegment {
     pub end_byte: usize,
 }
 
+/// Convert a byte offset within a logical line into a
+/// (visual_row, byte_offset_within_row) pair.
+///
+/// `segments` is the per-logical-line wrap layout produced by
+/// `wrap_line_bytes`. It must be non-empty and contiguous; the helper
+/// treats an empty slice as a single virtual row covering byte 0..0.
+///
+/// Returns `None` if `byte_in_line` is out of range (> line byte length).
+/// A `byte_in_line` exactly equal to a row's `end_byte` is considered to
+/// belong to the *next* row (cursor sits at the start of the next visual
+/// row), unless it's the last row's end — in which case it's the final
+/// position.
+pub fn byte_to_visual_pos(byte_in_line: usize, segments: &[WrapSegment]) -> Option<(usize, usize)> {
+    if segments.is_empty() {
+        // No layout captured yet (first frame, or wrap disabled). Treat
+        // the whole line as a single virtual row.
+        return Some((0, byte_in_line));
+    }
+    let last = segments.len() - 1;
+    for (row_idx, seg) in segments.iter().enumerate() {
+        let is_last = row_idx == last;
+        let in_this_row = if is_last {
+            // Last row: inclusive of end_byte (final cursor position).
+            byte_in_line <= seg.end_byte
+        } else {
+            // Non-last row: end_byte belongs to the next row (cursor at
+            // start of next visual row).
+            byte_in_line < seg.end_byte
+        };
+        if in_this_row || byte_in_line <= seg.start_byte {
+            let row_byte = byte_in_line.saturating_sub(seg.start_byte);
+            return Some((row_idx, row_byte));
+        }
+    }
+    None
+}
+
+/// Convert a (visual_row, byte_offset_within_row) pair back into a byte
+/// offset within the logical line.
+///
+/// Returns `None` if `visual_row` is out of range or `byte_in_row` would
+/// land past the end of the indicated row.
+pub fn visual_pos_to_byte(
+    visual_row: usize,
+    byte_in_row: usize,
+    segments: &[WrapSegment],
+) -> Option<usize> {
+    if segments.is_empty() {
+        // Single virtual row covering 0..0; only (0, 0) is valid.
+        return if visual_row == 0 {
+            Some(byte_in_row)
+        } else {
+            None
+        };
+    }
+    let seg = segments.get(visual_row)?;
+    let row_len = seg.end_byte - seg.start_byte;
+    if byte_in_row > row_len {
+        return None;
+    }
+    Some(seg.start_byte + byte_in_row)
+}
+
 /// Decide where a logical line should break into visual rows.
 ///
 /// `x_for_index(i)` must return the pixel width from the start of the line
@@ -870,5 +933,108 @@ mod tests {
                 end_byte: 4
             }
         );
+    }
+
+    // --- byte_to_visual_pos / visual_pos_to_byte tests ---
+
+    fn segs(starts_ends: &[(usize, usize)]) -> Vec<WrapSegment> {
+        starts_ends
+            .iter()
+            .map(|(s, e)| WrapSegment {
+                start_byte: *s,
+                end_byte: *e,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn byte_to_visual_single_row() {
+        // One row covering 0..10. All byte positions land in row 0.
+        let s = segs(&[(0, 10)]);
+        assert_eq!(byte_to_visual_pos(0, &s), Some((0, 0)));
+        assert_eq!(byte_to_visual_pos(5, &s), Some((0, 5)));
+        assert_eq!(byte_to_visual_pos(10, &s), Some((0, 10))); // last row: end is valid
+        assert_eq!(byte_to_visual_pos(11, &s), None); // out of range
+    }
+
+    #[test]
+    fn byte_to_visual_multi_row_boundary() {
+        // Two rows: 0..6, 6..12. Byte 6 belongs to row 1 (cursor at start
+        // of next visual row), not row 0.
+        let s = segs(&[(0, 6), (6, 12)]);
+        assert_eq!(byte_to_visual_pos(5, &s), Some((0, 5)));
+        assert_eq!(byte_to_visual_pos(6, &s), Some((1, 0)));
+        assert_eq!(byte_to_visual_pos(7, &s), Some((1, 1)));
+        assert_eq!(byte_to_visual_pos(12, &s), Some((1, 6))); // last row end
+    }
+
+    #[test]
+    fn byte_to_visual_three_rows() {
+        // 0..4, 4..8, 8..12
+        let s = segs(&[(0, 4), (4, 8), (8, 12)]);
+        assert_eq!(byte_to_visual_pos(0, &s), Some((0, 0)));
+        assert_eq!(byte_to_visual_pos(3, &s), Some((0, 3)));
+        assert_eq!(byte_to_visual_pos(4, &s), Some((1, 0)));
+        assert_eq!(byte_to_visual_pos(7, &s), Some((1, 3)));
+        assert_eq!(byte_to_visual_pos(8, &s), Some((2, 0)));
+        assert_eq!(byte_to_visual_pos(12, &s), Some((2, 4)));
+    }
+
+    #[test]
+    fn byte_to_visual_empty_segments() {
+        // No layout captured: treat as single virtual row at 0..0.
+        assert_eq!(byte_to_visual_pos(0, &[]), Some((0, 0)));
+        assert_eq!(byte_to_visual_pos(5, &[]), Some((0, 5)));
+    }
+
+    #[test]
+    fn visual_pos_to_byte_single_row() {
+        let s = segs(&[(0, 10)]);
+        assert_eq!(visual_pos_to_byte(0, 0, &s), Some(0));
+        assert_eq!(visual_pos_to_byte(0, 5, &s), Some(5));
+        assert_eq!(visual_pos_to_byte(0, 10, &s), Some(10));
+        assert_eq!(visual_pos_to_byte(0, 11, &s), None); // past row end
+        assert_eq!(visual_pos_to_byte(1, 0, &s), None); // no such row
+    }
+
+    #[test]
+    fn visual_pos_to_byte_multi_row() {
+        let s = segs(&[(0, 6), (6, 12)]);
+        assert_eq!(visual_pos_to_byte(0, 0, &s), Some(0));
+        assert_eq!(visual_pos_to_byte(0, 6, &s), Some(6));
+        assert_eq!(visual_pos_to_byte(1, 0, &s), Some(6));
+        assert_eq!(visual_pos_to_byte(1, 5, &s), Some(11));
+        assert_eq!(visual_pos_to_byte(1, 6, &s), Some(12));
+        assert_eq!(visual_pos_to_byte(2, 0, &s), None);
+    }
+
+    #[test]
+    fn visual_pos_roundtrip_single_row() {
+        let s = segs(&[(0, 10)]);
+        for b in 0..=10 {
+            let (row, col) = byte_to_visual_pos(b, &s).expect("valid byte");
+            let back = visual_pos_to_byte(row, col, &s).expect("valid visual");
+            assert_eq!(back, b, "roundtrip failed for byte {}", b);
+        }
+    }
+
+    #[test]
+    fn visual_pos_roundtrip_multi_row() {
+        let s = segs(&[(0, 6), (6, 12)]);
+        for b in 0..=12 {
+            let (row, col) = byte_to_visual_pos(b, &s).expect("valid byte");
+            let back = visual_pos_to_byte(row, col, &s).expect("valid visual");
+            assert_eq!(back, b, "roundtrip failed for byte {}", b);
+        }
+    }
+
+    #[test]
+    fn visual_pos_roundtrip_three_rows() {
+        let s = segs(&[(0, 4), (4, 8), (8, 12)]);
+        for b in 0..=12 {
+            let (row, col) = byte_to_visual_pos(b, &s).expect("valid byte");
+            let back = visual_pos_to_byte(row, col, &s).expect("valid visual");
+            assert_eq!(back, b, "roundtrip failed for byte {}", b);
+        }
     }
 }
