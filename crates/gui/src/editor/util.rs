@@ -300,6 +300,15 @@ fn apply_highlight_to_run(run: &mut TextRun, h: &HighlightStyle) {
     if let Some(s) = h.strikethrough {
         run.strikethrough = Some(s);
     }
+    // fade_out reduces the text alpha so it blends with the background.
+    // StyledText applies this internally; we must replicate it for
+    // EditorLineElement, otherwise $$ delimiters and similar faded
+    // highlights render at full opacity on non-cursor lines.
+    if let Some(fade) = h.fade_out {
+        let mut c = run.color;
+        c.a *= 1.0 - fade;
+        run.color = c;
+    }
 }
 
 pub fn byte_to_utf16(text: &str, byte_pos: usize) -> usize {
