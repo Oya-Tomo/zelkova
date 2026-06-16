@@ -208,6 +208,11 @@ impl Element for EditorLineElement {
                     x: px(0.0),
                     y: line_h * i as f32,
                 };
+            // Paint background first (fill), then the glyphs on top.
+            // ShapedLine::paint draws foreground only; paint_background
+            // is a separate call. Without this, highlight background_color
+            // (e.g. math block $$, code spans, table separators) is lost.
+            let _ = row.paint_background(row_origin, line_h, window, cx);
             let _ = row.paint(row_origin, line_h, window, cx);
         }
 
