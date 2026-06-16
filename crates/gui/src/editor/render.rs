@@ -349,6 +349,17 @@ impl Editor {
             // Non-cursor line: render via EditorLineElement so the layout
             // is captured for downstream cursor / click math (#163 / #164).
             let layout_handle = self.cached_line_layouts[line_idx].clone();
+            eprintln!(
+                "DBG render_highlighted_line line={} highlights_count={}",
+                line_idx,
+                highlighted.highlights.len()
+            );
+            for (i, (r, h)) in highlighted.highlights.iter().enumerate() {
+                eprintln!(
+                    "DBG hl[{}] range={:?} color={:?} bg={:?}",
+                    i, r, h.color, h.background_color
+                );
+            }
             line_div = line_div.child(crate::editor::layout::EditorLineElement::new(
                 SharedString::from(display_text),
                 highlighted.highlights,

@@ -932,13 +932,19 @@ impl Render for Editor {
         let header_children = self.render_frontmatter_header(cx);
 
         // --- Content lines ---
-        // Lazy highlight: rebuild only when dirty.
-        if self.highlights_dirty {
+        // Lazy highlight: rebuild only when dirty OR when the cache is empty
+        // (e.g. first render after load when highlights_dirty wasn't set).
+        if self.highlights_dirty || self.cached_highlights.is_empty() {
             self.cached_highlights = render::build_highlights(lines, &self.resolved_colors);
             self.highlights_dirty = false;
         }
 
-        let has_highlights = !self.cached_highlights.is_empty();
+        // Always go through render_highlighted_line so per-line highlight
+        // resolution (table headers, math delimiters, selection overlay,
+        // line_bg) runs even when cached_highlights happens to be empty
+        // for a given line. The previous plain-text fast path skipped
+        // all of this and lost highlights for non-cursor lines.
+        let has_highlights = true;
 
         let focus_handle = self.focus_handle.clone();
         let entity = cx.entity();

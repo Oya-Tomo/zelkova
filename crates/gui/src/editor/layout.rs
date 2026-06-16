@@ -91,6 +91,19 @@ impl EditorLineElement {
         let style = window.text_style();
         let font_size = style.font_size.to_pixels(window.rem_size());
         let runs = build_runs_from_highlights(&style, self.text.len(), &self.highlights);
+        // Debug: emit one DBG line per run so `grep DBG` captures all of them.
+        eprintln!(
+            "DBG build_runs START text={:?} highlights={}",
+            self.text,
+            self.highlights.len()
+        );
+        for (i, r) in runs.iter().enumerate() {
+            eprintln!(
+                "DBG run[{}] len={} color={:?} bg={:?}",
+                i, r.len, r.color, r.background_color
+            );
+        }
+        eprintln!("DBG build_runs END");
         (runs, font_size)
     }
 }
@@ -208,10 +221,10 @@ impl Element for EditorLineElement {
                     x: px(0.0),
                     y: line_h * i as f32,
                 };
-            // Paint background first (fill), then the glyphs on top.
-            // ShapedLine::paint draws foreground only; paint_background
-            // is a separate call. Without this, highlight background_color
-            // (e.g. math block $$, code spans, table separators) is lost.
+            eprintln!(
+                "DBG paint row={} origin={:?} line_h={:?} row_len={}",
+                i, row_origin, line_h, row.len()
+            );
             let _ = row.paint_background(row_origin, line_h, window, cx);
             let _ = row.paint(row_origin, line_h, window, cx);
         }
