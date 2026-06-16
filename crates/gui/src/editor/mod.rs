@@ -958,7 +958,6 @@ impl Render for Editor {
         // value during its paint; we read the previous frame's value here.
         // First frame: None → EditorLineElement renders without wrap.
         let wrap_width = self.cached_wrap_width.borrow().clone();
-        let font_size = _window.text_style().font_size.to_pixels(_window.rem_size());
 
         let mut children: Vec<gpui::AnyElement> = Vec::new();
 
@@ -1025,9 +1024,7 @@ impl Render for Editor {
                     line_div,
                     cursor_line,
                     cursor_col,
-                    _window,
                     wrap_width,
-                    font_size,
                 );
             } else {
                 // Plain text — fast path, no highlight processing
@@ -1050,16 +1047,10 @@ impl Render for Editor {
                 } else {
                     // Plain text, no cursor on this line — use EditorLineElement
                     // so the layout is captured for future cursor / click math.
-                    let runs = util::build_runs_from_highlights(
-                        &_window.text_style(),
-                        display_text.len(),
-                        &[],
-                    );
                     let layout_handle = self.cached_line_layouts[line_idx].clone();
                     line_div = line_div.child(layout::EditorLineElement::new(
                         SharedString::from(display_text),
-                        runs,
-                        font_size,
+                        Vec::new(),
                         px(22.0),
                         wrap_width,
                         layout_handle,

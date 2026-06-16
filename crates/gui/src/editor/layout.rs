@@ -14,11 +14,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
-    App, Bounds, Element, GlobalElementId, IntoElement, LayoutId, Pixels, Point, ShapedLine,
-    SharedString, Size, Style, Window, px,
+    App, Bounds, Element, GlobalElementId, HighlightStyle, IntoElement, LayoutId, Pixels, Point,
+    ShapedLine, SharedString, Size, Style, Window, px,
 };
 
-use super::util::{WrapSegment, wrap_line_bytes};
+use super::util::{WrapSegment, build_runs_from_highlights, wrap_line_bytes};
 
 /// Layout captured during paint of one logical line.
 ///
@@ -48,18 +48,21 @@ pub type WrapWidthHandle = Rc<RefCell<Option<Pixels>>>;
 
 /// Custom GPUI Element that renders a single logical line.
 ///
-/// The Element is intentionally simple: it receives the already-built
-/// `TextRun` array (so font / colour resolution lives in the caller) and
-/// concerns itself only with:
-/// 1. Calling `TextSystem::shape_line` to get a `ShapedLine`.
-/// 2. Splitting into visual rows via `wrap_line_bytes` when a wrap width
-///    is set, then re-shaping each row's substring.
-/// 3. Painting each row at the correct Y offset.
-/// 4. Writing the final `EditorLineLayout` into the shared handle.
+/// The Element receives the raw text and highlight list (not pre-built
+/// TextRuns) because font resolution must happen *inside* request_layout /
+/// prepaint — that's the only point where `window.text_style()` reflects
+/// the parent div's actual style (Heading rows with `text_2xl()`, etc.).
+/// Building TextRuns earlier captures the wrong style.
+///
+/// Pipeline:
+/// 1. request_layout: shape the full line to compute width / height.
+/// 2. prepaint: shape again, split into visual rows via `wrap_line_bytes`,
+///    re-shape each row's substring.
+/// 3. paint: paint each row at the correct Y offset, write layout into
+///    the shared handle.
 pub struct EditorLineElement {
     text: SharedString,
-    runs: Vec<gpui::TextRun>,
-    font_size: Pixels,
+    highlights: Vec<(std::ops::Range<usize>, HighlightStyle)>,
     line_height: Pixels,
     wrap_width: Option<Pixels>,
     layout_handle: LayoutHandle,
@@ -68,20 +71,27 @@ pub struct EditorLineElement {
 impl EditorLineElement {
     pub fn new(
         text: SharedString,
-        runs: Vec<gpui::TextRun>,
-        font_size: Pixels,
+        highlights: Vec<(std::ops::Range<usize>, HighlightStyle)>,
         line_height: Pixels,
         wrap_width: Option<Pixels>,
         layout_handle: LayoutHandle,
     ) -> Self {
         Self {
             text,
-            runs,
-            font_size,
+            highlights,
             line_height,
             wrap_width,
             layout_handle,
         }
+    }
+
+    /// Build TextRuns using the *current* window text style. Must be called
+    /// inside request_layout / prepaint where the style stack is correct.
+    fn build_runs(&self, window: &Window) -> (Vec<gpui::TextRun>, Pixels) {
+        let style = window.text_style();
+        let font_size = style.font_size.to_pixels(window.rem_size());
+        let runs = build_runs_from_highlights(&style, self.text.len(), &self.highlights);
+        (runs, font_size)
     }
 }
 
@@ -104,10 +114,10 @@ impl Element for EditorLineElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, ()) {
-        let shaped =
-            window
-                .text_system()
-                .shape_line(self.text.clone(), self.font_size, &self.runs, None);
+        let (runs, font_size) = self.build_runs(window);
+        let shaped = window
+            .text_system()
+            .shape_line(self.text.clone(), font_size, &runs, None);
 
         let line_height = self.line_height;
         let size = if let Some(ww) = self.wrap_width {
@@ -142,10 +152,10 @@ impl Element for EditorLineElement {
         window: &mut Window,
         _cx: &mut App,
     ) -> Self::PrepaintState {
-        let full =
-            window
-                .text_system()
-                .shape_line(self.text.clone(), self.font_size, &self.runs, None);
+        let (runs, font_size) = self.build_runs(window);
+        let full = window
+            .text_system()
+            .shape_line(self.text.clone(), font_size, &runs, None);
 
         let (segments, rows): (Vec<WrapSegment>, Vec<ShapedLine>) =
             if let Some(ww) = self.wrap_width {
@@ -154,11 +164,10 @@ impl Element for EditorLineElement {
                 for seg in &segs {
                     let substr: SharedString =
                         self.text[seg.start_byte..seg.end_byte].to_string().into();
-                    let sub_runs = slice_runs(&self.runs, seg.start_byte, seg.end_byte);
-                    let shaped =
-                        window
-                            .text_system()
-                            .shape_line(substr, self.font_size, &sub_runs, None);
+                    let sub_runs = slice_runs(&runs, seg.start_byte, seg.end_byte);
+                    let shaped = window
+                        .text_system()
+                        .shape_line(substr, font_size, &sub_runs, None);
                     row_shaped.push(shaped);
                 }
                 (segs, row_shaped)
