@@ -234,6 +234,7 @@ impl Editor {
         mut line_div: gpui::Div,
         cursor_line: usize,
         cursor_col: usize,
+        wrap_width: Option<gpui::Pixels>,
     ) -> gpui::Div {
         let mut highlighted = self
             .cached_highlights
@@ -345,10 +346,16 @@ impl Editor {
                 )
                 .child(after_styled);
         } else {
-            line_div = line_div.child(
-                StyledText::new(SharedString::from(display_text))
-                    .with_highlights(highlighted.highlights),
-            );
+            // Non-cursor line: render via EditorLineElement so the layout
+            // is captured for downstream cursor / click math (#163 / #164).
+            let layout_handle = self.cached_line_layouts[line_idx].clone();
+            line_div = line_div.child(crate::editor::layout::EditorLineElement::new(
+                SharedString::from(display_text),
+                highlighted.highlights,
+                px(lh),
+                wrap_width,
+                layout_handle,
+            ));
         }
 
         line_div

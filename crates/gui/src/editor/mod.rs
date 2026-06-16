@@ -1,6 +1,7 @@
 pub mod highlight;
 pub mod ime;
 pub mod input;
+pub mod layout;
 pub mod render;
 pub mod util;
 
@@ -11,8 +12,10 @@ pub use highlight::{
 pub use ime::ImeState;
 pub use zelkova_rope::Buffer;
 
+use std::cell::RefCell;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use chrono::Utc;
 use gpui::{
@@ -63,6 +66,15 @@ pub struct Editor {
     /// Cumulative Y offset for each line, accounting for image row heights.
     /// Computed during render, used by scroll_to_cursor.
     line_y_offsets: Vec<f32>,
+    /// Most recent per-logical-line layouts captured by `EditorLineElement`
+    /// during paint. Populated lazily — first frame after a text / wrap-width
+    /// change may have stale entries until paint runs.
+    #[allow(dead_code)]
+    pub(super) cached_line_layouts: Vec<layout::LayoutHandle>,
+    /// Container width captured by the hidden canvas during paint. Used as
+    /// the wrap width for `EditorLineElement`. `None` on the first frame.
+    #[allow(dead_code)]
+    pub(super) cached_wrap_width: layout::WrapWidthHandle,
 }
 
 impl Editor {
@@ -92,6 +104,8 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             line_y_offsets: Vec::new(),
+            cached_line_layouts: Vec::new(),
+            cached_wrap_width: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -131,6 +145,8 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             line_y_offsets: Vec::new(),
+            cached_line_layouts: Vec::new(),
+            cached_wrap_width: Rc::new(RefCell::new(None)),
         })
     }
 
@@ -916,16 +932,38 @@ impl Render for Editor {
         let header_children = self.render_frontmatter_header(cx);
 
         // --- Content lines ---
-        // Lazy highlight: rebuild only when dirty.
-        if self.highlights_dirty {
+        // Lazy highlight: rebuild only when dirty OR when the cache is empty
+        // (e.g. first render after load when highlights_dirty wasn't set).
+        if self.highlights_dirty || self.cached_highlights.is_empty() {
             self.cached_highlights = render::build_highlights(lines, &self.resolved_colors);
             self.highlights_dirty = false;
         }
 
-        let has_highlights = !self.cached_highlights.is_empty();
+        // Always go through render_highlighted_line so per-line highlight
+        // resolution (table headers, math delimiters, selection overlay,
+        // line_bg) runs even when cached_highlights happens to be empty
+        // for a given line. The previous plain-text fast path skipped
+        // all of this and lost highlights for non-cursor lines.
+        let has_highlights = true;
 
         let focus_handle = self.focus_handle.clone();
         let entity = cx.entity();
+
+        // Keep cached_line_layouts sized to the current line count. Each
+        // entry is a fresh handle when the line count changes; existing
+        // handles keep their last-paint layout until the corresponding
+        // EditorLineElement paints again.
+        if self.cached_line_layouts.len() != lines.len() {
+            self.cached_line_layouts = (0..lines.len())
+                .map(|_| std::rc::Rc::new(std::cell::RefCell::new(None)))
+                .collect();
+        }
+
+        // Snapshot of the wrap width to pass into each EditorLineElement.
+        // The hidden canvas (added at the end of render) writes a fresh
+        // value during its paint; we read the previous frame's value here.
+        // First frame: None → EditorLineElement renders without wrap.
+        let wrap_width = self.cached_wrap_width.borrow().clone();
 
         let mut children: Vec<gpui::AnyElement> = Vec::new();
 
@@ -992,6 +1030,7 @@ impl Render for Editor {
                     line_div,
                     cursor_line,
                     cursor_col,
+                    wrap_width,
                 );
             } else {
                 // Plain text — fast path, no highlight processing
@@ -1012,7 +1051,16 @@ impl Render for Editor {
                             SharedString::from(after)
                         }));
                 } else {
-                    line_div = line_div.child(StyledText::new(SharedString::from(display_text)));
+                    // Plain text, no cursor on this line — use EditorLineElement
+                    // so the layout is captured for future cursor / click math.
+                    let layout_handle = self.cached_line_layouts[line_idx].clone();
+                    line_div = line_div.child(layout::EditorLineElement::new(
+                        SharedString::from(display_text),
+                        Vec::new(),
+                        px(22.0),
+                        wrap_width,
+                        layout_handle,
+                    ));
                 }
             }
 
@@ -1108,7 +1156,22 @@ impl Render for Editor {
             .when(!self.wrap, |el| {
                 el.items_start().min_w(px(max_line_width)).pb(px(16.0))
             })
-            .children(children);
+            .children(children)
+            .child(
+                // Hidden canvas that captures the content width during its
+                // paint callback. EditorLineElement reads this on the next
+                // frame to know the wrap width. First frame after boot /
+                // resize has stale (or None) width — EditorLineElement
+                // renders without wrap that frame, then corrects.
+                canvas(|_bounds, _window, _cx| {}, {
+                    let www_handle = self.cached_wrap_width.clone();
+                    move |bounds, _state, _window, _cx| {
+                        *www_handle.borrow_mut() = Some(bounds.size.width);
+                    }
+                })
+                .w_full()
+                .h(px(0.0)),
+            );
 
         let scrollbar_axis = if self.wrap {
             ScrollbarAxis::Vertical
