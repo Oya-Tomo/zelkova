@@ -1,5 +1,6 @@
 use gpui::{
-    Context, FontWeight, HighlightStyle, SharedString, StyledText, div, img, prelude::*, px,
+    Context, FontWeight, HighlightStyle, SharedString, StyledText, Window, div, img, prelude::*,
+    px,
 };
 
 use super::{EditZone, Editor};
@@ -234,6 +235,9 @@ impl Editor {
         mut line_div: gpui::Div,
         cursor_line: usize,
         cursor_col: usize,
+        window: &Window,
+        wrap_width: Option<gpui::Pixels>,
+        font_size: gpui::Pixels,
     ) -> gpui::Div {
         let mut highlighted = self
             .cached_highlights
@@ -345,10 +349,22 @@ impl Editor {
                 )
                 .child(after_styled);
         } else {
-            line_div = line_div.child(
-                StyledText::new(SharedString::from(display_text))
-                    .with_highlights(highlighted.highlights),
+            // Non-cursor line: render via EditorLineElement so the layout
+            // is captured for downstream cursor / click math (#163 / #164).
+            let runs = crate::editor::util::build_runs_from_highlights(
+                &window.text_style(),
+                display_text.len(),
+                &highlighted.highlights,
             );
+            let layout_handle = self.cached_line_layouts[line_idx].clone();
+            line_div = line_div.child(crate::editor::layout::EditorLineElement::new(
+                SharedString::from(display_text),
+                runs,
+                font_size,
+                px(lh),
+                wrap_width,
+                layout_handle,
+            ));
         }
 
         line_div

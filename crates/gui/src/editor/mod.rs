@@ -943,6 +943,23 @@ impl Render for Editor {
         let focus_handle = self.focus_handle.clone();
         let entity = cx.entity();
 
+        // Keep cached_line_layouts sized to the current line count. Each
+        // entry is a fresh handle when the line count changes; existing
+        // handles keep their last-paint layout until the corresponding
+        // EditorLineElement paints again.
+        if self.cached_line_layouts.len() != lines.len() {
+            self.cached_line_layouts = (0..lines.len())
+                .map(|_| std::rc::Rc::new(std::cell::RefCell::new(None)))
+                .collect();
+        }
+
+        // Snapshot of the wrap width to pass into each EditorLineElement.
+        // The hidden canvas (added at the end of render) writes a fresh
+        // value during its paint; we read the previous frame's value here.
+        // First frame: None → EditorLineElement renders without wrap.
+        let wrap_width = self.cached_wrap_width.borrow().clone();
+        let font_size = _window.text_style().font_size.to_pixels(_window.rem_size());
+
         let mut children: Vec<gpui::AnyElement> = Vec::new();
 
         for (line_idx, line_text) in lines.iter().enumerate() {
@@ -1008,6 +1025,9 @@ impl Render for Editor {
                     line_div,
                     cursor_line,
                     cursor_col,
+                    _window,
+                    wrap_width,
+                    font_size,
                 );
             } else {
                 // Plain text — fast path, no highlight processing
@@ -1028,7 +1048,22 @@ impl Render for Editor {
                             SharedString::from(after)
                         }));
                 } else {
-                    line_div = line_div.child(StyledText::new(SharedString::from(display_text)));
+                    // Plain text, no cursor on this line — use EditorLineElement
+                    // so the layout is captured for future cursor / click math.
+                    let runs = util::build_runs_from_highlights(
+                        &_window.text_style(),
+                        display_text.len(),
+                        &[],
+                    );
+                    let layout_handle = self.cached_line_layouts[line_idx].clone();
+                    line_div = line_div.child(layout::EditorLineElement::new(
+                        SharedString::from(display_text),
+                        runs,
+                        font_size,
+                        px(22.0),
+                        wrap_width,
+                        layout_handle,
+                    ));
                 }
             }
 
@@ -1124,7 +1159,25 @@ impl Render for Editor {
             .when(!self.wrap, |el| {
                 el.items_start().min_w(px(max_line_width)).pb(px(16.0))
             })
-            .children(children);
+            .children(children)
+            .child(
+                // Hidden canvas that captures the content width during its
+                // paint callback. EditorLineElement reads this on the next
+                // frame to know the wrap width. First frame after boot /
+                // resize has stale (or None) width — EditorLineElement
+                // renders without wrap that frame, then corrects.
+                canvas(
+                    |_bounds, _window, _cx| {},
+                    {
+                        let www_handle = self.cached_wrap_width.clone();
+                        move |bounds, _state, _window, _cx| {
+                            *www_handle.borrow_mut() = Some(bounds.size.width);
+                        }
+                    },
+                )
+                .w_full()
+                .h(px(0.0)),
+            );
 
         let scrollbar_axis = if self.wrap {
             ScrollbarAxis::Vertical
