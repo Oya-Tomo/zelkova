@@ -427,7 +427,15 @@ impl Editor {
         position: gpui::Point<gpui::Pixels>,
         ascii_char_width: f32,
     ) -> (usize, usize) {
-        let line_text = self.line_text(line).to_string();
+        // Render replaces empty lines with " " so the line_div has a
+        // non-zero height. The captured segments are therefore based on
+        // " ", not "". Mirror that here to avoid out-of-bounds slicing.
+        let raw = self.line_text(line);
+        let line_text: String = if raw.is_empty() {
+            " ".to_string()
+        } else {
+            raw.to_string()
+        };
         let segments = self.line_wrap_segments(line);
 
         let line_h = 22.0_f32;
@@ -456,7 +464,11 @@ impl Editor {
                 start_byte: 0,
                 end_byte: line_text.len(),
             });
-        let row_text = &line_text[seg.start_byte..seg.end_byte];
+        // Clamp segment to the (possibly substituted) text length. Should
+        // be a no-op in normal cases; just defensive.
+        let end_byte = seg.end_byte.min(line_text.len());
+        let start_byte = seg.start_byte.min(end_byte);
+        let row_text = &line_text[start_byte..end_byte];
         let col_in_row = pixel_to_col(row_text, adjusted_x, ascii_char_width);
         let byte_in_row = char_idx_to_byte(row_text, col_in_row);
         (visual_row, byte_in_row)
