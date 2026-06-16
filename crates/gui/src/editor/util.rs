@@ -1,4 +1,4 @@
-use gpui::{HighlightStyle, Pixels};
+use gpui::{Font, HighlightStyle, Pixels, TextRun, TextStyle};
 use unicode_width::UnicodeWidthChar;
 
 /// One visual row within a wrapped logical line.
@@ -198,6 +198,108 @@ pub fn pixel_to_col(line: &str, pixel_x: Pixels, ascii_w: f32) -> usize {
         col += 1;
     }
     col
+}
+
+/// Build a `TextRun` array suitable for `TextSystem::shape_line`, by
+/// layering the Editor's highlight list on top of the inherited text style.
+#[allow(dead_code)]
+///
+/// `base` is typically `window.text_style()` — so Heading rows that set
+/// `text_2xl()` etc. on the parent div automatically pick up the larger
+/// font here.
+///
+/// `text_len` is the UTF-8 byte length of the line text. Highlights that
+/// fall outside `[0, text_len)` are clamped.
+///
+/// Later highlights paint over earlier ones, matching `StyledText`'s
+/// `with_highlights` semantics.
+pub fn build_runs_from_highlights(
+    base: &TextStyle,
+    text_len: usize,
+    highlights: &[(std::ops::Range<usize>, HighlightStyle)],
+) -> Vec<TextRun> {
+    let base_run = TextRun {
+        len: text_len,
+        font: Font {
+            family: base.font_family.clone(),
+            weight: base.font_weight,
+            style: base.font_style,
+            features: base.font_features.clone(),
+            fallbacks: base.font_fallbacks.clone(),
+        },
+        color: base.color,
+        background_color: base.background_color,
+        underline: base.underline,
+        strikethrough: None,
+    };
+
+    if highlights.is_empty() || text_len == 0 {
+        return vec![base_run];
+    }
+
+    // Collect transition points (byte offsets where a highlight starts
+    // or ends) so we can split the line into a contiguous run list.
+    let mut boundaries: Vec<usize> = vec![0, text_len];
+    for (range, _) in highlights {
+        if range.start > 0 && range.start < text_len {
+            boundaries.push(range.start);
+        }
+        if range.end > 0 && range.end < text_len {
+            boundaries.push(range.end);
+        }
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let mut runs = Vec::new();
+    for win in boundaries.windows(2) {
+        let start = win[0];
+        let end = win[1];
+        if start >= end {
+            continue;
+        }
+        let mut run = base_run.clone();
+        run.len = end - start;
+        // Apply every highlight that fully covers this slice; the last one
+        // in the input list wins (mirrors StyledText::with_highlights).
+        for (range, style) in highlights {
+            if range.start <= start && range.end >= end {
+                apply_highlight_to_run(&mut run, style);
+            }
+        }
+        runs.push(run);
+    }
+
+    if runs.is_empty() {
+        vec![base_run]
+    } else {
+        runs
+    }
+}
+
+/// Apply a `HighlightStyle` to a `TextRun`, overriding only the fields the
+/// highlight specifies. Fields not set in the highlight retain the run's
+/// existing value (which came from the base text style).
+#[allow(dead_code)]
+fn apply_highlight_to_run(run: &mut TextRun, h: &HighlightStyle) {
+    if let Some(c) = h.color {
+        run.color = c;
+    }
+    if let Some(weight) = h.font_weight {
+        run.font.weight = weight;
+    }
+    if let Some(style) = h.font_style {
+        run.font.style = style;
+    }
+    if let Some(bg) = h.background_color {
+        run.background_color = Some(bg);
+    }
+    if let Some(u) = h.underline {
+        run.underline = Some(u);
+    }
+    if let Some(s) = h.strikethrough {
+        run.strikethrough = Some(s);
+    }
 }
 
 pub fn byte_to_utf16(text: &str, byte_pos: usize) -> usize {

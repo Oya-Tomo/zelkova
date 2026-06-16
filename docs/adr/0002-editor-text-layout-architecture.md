@@ -84,6 +84,21 @@ Patch `elements/text.rs` to make `TextLayout::line_layout_for_index` reachable f
 - ❌ Adds a forked dependency. Ongoing maintenance, version drift, security review.
 - ❌ Goes against the project's policy of using crates.io dependencies.
 
+### Option D (rejected): Per-highlight-block click handlers
+
+Instead of one Element per logical line, render each highlight block as its own clickable element (e.g. `div().flex_wrap()` with one `div + on_mouse_down` per highlight span). Clicks inside a block compute column via `pixel_to_col` using that block's actual font metrics; clicks outside any block fall through to the row handler and place the cursor at end-of-line.
+
+Raised during grill-me review of #162 PR 1.
+
+- ✅ Avoids the custom Element entirely.
+- ✅ Naturally handles font-size differences per block.
+- ✅ "Clicks outside a block → end-of-line" matches the user's mental model.
+- ❌ **Performance**: a 1000-line document with an average of 5 highlight blocks per line produces **5000 child divs and 5000 closures**. Every render frame re-builds them. Memory and layout cost scale linearly with document length × block density.
+- ❌ **Wrap layout**: `flex_wrap` wraps at block boundaries, not at word / CJK boundaries. Long blocks (Heading rows, URLs) get pushed to the next flex row wholesale, producing visually incorrect wrapping for Markdown paragraphs.
+- ❌ Still doesn't solve wrap-position correctness for non-highlighted plain-text paragraphs.
+
+**Why rejected**: The custom Element (Option B) achieves the same per-block accuracy by passing each highlight as a `TextRun` into `shape_line`. The resulting `ShapedLine::index_for_x(pixel_x)` returns the exact byte position directly — block-boundary detection is handled internally by GPUI with correct font metrics. Same accuracy, ~5× fewer elements, no `flex_wrap` breakage.
+
 ## Decision Outcome
 
 Chosen: **Option B — Custom `EditorLineElement`**.

@@ -1,6 +1,7 @@
 pub mod highlight;
 pub mod ime;
 pub mod input;
+pub mod layout;
 pub mod render;
 pub mod util;
 
@@ -11,8 +12,10 @@ pub use highlight::{
 pub use ime::ImeState;
 pub use zelkova_rope::Buffer;
 
+use std::cell::RefCell;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use chrono::Utc;
 use gpui::{
@@ -63,6 +66,15 @@ pub struct Editor {
     /// Cumulative Y offset for each line, accounting for image row heights.
     /// Computed during render, used by scroll_to_cursor.
     line_y_offsets: Vec<f32>,
+    /// Most recent per-logical-line layouts captured by `EditorLineElement`
+    /// during paint. Populated lazily — first frame after a text / wrap-width
+    /// change may have stale entries until paint runs.
+    #[allow(dead_code)]
+    pub(super) cached_line_layouts: Vec<layout::LayoutHandle>,
+    /// Container width captured by the hidden canvas during paint. Used as
+    /// the wrap width for `EditorLineElement`. `None` on the first frame.
+    #[allow(dead_code)]
+    pub(super) cached_wrap_width: layout::WrapWidthHandle,
 }
 
 impl Editor {
@@ -92,6 +104,8 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             line_y_offsets: Vec::new(),
+            cached_line_layouts: Vec::new(),
+            cached_wrap_width: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -131,6 +145,8 @@ impl Editor {
             scroll_handle: ScrollHandle::new(),
             wrap: true,
             line_y_offsets: Vec::new(),
+            cached_line_layouts: Vec::new(),
+            cached_wrap_width: Rc::new(RefCell::new(None)),
         })
     }
 
