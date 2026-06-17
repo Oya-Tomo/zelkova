@@ -436,7 +436,20 @@ impl Editor {
         } else {
             raw.to_string()
         };
-        let segments = self.line_wrap_segments(line);
+
+        // Pull the captured ShapedLine for each visual row. Each row's
+        // index_for_x gives the exact byte boundary at a pixel position —
+        // far more accurate than pixel_to_col's fixed-width assumption.
+        let (rows, segments) = match self.cached_line_layouts.get(line) {
+            Some(h) => {
+                let borrowed = h.borrow();
+                match borrowed.as_ref() {
+                    Some(l) => (l.rows.clone(), l.segments.clone()),
+                    None => (Vec::new(), Vec::new()),
+                }
+            }
+            None => (Vec::new(), Vec::new()),
+        };
 
         let line_h = 22.0_f32;
         let line_y_start = self.line_y_offsets.get(line).copied().unwrap_or(0.0);
@@ -451,26 +464,40 @@ impl Editor {
             visual_row = row_count - 1;
         }
 
+        // pixel_to_col expects a position relative to the line's left edge,
+        // but event.position is window-absolute. Subtract the scroll viewport's
+        // origin (and, when wrap=false, the horizontal scroll offset).
+        let viewport = self.scroll_handle.bounds();
+        let content_left = f32::from(viewport.origin.x);
         let adjusted_x = if self.wrap {
-            position.x
+            px(f32::from(position.x) - content_left)
         } else {
-            px(f32::from(position.x) - f32::from(self.scroll_handle.offset().x))
+            px(f32::from(position.x) - content_left - f32::from(self.scroll_handle.offset().x))
         };
 
-        let seg = segments
+        // Use ShapedLine::closest_index_for_x — it returns the byte
+        // boundary whose midpoint is nearest the click, so clicking on
+        // the right half of a character lands the cursor *after* it.
+        // (Plain index_for_x always returns the boundary at the glyph's
+        // left edge, which forced every click to land in front of a
+        // character regardless of which half was hit.)
+        let byte_in_row = rows
             .get(visual_row)
-            .cloned()
-            .unwrap_or(util::WrapSegment {
-                start_byte: 0,
-                end_byte: line_text.len(),
+            .map(|r| r.closest_index_for_x(adjusted_x))
+            .unwrap_or_else(|| {
+                let seg = segments
+                    .get(visual_row)
+                    .cloned()
+                    .unwrap_or(util::WrapSegment {
+                        start_byte: 0,
+                        end_byte: line_text.len(),
+                    });
+                let end_byte = seg.end_byte.min(line_text.len());
+                let start_byte = seg.start_byte.min(end_byte);
+                let row_text = &line_text[start_byte..end_byte];
+                let col_in_row = pixel_to_col(row_text, adjusted_x, ascii_char_width);
+                char_idx_to_byte(row_text, col_in_row)
             });
-        // Clamp segment to the (possibly substituted) text length. Should
-        // be a no-op in normal cases; just defensive.
-        let end_byte = seg.end_byte.min(line_text.len());
-        let start_byte = seg.start_byte.min(end_byte);
-        let row_text = &line_text[start_byte..end_byte];
-        let col_in_row = pixel_to_col(row_text, adjusted_x, ascii_char_width);
-        let byte_in_row = char_idx_to_byte(row_text, col_in_row);
         (visual_row, byte_in_row)
     }
 
