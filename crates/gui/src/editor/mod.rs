@@ -69,11 +69,9 @@ pub struct Editor {
     /// Most recent per-logical-line layouts captured by `EditorLineElement`
     /// during paint. Populated lazily — first frame after a text / wrap-width
     /// change may have stale entries until paint runs.
-    #[allow(dead_code)]
     pub(super) cached_line_layouts: Vec<layout::LayoutHandle>,
     /// Container width captured by the hidden canvas during paint. Used as
     /// the wrap width for `EditorLineElement`. `None` on the first frame.
-    #[allow(dead_code)]
     pub(super) cached_wrap_width: layout::WrapWidthHandle,
 }
 
@@ -356,6 +354,151 @@ impl Editor {
     pub(super) fn cache_edit(&mut self, start: usize, end: usize, new_text: &str) {
         self.cached_text.replace_range(start..end, new_text);
         self.rebuild_lines();
+    }
+
+    /// Return the wrap segments for a logical line, captured by the most
+    /// recent `EditorLineElement` paint. Empty on the first frame (before
+    /// any paint has run) or when `wrap = false`.
+    pub(super) fn line_wrap_segments(&self, line_idx: usize) -> Vec<util::WrapSegment> {
+        let borrowed = match self.cached_line_layouts.get(line_idx) {
+            Some(h) => h.borrow(),
+            None => return Vec::new(),
+        };
+        match borrowed.as_ref() {
+            Some(l) => l.segments.clone(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Convert a byte offset in `cached_text` into
+    /// `(line, visual_row, byte_in_row)`.
+    ///
+    /// `byte_in_row` is a byte offset relative to the start of the visual
+    /// row — useful for keeping the cursor's horizontal position stable
+    /// across ↑/↓ navigation.
+    pub(super) fn cursor_to_visual(&self) -> (usize, usize, usize) {
+        let (line, char_col) = self.byte_to_line_col(self.cursor_pos);
+        let line_text = self.line_text(line);
+        let byte_in_line = char_idx_to_byte(line_text, char_col);
+        let segments = self.line_wrap_segments(line);
+        let (row, byte_in_row) =
+            util::byte_to_visual_pos(byte_in_line, &segments).unwrap_or((0, byte_in_line));
+        (line, row, byte_in_row)
+    }
+
+    /// Inverse of `cursor_to_visual`: set `cursor_pos` from a
+    /// `(line, visual_row, byte_in_row)` triple. `byte_in_row` is clamped
+    /// to the target row's byte range, so ↑/↓ that would overshoot a
+    /// shorter row land at the row's end instead of overflowing.
+    pub(super) fn set_cursor_from_visual(
+        &mut self,
+        line: usize,
+        visual_row: usize,
+        byte_in_row: usize,
+    ) {
+        let segments = self.line_wrap_segments(line);
+        let byte_in_line = util::visual_pos_to_byte(visual_row, byte_in_row, &segments)
+            .unwrap_or(byte_in_row.min(self.line_text(line).len()));
+        // Convert byte-in-line back to the global byte position by walking
+        // the cached_text lines (same traversal as line_col_to_byte, but
+        // without the char-column detour).
+        let mut current_byte = 0;
+        for (idx, line_text) in self.cached_text.lines().enumerate() {
+            if idx == line {
+                self.cursor_pos = current_byte + byte_in_line.min(line_text.len());
+                return;
+            }
+            current_byte += line_text.len() + 1; // +1 for \n
+        }
+        // Fallback: end of text.
+        self.cursor_pos = self.cached_text.len();
+    }
+
+    /// Convert a mouse click position into `(visual_row, byte_in_row)`
+    /// within the given logical line.
+    ///
+    /// - `visual_row` comes from `(click_y - line_y_offset) / line_height`.
+    /// - `byte_in_row` comes from `pixel_to_col` applied to the visual
+    ///   row's substring (not the whole logical line — that was the bug
+    ///   in #98 where wrapped-row clicks landed at the wrong column).
+    pub(super) fn hit_test_visual_row(
+        &self,
+        line: usize,
+        position: gpui::Point<gpui::Pixels>,
+        ascii_char_width: f32,
+    ) -> (usize, usize) {
+        // Render replaces empty lines with " " so the line_div has a
+        // non-zero height. The captured segments are therefore based on
+        // " ", not "". Mirror that here to avoid out-of-bounds slicing.
+        let raw = self.line_text(line);
+        let line_text: String = if raw.is_empty() {
+            " ".to_string()
+        } else {
+            raw.to_string()
+        };
+
+        // Pull the captured ShapedLine for each visual row. Each row's
+        // index_for_x gives the exact byte boundary at a pixel position —
+        // far more accurate than pixel_to_col's fixed-width assumption.
+        let (rows, segments) = match self.cached_line_layouts.get(line) {
+            Some(h) => {
+                let borrowed = h.borrow();
+                match borrowed.as_ref() {
+                    Some(l) => (l.rows.clone(), l.segments.clone()),
+                    None => (Vec::new(), Vec::new()),
+                }
+            }
+            None => (Vec::new(), Vec::new()),
+        };
+
+        let line_h = 22.0_f32;
+        let line_y_start = self.line_y_offsets.get(line).copied().unwrap_or(0.0);
+        let click_y_in_line = f32::from(position.y) - line_y_start;
+        let mut visual_row = if click_y_in_line <= 0.0 {
+            0
+        } else {
+            (click_y_in_line / line_h).floor() as usize
+        };
+        let row_count = segments.len().max(1);
+        if visual_row >= row_count {
+            visual_row = row_count - 1;
+        }
+
+        // pixel_to_col expects a position relative to the line's left edge,
+        // but event.position is window-absolute. Subtract the scroll viewport's
+        // origin (and, when wrap=false, the horizontal scroll offset).
+        let viewport = self.scroll_handle.bounds();
+        let content_left = f32::from(viewport.origin.x);
+        let adjusted_x = if self.wrap {
+            px(f32::from(position.x) - content_left)
+        } else {
+            px(f32::from(position.x) - content_left - f32::from(self.scroll_handle.offset().x))
+        };
+
+        // Use ShapedLine::closest_index_for_x — it returns the byte
+        // boundary whose midpoint is nearest the click, so clicking on
+        // the right half of a character lands the cursor *after* it.
+        // (Plain index_for_x always returns the boundary at the glyph's
+        // left edge, which forced every click to land in front of a
+        // character regardless of which half was hit.)
+        let byte_in_row = rows
+            .get(visual_row)
+            .map(|r| r.closest_index_for_x(adjusted_x))
+            .unwrap_or_else(|| {
+                let seg = segments
+                    .get(visual_row)
+                    .cloned()
+                    .unwrap_or(util::WrapSegment {
+                        start_byte: 0,
+                        end_byte: line_text.len(),
+                    });
+                let end_byte = seg.end_byte.min(line_text.len());
+                let start_byte = seg.start_byte.min(end_byte);
+                let row_text = &line_text[start_byte..end_byte];
+                let col_in_row = pixel_to_col(row_text, adjusted_x, ascii_char_width);
+                char_idx_to_byte(row_text, col_in_row)
+            });
+        (visual_row, byte_in_row)
     }
 
     pub(super) fn invalidate_cache(&mut self) {
@@ -673,14 +816,26 @@ impl Editor {
                 cx.notify();
             }
             EditZone::Content => {
-                let (line, col) = self.byte_to_line_col(self.cursor_pos);
-                if line == 0 && self.frontmatter.is_some() {
+                let (line, visual_row, byte_in_row) = self.cursor_to_visual();
+                if visual_row > 0 {
+                    // Stay within the same logical line: move to previous row.
+                    self.set_cursor_from_visual(line, visual_row - 1, byte_in_row);
+                    self.scroll_to_cursor();
+                    cx.notify();
+                } else if line == 0 && self.frontmatter.is_some() {
                     self.edit_zone = EditZone::TagInput;
                     self.populate_tag_input();
-                    self.tag_input_cursor = col.min(self.tag_input.chars().count());
+                    let line_text = self.line_text(0);
+                    let char_col = (line_text[..byte_in_row.min(line_text.len())])
+                        .chars()
+                        .count();
+                    self.tag_input_cursor = char_col.min(self.tag_input.chars().count());
                     cx.notify();
                 } else if line > 0 {
-                    self.cursor_pos = self.line_col_to_byte(line - 1, col);
+                    // Cross to the previous logical line's last visual row.
+                    let prev_segments = self.line_wrap_segments(line - 1);
+                    let prev_last_row = prev_segments.len().saturating_sub(1);
+                    self.set_cursor_from_visual(line - 1, prev_last_row, byte_in_row);
                     self.scroll_to_cursor();
                     cx.notify();
                 }
@@ -706,9 +861,17 @@ impl Editor {
                 cx.notify();
             }
             EditZone::Content => {
-                let (line, col) = self.byte_to_line_col(self.cursor_pos);
-                if line + 1 < total_lines {
-                    self.cursor_pos = self.line_col_to_byte(line + 1, col);
+                let (line, visual_row, byte_in_row) = self.cursor_to_visual();
+                let segments = self.line_wrap_segments(line);
+                let row_count = segments.len().max(1);
+                if visual_row + 1 < row_count {
+                    // Stay within the same logical line: move to next row.
+                    self.set_cursor_from_visual(line, visual_row + 1, byte_in_row);
+                    self.scroll_to_cursor();
+                    cx.notify();
+                } else if line + 1 < total_lines {
+                    // Cross to the next logical line's first visual row.
+                    self.set_cursor_from_visual(line + 1, 0, byte_in_row);
                     self.scroll_to_cursor();
                     cx.notify();
                 }
@@ -989,15 +1152,9 @@ impl Render for Editor {
                         this.edit_zone = EditZone::Content;
                         this.dragging = true;
                         let click_line = line_idx;
-                        let line_text = this.line_text(click_line);
-                        let adjusted_x = if this.wrap {
-                            event.position.x
-                        } else {
-                            px(f32::from(event.position.x)
-                                - f32::from(this.scroll_handle.offset().x))
-                        };
-                        let click_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
-                        this.cursor_pos = this.line_col_to_byte(click_line, click_col);
+                        let (visual_row, byte_in_row) =
+                            this.hit_test_visual_row(click_line, event.position, ascii_char_width);
+                        this.set_cursor_from_visual(click_line, visual_row, byte_in_row);
                         this.selection = None;
                         cx.notify();
                     }),
@@ -1008,17 +1165,31 @@ impl Render for Editor {
                             return;
                         }
                         let move_line = line_idx;
+                        let (visual_row, byte_in_row) = this.hit_test_visual_row(
+                            move_line,
+                            gpui::Point {
+                                x: event.position.x,
+                                y: event.position.y,
+                            },
+                            ascii_char_width,
+                        );
+                        let segments = this.line_wrap_segments(move_line);
+                        let byte_in_line =
+                            util::visual_pos_to_byte(visual_row, byte_in_row, &segments)
+                                .unwrap_or(byte_in_row);
+                        let mut current_byte = 0;
                         let line_text = this.line_text(move_line);
-                        let adjusted_x = if this.wrap {
-                            event.position.x
-                        } else {
-                            px(f32::from(event.position.x)
-                                - f32::from(this.scroll_handle.offset().x))
-                        };
-                        let move_col = pixel_to_col(line_text, adjusted_x, ascii_char_width);
-                        let new_pos = this.line_col_to_byte(move_line, move_col);
-                        this.extend_selection(new_pos);
-                        cx.notify();
+                        for (idx, lt) in this.cached_text.lines().enumerate() {
+                            if idx == move_line {
+                                let new_pos = current_byte + byte_in_line.min(lt.len());
+                                this.extend_selection(new_pos);
+                                cx.notify();
+                                return;
+                            }
+                            current_byte += lt.len() + 1;
+                            let _ = lt;
+                        }
+                        let _ = line_text;
                     },
                 ));
 
